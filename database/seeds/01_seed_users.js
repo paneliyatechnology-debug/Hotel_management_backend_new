@@ -18,7 +18,7 @@ exports.seed = async function(knex) {
       status: 'ACTIVE',
       must_change_password: false,
       failed_login_attempts: 0,
-      is_deleted: false,
+      deleted_at: null,
     });
     console.log('[Seed] Admin user created: admin@hotel.com / Admin@123 (SUPER_ADMIN)');
   }

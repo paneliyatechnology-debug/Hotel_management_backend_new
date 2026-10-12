@@ -36,6 +36,16 @@ const MESSAGES = {
   PLAN_DELETED_SUCCESS: 'Subscription plan archived successfully.',
   PLAN_RETRIEVED_SUCCESS: 'Subscription plan retrieved successfully.',
   PLANS_RETRIEVED_SUCCESS: 'Subscription plans retrieved successfully.',
+  ROOM_TYPE_CREATED_SUCCESS: 'Room category created successfully.',
+  ROOM_TYPE_UPDATED_SUCCESS: 'Room category updated successfully.',
+  ROOM_TYPE_DELETED_SUCCESS: 'Room category deleted successfully.',
+  ROOM_TYPE_RETRIEVED_SUCCESS: 'Room category retrieved successfully.',
+  ROOM_TYPES_RETRIEVED_SUCCESS: 'Room categories retrieved successfully.',
+  ROOM_CREATED_SUCCESS: 'Physical room created successfully.',
+  ROOM_UPDATED_SUCCESS: 'Physical room updated successfully.',
+  ROOM_DELETED_SUCCESS: 'Physical room deleted successfully.',
+  ROOM_RETRIEVED_SUCCESS: 'Physical room retrieved successfully.',
+  ROOMS_RETRIEVED_SUCCESS: 'Physical rooms retrieved successfully.',
 };
 
 // ==========================================

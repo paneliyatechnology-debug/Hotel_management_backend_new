@@ -51,7 +51,7 @@ const authenticateUser = async (req, res, next) => {
       user.status === 'INACTIVE' ||
       user.status === 'BLOCKED' ||
       user.status === 'DELETED' ||
-      user.is_deleted
+      Boolean(user.deleted_at)
     ) {
       throw new AppError(
         user.status === 'INACTIVE'

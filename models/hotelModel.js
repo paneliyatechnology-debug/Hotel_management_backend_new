@@ -48,6 +48,13 @@ const formatHotel = (row) => {
     subscription_plan_active: row.subscription_plan_active !== undefined ? Boolean(row.subscription_plan_active) : (row.subscription_plan_status !== undefined ? Boolean(row.subscription_plan_status) : true),
     subscription_plan_start_date: row.subscription_plan_start_date || null,
     subscription_plan_end_date: row.subscription_plan_end_date || null,
+    subscription: {
+      planId: row.subscription_plan_id !== undefined ? row.subscription_plan_id : null,
+      active: row.subscription_plan_active !== undefined ? Boolean(row.subscription_plan_active) : (row.subscription_plan_status !== undefined ? Boolean(row.subscription_plan_status) : true),
+      startDate: row.subscription_plan_start_date || null,
+      endDate: row.subscription_plan_end_date || null,
+      autoRenew: Boolean(row.auto_renew),
+    },
     settings: {
       checkInTime: row.check_in_time || '14:00',
       checkOutTime: row.check_out_time || '12:00',
@@ -76,6 +83,7 @@ const formatHotel = (row) => {
     },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    deleted_at: row.deleted_at || null,
   };
 
   // If joined with users table, attach owner summary
@@ -97,7 +105,10 @@ const formatHotel = (row) => {
  * @returns {Promise<Object|null>}
  */
 const findHotelById = async (id) => {
-  const row = await db('hotels').where({ id, is_deleted: false }).first();
+  const row = await db('hotels')
+    .where({ id })
+    .whereNull('deleted_at')
+    .first();
   return formatHotel(row);
 };
 
@@ -108,7 +119,10 @@ const findHotelById = async (id) => {
  */
 const findHotelBySlug = async (slug) => {
   if (!slug) return null;
-  const row = await db('hotels').where({ slug: slug.trim().toLowerCase(), is_deleted: false }).first();
+  const row = await db('hotels')
+    .where({ slug: slug.trim().toLowerCase() })
+    .whereNull('deleted_at')
+    .first();
   return formatHotel(row);
 };
 
@@ -132,7 +146,9 @@ const findHotelByEmail = async (email) => {
   if (!email) return null;
   const row = await db('hotels')
     .join('users', 'hotels.owner_id', 'users.id')
-    .where({ 'users.email': email.trim().toLowerCase(), 'hotels.is_deleted': false })
+    .where({ 'users.email': email.trim().toLowerCase() })
+    .whereNull('hotels.deleted_at')
+    .whereNull('users.deleted_at')
     .select('hotels.*', 'users.name as owner_name', 'users.email as owner_email', 'users.phone as owner_phone')
     .first();
   return formatHotel(row);
@@ -154,6 +170,20 @@ const createHotel = async (data) => {
   return formatHotel(row);
 };
 
+/**
+ * Soft delete a hotel record by ID
+ * @param {number|string} id
+ * @returns {Promise<number>}
+ */
+const softDeleteHotel = async (id) => {
+  return db('hotels')
+    .where({ id })
+    .update({
+      deleted_at: new Date(),
+      updated_at: new Date(),
+    });
+};
+
 module.exports = {
   formatHotel,
   findHotelById,
@@ -161,4 +191,5 @@ module.exports = {
   slugExists,
   findHotelByEmail,
   createHotel,
+  softDeleteHotel,
 };

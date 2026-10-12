@@ -11,7 +11,8 @@ const db = require('../database/knex');
  */
 const findUserById = (id) => {
   return db('users')
-    .where({ id, is_deleted: false })
+    .where({ id })
+    .whereNull('deleted_at')
     .first();
 };
 
@@ -23,7 +24,8 @@ const findUserById = (id) => {
 const findUserByEmail = (email) => {
   if (!email) return null;
   return db('users')
-    .where({ email: email.toLowerCase().trim(), is_deleted: false })
+    .where({ email: email.toLowerCase().trim() })
+    .whereNull('deleted_at')
     .first();
 };
 
@@ -109,11 +111,26 @@ const updatePassword = (id, hashedPassword) => {
     });
 };
 
+/**
+ * Soft delete user record by ID
+ * @param {number|string} id
+ * @returns {Promise<number>}
+ */
+const softDeleteUser = (id) => {
+  return db('users')
+    .where({ id })
+    .update({
+      deleted_at: new Date(),
+      updated_at: new Date(),
+    });
+};
+
 module.exports = {
   findUserById,
   findUserByEmail,
   createUser,
   updateUser,
+  softDeleteUser,
   setFailedLoginAttempts,
   clearLockoutAndSetLogin,
   updatePassword,

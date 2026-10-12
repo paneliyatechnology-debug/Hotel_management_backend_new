@@ -38,7 +38,7 @@ const login = async (email, password, res) => {
     user.status === 'INACTIVE' ||
     user.status === 'BLOCKED' ||
     user.status === 'DELETED' ||
-    user.is_deleted
+    Boolean(user.deleted_at)
   ) {
     throw new AppError(
       user.status === 'INACTIVE'
@@ -137,7 +137,7 @@ const refreshToken = async (token, res) => {
     user.status === 'INACTIVE' ||
     user.status === 'BLOCKED' ||
     user.status === 'DELETED' ||
-    user.is_deleted
+    Boolean(user.deleted_at)
   ) {
     throw new AppError('Account is deactivated or disabled.', HTTP_STATUS.FORBIDDEN);
   }
@@ -180,7 +180,7 @@ const forgotPassword = async (email) => {
     user.status === 'INACTIVE' ||
     user.status === 'BLOCKED' ||
     user.status === 'DELETED' ||
-    user.is_deleted
+    Boolean(user.deleted_at)
   ) {
     throw new AppError('This account has been deactivated. Please contact your hotel administrator.', HTTP_STATUS.FORBIDDEN);
   }
