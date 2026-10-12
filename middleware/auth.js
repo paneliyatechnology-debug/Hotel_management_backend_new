@@ -48,15 +48,12 @@ const authenticateUser = async (req, res, next) => {
     }
 
     if (
-      user.status === 'INACTIVE' ||
-      user.status === 'BLOCKED' ||
-      user.status === 'DELETED' ||
+      user.is_active === false ||
+      user.is_active === 0 ||
       Boolean(user.deleted_at)
     ) {
       throw new AppError(
-        user.status === 'INACTIVE'
-          ? 'Your staff account has been deactivated by Hotel Administration.'
-          : 'Your account has been disabled. Please contact your Hotel Administrator.',
+        'Your account has been deactivated or disabled.',
         HTTP_STATUS.FORBIDDEN
       );
     }
@@ -94,7 +91,39 @@ const requireRole = (...roles) => {
   };
 };
 
+/**
+ * Optional Authenticator: populates req.user if valid token provided, continues without error otherwise.
+ */
+const optionalAuthenticate = async (req, res, next) => {
+  try {
+    let accessToken = req.cookies?.accessToken;
+    if (!accessToken && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      accessToken = req.headers.authorization.split(' ')[1];
+    }
+
+    if (accessToken) {
+      try {
+        const decoded = verifyAccessToken(accessToken);
+        const user = await userModel.findUserById(decoded.id);
+        if (
+          user &&
+          !user.deleted_at &&
+          user.status !== 'INACTIVE' &&
+          user.status !== 'BLOCKED' &&
+          user.status !== 'DELETED'
+        ) {
+          req.user = user;
+        }
+      } catch (_) {}
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   authenticateUser,
+  optionalAuthenticate,
   requireRole,
 };

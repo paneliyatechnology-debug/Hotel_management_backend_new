@@ -9,11 +9,13 @@
     "migrate": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
     "seed": "knex seed:run",
-    "test": "node tests/hotelRegistration.test.js && node tests/subscriptionPlan.test.js && node tests/roomType.test.js && node tests/physicalRoom.test.js",
+    "test": "node tests/hotelRegistration.test.js && node tests/subscriptionPlan.test.js && node tests/roomType.test.js && node tests/physicalRoom.test.js && node tests/booking.test.js && node tests/user.test.js",
     "test:hotels": "node tests/hotelRegistration.test.js",
     "test:plans": "node tests/subscriptionPlan.test.js",
     "test:room-types": "node tests/roomType.test.js",
-    "test:rooms": "node tests/physicalRoom.test.js"
+    "test:rooms": "node tests/physicalRoom.test.js",
+    "test:bookings": "node tests/booking.test.js",
+    "test:users": "node tests/user.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.758.0",

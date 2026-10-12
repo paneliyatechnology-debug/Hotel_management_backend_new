@@ -46,6 +46,16 @@ const MESSAGES = {
   ROOM_DELETED_SUCCESS: 'Physical room deleted successfully.',
   ROOM_RETRIEVED_SUCCESS: 'Physical room retrieved successfully.',
   ROOMS_RETRIEVED_SUCCESS: 'Physical rooms retrieved successfully.',
+  BOOKING_CREATED_SUCCESS: 'Booking created successfully.',
+  BOOKING_UPDATED_SUCCESS: 'Booking updated successfully.',
+  BOOKING_DELETED_SUCCESS: 'Booking deleted successfully.',
+  BOOKING_RETRIEVED_SUCCESS: 'Booking retrieved successfully.',
+  BOOKINGS_RETRIEVED_SUCCESS: 'Bookings retrieved successfully.',
+  USER_CREATED_SUCCESS: 'User created successfully.',
+  USER_UPDATED_SUCCESS: 'User updated successfully.',
+  USER_DELETED_SUCCESS: 'User deleted successfully.',
+  USER_RETRIEVED_SUCCESS: 'User retrieved successfully.',
+  USERS_RETRIEVED_SUCCESS: 'Users retrieved successfully.',
 };
 
 // ==========================================

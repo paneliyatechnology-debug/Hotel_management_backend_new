@@ -114,7 +114,7 @@ const runTests = async () => {
         email: 'test_super_admin@hotel.com',
         password: 'hashed_password_test',
         role: 'SUPER_ADMIN',
-        status: 'ACTIVE',
+        is_active: true,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -128,7 +128,7 @@ const runTests = async () => {
         email: 'test_hotel_admin@hotel.com',
         password: 'hashed_password_test',
         role: 'HOTEL_ADMIN',
-        status: 'ACTIVE',
+        is_active: true,
         created_at: new Date(),
         updated_at: new Date(),
       });

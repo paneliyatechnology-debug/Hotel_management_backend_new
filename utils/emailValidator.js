@@ -3,10 +3,9 @@
  */
 const userModel = require('../models/userModel');
 const hotelModel = require('../models/hotelModel');
-const guestModel = require('../models/guestModel');
 
 /**
- * Check if an email exists globally across Users, Hotel Owners, or Guests.
+ * Check if an email exists globally across Users or Hotel Owners.
  * @param {string} email - Email address to check
  * @param {Object} [options]
  * @param {string} [options.excludeModel] - Optional model name to exclude
@@ -31,14 +30,6 @@ const checkEmailExistsGlobally = async (email, options = {}) => {
   const hotel = await hotelModel.findHotelByEmail(cleanEmail);
   if (hotel) {
     if (!(excludeModel === 'Hotel' && String(hotel.id) === String(excludeId))) {
-      return true;
-    }
-  }
-
-  // 3. Check guests table
-  const guest = await guestModel.findGuestByEmail(cleanEmail);
-  if (guest) {
-    if (!(excludeModel === 'Guest' && String(guest.id) === String(excludeId))) {
       return true;
     }
   }

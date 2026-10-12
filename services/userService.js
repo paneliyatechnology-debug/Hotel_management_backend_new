@@ -1,0 +1,435 @@
+/**
+ * User Service.
+ * Implements business operations, validation, password hashing,
+ * role-based access control (RBAC), data isolation, self-protection guards,
+ * and soft deletion for User Management.
+ * Follows TradeNexa service architecture with consistent snake_case.
+ */
+const bcrypt = require('bcryptjs');
+const userModel = require('../models/userModel');
+const hotelModel = require('../models/hotelModel');
+const { AppError } = require('../utils/response');
+const { HTTP_STATUS, ROLE_CODES } = require('../constants');
+
+// Permitted staff roles that a HOTEL_ADMIN can manage
+const STAFF_ROLES = [
+  ROLE_CODES.RECEPTIONIST,
+  ROLE_CODES.MANAGER,
+  ROLE_CODES.HOUSEKEEPING,
+  ROLE_CODES.ACCOUNTANT,
+];
+
+// All valid system roles
+const ALL_ROLES = Object.values(ROLE_CODES);
+
+/**
+ * Format user record to strip password and maintain consistent snake_case
+ * @param {Object} user
+ * @returns {Object|null}
+ */
+const formatUserResponse = (user) => {
+  if (!user) return null;
+  const { password, ...safe_user } = user;
+
+  return {
+    ...safe_user,
+    is_active: Boolean(user.is_active),
+    must_change_password: Boolean(user.must_change_password),
+    failed_login_attempts: Number(user.failed_login_attempts) || 0,
+    deleted_at: user.deleted_at || null,
+    is_deleted: Boolean(user.deleted_at),
+    last_login_at: user.last_login_at || null,
+    created_at: user.created_at,
+    updated_at: user.updated_at,
+  };
+};
+
+/**
+ * Create a new user with validation, RBAC checks, and secure password hashing
+ * @param {Object} payload
+ * @param {Object} req_user
+ * @returns {Promise<Object>}
+ */
+const createUser = async (payload, req_user) => {
+  const email = (payload.email || '').toLowerCase();
+  if (!email) {
+    throw new AppError('Email address is required.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Check email uniqueness
+  const exists = await userModel.emailExists(email);
+  if (exists) {
+    throw new AppError('A user with this email already exists.', HTTP_STATUS.CONFLICT);
+  }
+
+  const role = String(payload.role || '').toUpperCase();
+  if (!ALL_ROLES.includes(role)) {
+    throw new AppError(
+      `Invalid role '${payload.role}'. Must be one of: ${ALL_ROLES.join(', ')}.`,
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+
+  let hotel_id = payload.hotel_id;
+
+  // RBAC checks
+  if (req_user.role === ROLE_CODES.HOTEL_ADMIN) {
+    // Hotel Admin cannot create SUPER_ADMIN or HOTEL_ADMIN
+    if (role === ROLE_CODES.SUPER_ADMIN || role === ROLE_CODES.HOTEL_ADMIN) {
+      throw new AppError(
+        'Hotel administrators are not permitted to create Super Admin or Hotel Admin accounts.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+
+    // Must be a staff role
+    if (!STAFF_ROLES.includes(role)) {
+      throw new AppError(
+        `Hotel administrators can only create staff roles: ${STAFF_ROLES.join(', ')}.`,
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+
+    // Force hotel isolation
+    hotel_id = req_user.hotel_id;
+  } else if (req_user.role === ROLE_CODES.SUPER_ADMIN) {
+    // Super Admin can create any role
+  } else {
+    // Other roles are not authorized to create users
+    throw new AppError(
+      `Access denied. Role '${req_user.role}' is not authorized to create users.`,
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
+  // If hotel_id is provided, verify hotel exists
+  if (hotel_id) {
+    const hotel = await hotelModel.findHotelById(hotel_id);
+    if (!hotel) {
+      throw new AppError(`Hotel with ID ${hotel_id} not found.`, HTTP_STATUS.BAD_REQUEST);
+    }
+  }
+
+  // Hash password securely with bcrypt (10 rounds)
+  if (!payload.password || typeof payload.password !== 'string' || payload.password.length < 6) {
+    throw new AppError('Password is required and must be at least 6 characters long.', HTTP_STATUS.BAD_REQUEST);
+  }
+  const hashed_password = await bcrypt.hash(payload.password, 10);
+
+  const is_active = payload.is_active !== undefined ? Boolean(payload.is_active) : true;
+  const must_change_password = payload.must_change_password !== undefined
+    ? Boolean(payload.must_change_password)
+    : false;
+
+  const user_data = {
+    name: payload.name ? payload.name.trim() : '',
+    email,
+    password: hashed_password,
+    phone: payload.phone ? payload.phone.trim() : '',
+    role,
+    hotel_id: hotel_id || null,
+    is_active,
+    must_change_password,
+    failed_login_attempts: 0,
+  };
+
+  const created_user = await userModel.createUser(user_data);
+  return formatUserResponse(created_user);
+};
+
+/**
+ * List users with pagination, sorting, search, and filters
+ * Applies hotel-level data isolation for HOTEL_ADMIN
+ * @param {Object} query
+ * @param {Object} req_user
+ * @returns {Promise<Object>}
+ */
+const getUsers = async (query = {}, req_user) => {
+  const filters = {
+    search: query.search,
+    role: query.role,
+    is_active: query.is_active,
+  };
+
+  // Hotel isolation
+  if (req_user.role === ROLE_CODES.HOTEL_ADMIN) {
+    filters.hotel_id = req_user.hotel_id;
+  } else if (req_user.role === ROLE_CODES.SUPER_ADMIN) {
+    if (query.hotel_id) {
+      filters.hotel_id = query.hotel_id;
+    }
+  } else {
+    throw new AppError(
+      `Access denied. Role '${req_user.role}' is not authorized to list users.`,
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
+  const pagination = {
+    page: query.page,
+    limit: query.limit,
+  };
+
+  const sorting = {
+    sort_by: query.sort_by || query.sortBy,
+    sort_order: query.sort_order || query.sortOrder,
+  };
+
+  const result = await userModel.findUsers(filters, pagination, sorting);
+  return {
+    ...result,
+    users: result.users.map((u) => formatUserResponse(u)),
+  };
+};
+
+/**
+ * Get a single user by ID
+ * Applies hotel-level data isolation
+ * @param {number|string} id
+ * @param {Object} req_user
+ * @returns {Promise<Object>}
+ */
+const getUserById = async (id, req_user) => {
+  const user = await userModel.findUserById(id);
+
+  if (!user || user.deleted_at) {
+    throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  // Hotel isolation for HOTEL_ADMIN
+  if (req_user.role === ROLE_CODES.HOTEL_ADMIN) {
+    if (user.hotel_id !== req_user.hotel_id || user.role === ROLE_CODES.SUPER_ADMIN) {
+      throw new AppError(
+        'Access denied. You do not have permission to view this user.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+  } else if (req_user.role !== ROLE_CODES.SUPER_ADMIN) {
+    if (String(user.id) !== String(req_user.id)) {
+      throw new AppError(
+        'Access denied. You do not have permission to view this user.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+  }
+
+  return formatUserResponse(user);
+};
+
+/**
+ * Update user details according to permissions
+ * Prevents updates to sensitive auth fields
+ * Guards against self-deactivation and last active super admin deactivation
+ * @param {number|string} id
+ * @param {Object} payload
+ * @param {Object} req_user
+ * @returns {Promise<Object>}
+ */
+const updateUser = async (id, payload, req_user) => {
+  const existing_user = await userModel.findUserById(id);
+
+  if (!existing_user || existing_user.deleted_at) {
+    throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  // Reject sensitive authentication field modifications via general update
+  const sensitive_fields = [
+    'password',
+    'failed_login_attempts',
+    'last_login_at',
+    'account_locked_until',
+    'password_changed_at',
+  ];
+
+  for (const field of sensitive_fields) {
+    if (payload[field] !== undefined) {
+      throw new AppError(
+        `Updates to sensitive authentication field '${field}' are not permitted via this endpoint.`,
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+  }
+
+  const is_self = String(req_user.id) === String(id);
+
+  const new_is_active = payload.is_active !== undefined ? Boolean(payload.is_active) : undefined;
+  const is_deactivating = new_is_active === false;
+
+  // Prevent users from deactivating their own account
+  if (is_self && is_deactivating) {
+    throw new AppError('You cannot deactivate your own account.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Prevent users from changing their own role
+  if (is_self && payload.role && payload.role.toUpperCase() !== req_user.role) {
+    throw new AppError('You cannot change your own role.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Last Active Super Admin Guard
+  if (existing_user.role === ROLE_CODES.SUPER_ADMIN) {
+    const is_changing_super_admin_role = payload.role && payload.role.toUpperCase() !== ROLE_CODES.SUPER_ADMIN;
+    if (is_deactivating || is_changing_super_admin_role) {
+      const active_super_admins = await userModel.countActiveSuperAdmins();
+      if (active_super_admins <= 1) {
+        throw new AppError(
+          'Cannot deactivate or change the role of the last active Super Administrator.',
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+    }
+  }
+
+  // RBAC checks for HOTEL_ADMIN
+  if (req_user.role === ROLE_CODES.HOTEL_ADMIN) {
+    // Hotel Admin cannot edit users of other hotels
+    if (existing_user.hotel_id !== req_user.hotel_id) {
+      throw new AppError(
+        'Access denied. You do not have permission to modify this user.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+
+    // Hotel Admin cannot modify SUPER_ADMIN or HOTEL_ADMIN accounts
+    if (existing_user.role === ROLE_CODES.SUPER_ADMIN || existing_user.role === ROLE_CODES.HOTEL_ADMIN) {
+      throw new AppError(
+        'Hotel administrators are not permitted to modify Super Admin or Hotel Admin accounts.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+
+    // Hotel Admin cannot assign SUPER_ADMIN or HOTEL_ADMIN role
+    if (payload.role) {
+      const target_role = payload.role.toUpperCase();
+      if (target_role === ROLE_CODES.SUPER_ADMIN || target_role === ROLE_CODES.HOTEL_ADMIN) {
+        throw new AppError(
+          'Unauthorized role assignment. Hotel administrators can only manage staff roles.',
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+      if (!STAFF_ROLES.includes(target_role)) {
+        throw new AppError(
+          `Hotel administrators can only assign staff roles: ${STAFF_ROLES.join(', ')}.`,
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+    }
+
+    // Cannot reassign hotel
+    if (payload.hotel_id !== undefined) {
+      if (Number(payload.hotel_id) !== Number(req_user.hotel_id)) {
+        throw new AppError(
+          'Hotel administrators cannot transfer users to another hotel.',
+          HTTP_STATUS.FORBIDDEN
+        );
+      }
+    }
+  } else if (req_user.role !== ROLE_CODES.SUPER_ADMIN) {
+    throw new AppError(
+      `Access denied. Role '${req_user.role}' is not authorized to update users.`,
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
+  // Validate email uniqueness if changing email (without trim)
+  let normalized_email;
+  if (payload.email) {
+    normalized_email = payload.email.toLowerCase();
+    if (normalized_email !== existing_user.email.toLowerCase()) {
+      const email_taken = await userModel.emailExists(normalized_email, id);
+      if (email_taken) {
+        throw new AppError('A user with this email already exists.', HTTP_STATUS.CONFLICT);
+      }
+    }
+  }
+
+  // Prepare sanitized update fields
+  const updates = {};
+
+  if (payload.name !== undefined) updates.name = payload.name.trim();
+  if (normalized_email !== undefined) updates.email = normalized_email;
+  if (payload.phone !== undefined) updates.phone = payload.phone.trim();
+  if (payload.role !== undefined) updates.role = payload.role.toUpperCase();
+  if (new_is_active !== undefined) updates.is_active = new_is_active;
+
+  if (payload.must_change_password !== undefined) {
+    updates.must_change_password = Boolean(payload.must_change_password);
+  }
+
+  // Super Admin can reassign hotel
+  if (req_user.role === ROLE_CODES.SUPER_ADMIN) {
+    if (payload.hotel_id !== undefined) updates.hotel_id = payload.hotel_id;
+  }
+
+  await userModel.updateUser(id, updates);
+  const updated_user = await userModel.findUserById(id);
+  return formatUserResponse(updated_user);
+};
+
+/**
+ * Soft-delete a user by ID
+ * Sets deleted_at, is_active: false
+ * Guards against self-deletion and deleting the last active Super Admin
+ * @param {number|string} id
+ * @param {Object} req_user
+ * @returns {Promise<Object>}
+ */
+const deleteUser = async (id, req_user) => {
+  const existing_user = await userModel.findUserById(id);
+
+  if (!existing_user || existing_user.deleted_at) {
+    throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  // Prevent users from deleting their own account
+  if (String(req_user.id) === String(id)) {
+    throw new AppError('You cannot delete your own account.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Last Active Super Admin Guard
+  if (existing_user.role === ROLE_CODES.SUPER_ADMIN) {
+    const active_super_admins = await userModel.countActiveSuperAdmins();
+    if (active_super_admins <= 1) {
+      throw new AppError(
+        'Cannot delete the last active Super Administrator.',
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+  }
+
+  // RBAC checks for HOTEL_ADMIN
+  if (req_user.role === ROLE_CODES.HOTEL_ADMIN) {
+    // Cannot delete users outside their hotel
+    if (existing_user.hotel_id !== req_user.hotel_id) {
+      throw new AppError(
+        'Access denied. You do not have permission to delete this user.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+
+    // Cannot delete SUPER_ADMIN or HOTEL_ADMIN
+    if (existing_user.role === ROLE_CODES.SUPER_ADMIN || existing_user.role === ROLE_CODES.HOTEL_ADMIN) {
+      throw new AppError(
+        'Hotel administrators are not permitted to delete Super Admin or Hotel Admin accounts.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+  } else if (req_user.role !== ROLE_CODES.SUPER_ADMIN) {
+    throw new AppError(
+      `Access denied. Role '${req_user.role}' is not authorized to delete users.`,
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
+  await userModel.softDeleteUser(id);
+  return { id: Number(id), is_deleted: true, isDeleted: true };
+};
+
+module.exports = {
+  STAFF_ROLES,
+  ALL_ROLES,
+  createUser,
+  getUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+};

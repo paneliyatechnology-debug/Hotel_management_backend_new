@@ -160,7 +160,7 @@ const setupTestData = async () => {
       password: 'test_password_hash',
       phone: '+919876543220',
       role: 'HOTEL_ADMIN',
-      status: 'ACTIVE',
+      is_active: true,
       created_at: new Date(),
       updated_at: new Date(),
     });

@@ -1,11 +1,12 @@
 /**
  * User database operations using Knex.
  * Follows TradeNexa model layer pattern.
+ * Uses consistent snake_case.
  */
 const db = require('../database/knex');
 
 /**
- * Find user by ID
+ * Find user by ID (excludes soft-deleted)
  * @param {number|string} id
  * @returns {Promise<Object>}
  */
@@ -17,16 +18,48 @@ const findUserById = (id) => {
 };
 
 /**
- * Find user by email
+ * Find user by email (excludes soft-deleted)
  * @param {string} email
  * @returns {Promise<Object>}
  */
 const findUserByEmail = (email) => {
   if (!email) return null;
   return db('users')
-    .where({ email: email.toLowerCase().trim() })
+    .where({ email: email.toLowerCase() })
     .whereNull('deleted_at')
     .first();
+};
+
+/**
+ * Check if an email exists among non-deleted users
+ * @param {string} email
+ * @param {number|string} [excludeId=null]
+ * @returns {Promise<boolean>}
+ */
+const emailExists = async (email, excludeId = null) => {
+  if (!email) return false;
+  let qb = db('users')
+    .where({ email: email.toLowerCase() })
+    .whereNull('deleted_at');
+  if (excludeId) {
+    qb = qb.whereNot({ id: excludeId });
+  }
+  const row = await qb.select('id').first();
+  return Boolean(row);
+};
+
+/**
+ * Count active super administrators
+ * @returns {Promise<number>}
+ */
+const countActiveSuperAdmins = async () => {
+  const result = await db('users')
+    .where({ role: 'SUPER_ADMIN' })
+    .whereNull('deleted_at')
+    .where('is_active', true)
+    .count('id as count')
+    .first();
+  return Number(result?.count || 0);
 };
 
 /**
@@ -35,8 +68,12 @@ const findUserByEmail = (email) => {
  * @returns {Promise<Object>}
  */
 const createUser = async (userData) => {
+  const { status, employee_id, ...cleanUserData } = userData;
+  const is_active = cleanUserData.is_active !== undefined ? Boolean(cleanUserData.is_active) : true;
+
   const [id] = await db('users').insert({
-    ...userData,
+    ...cleanUserData,
+    is_active,
     created_at: new Date(),
     updated_at: new Date(),
   });
@@ -51,10 +88,11 @@ const createUser = async (userData) => {
  * @returns {Promise<number>}
  */
 const updateUser = (id, updates) => {
+  const { status, employee_id, ...cleanUpdates } = updates;
   return db('users')
     .where({ id })
     .update({
-      ...updates,
+      ...cleanUpdates,
       updated_at: new Date(),
     });
 };
@@ -121,13 +159,82 @@ const softDeleteUser = (id) => {
     .where({ id })
     .update({
       deleted_at: new Date(),
+      is_active: false,
       updated_at: new Date(),
     });
+};
+
+/**
+ * Find users with pagination, filters, and search
+ * Always excludes soft-deleted users.
+ *
+ * @param {Object} [filters={}]
+ * @param {Object} [pagination={ page: 1, limit: 10 }]
+ * @param {Object} [sorting={ sort_by: 'created_at', sort_order: 'desc' }]
+ * @returns {Promise<{ users: Object[], total: number, page: number, limit: number, total_pages: number }>}
+ */
+const findUsers = async (filters = {}, pagination = {}, sorting = {}) => {
+  const page = Math.max(1, Number(pagination.page) || 1);
+  const limit = Math.max(1, Math.min(100, Number(pagination.limit) || 10));
+  const offset = (page - 1) * limit;
+
+  const validSortFields = ['id', 'name', 'email', 'role', 'is_active', 'created_at', 'updated_at', 'last_login_at'];
+  let sortField = sorting.sort_by || sorting.sortBy || 'created_at';
+  if (!validSortFields.includes(sortField)) sortField = 'created_at';
+  const sortOrder = String(sorting.sort_order || sorting.sortOrder || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+  const applyFilters = (qb) => {
+    qb.whereNull('users.deleted_at');
+
+    if (filters.role) {
+      qb.where('users.role', String(filters.role).toUpperCase());
+    }
+
+    if (filters.is_active !== undefined && filters.is_active !== null && filters.is_active !== '') {
+      const activeBool = filters.is_active === true || filters.is_active === 'true' || filters.is_active === 1 || filters.is_active === '1';
+      qb.where('users.is_active', activeBool);
+    }
+
+    if (filters.hotel_id) {
+      qb.where('users.hotel_id', Number(filters.hotel_id));
+    }
+
+    if (filters.search) {
+      const s = `%${String(filters.search)}%`;
+      qb.where(function () {
+        this.where('users.name', 'like', s)
+          .orWhere('users.email', 'like', s)
+          .orWhere('users.phone', 'like', s);
+      });
+    }
+  };
+
+  const countQuery = db('users');
+  applyFilters(countQuery);
+  const totalResult = await countQuery.count('users.id as total').first();
+  const total = Number(totalResult?.total || 0);
+
+  let dataQuery = db('users');
+  applyFilters(dataQuery);
+  dataQuery = dataQuery.orderBy(`users.${sortField}`, sortOrder).offset(offset).limit(limit);
+
+  const users = await dataQuery;
+
+  return {
+    users,
+    total,
+    page,
+    limit,
+    total_pages: Math.ceil(total / limit) || 1,
+  };
 };
 
 module.exports = {
   findUserById,
   findUserByEmail,
+  emailExists,
+  findUsers,
+  countActiveSuperAdmins,
   createUser,
   updateUser,
   softDeleteUser,

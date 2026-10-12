@@ -318,12 +318,11 @@ const getProfile = async (userId) => {
     email: user.email,
     phone: user.phone || '',
     role: user.role,
-    employeeId: user.employee_id || '',
-    status: user.status,
-    mustChangePassword: Boolean(user.must_change_password),
-    lastLoginAt: user.last_login_at,
-    createdAt: user.created_at,
-    updatedAt: user.updated_at,
+    is_active: Boolean(user.is_active),
+    must_change_password: Boolean(user.must_change_password),
+    last_login_at: user.last_login_at,
+    created_at: user.created_at,
+    updated_at: user.updated_at,
   };
 };
 
