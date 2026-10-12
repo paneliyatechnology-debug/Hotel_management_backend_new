@@ -28,6 +28,21 @@ const findUserByEmail = (email) => {
 };
 
 /**
+ * Create a new user record
+ * @param {Object} userData
+ * @returns {Promise<Object>}
+ */
+const createUser = async (userData) => {
+  const [id] = await db('users').insert({
+    ...userData,
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+
+  return db('users').where({ id }).first();
+};
+
+/**
  * Update user record by ID
  * @param {number|string} id
  * @param {Object} updates
@@ -97,6 +112,7 @@ const updatePassword = (id, hashedPassword) => {
 module.exports = {
   findUserById,
   findUserByEmail,
+  createUser,
   updateUser,
   setFailedLoginAttempts,
   clearLockoutAndSetLogin,

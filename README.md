@@ -85,6 +85,7 @@ Base endpoints are mounted under both `/api/v1` and `/api`:
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/hotel/register` | Register new hotel & activate 30-day trial | No |
 | `POST` | `/api/v1/auth/login` | Login with email & password (sets HTTP-only cookies) | No |
 | `POST` | `/api/v1/auth/refresh-token` | Rotate access token using `refreshToken` cookie | No (reads cookie) |
 | `POST` | `/api/v1/auth/logout` | Clear session cookies | No |
@@ -93,6 +94,12 @@ Base endpoints are mounted under both `/api/v1` and `/api`:
 | `POST` | `/api/v1/auth/reset-password` | Reset password using `{ token, password }` | No |
 | `PUT` | `/api/v1/auth/change-password` | Change password for logged-in user | Yes (cookie / Bearer) |
 | `GET` | `/api/v1/auth/me` | Fetch authenticated user profile | Yes (cookie / Bearer) |
+| `GET` | `/api/v1/subscription-plans` | List active plans (supports cycle, popularity filters & pagination) | No |
+| `GET` | `/api/v1/subscription-plans/:id` | Get single subscription plan details with features | No |
+| `POST` | `/api/v1/subscription-plans` | Create subscription plan with synchronized features | Yes (`SUPER_ADMIN`) |
+| `PUT` | `/api/v1/subscription-plans/:id` | Partial update plan details & synchronize features | Yes (`SUPER_ADMIN`) |
+| `DELETE` | `/api/v1/subscription-plans/:id` | Soft-delete plan (sets `deleted_at`) | Yes (`SUPER_ADMIN`) |
+| `POST` | `/api/v1/subscription-plans/reset-defaults` | Restore standard 6 default enterprise plans | Yes (`SUPER_ADMIN`) |
 | `GET` | `/health` | Server and database health check | No |
 
 ---

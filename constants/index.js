@@ -30,6 +30,12 @@ const MESSAGES = {
   PASSWORD_RESET_SUCCESS: 'Password reset successfully! You can now log in with your new password.',
   PASSWORD_CHANGED_SUCCESS: 'Password changed successfully.',
   PROFILE_RETRIEVED: 'User profile retrieved successfully.',
+  HOTEL_REGISTERED_SUCCESS: 'Hotel registered and activated with 30-Day Free Trial! Your login credentials have been set.',
+  PLAN_CREATED_SUCCESS: 'Subscription plan created successfully.',
+  PLAN_UPDATED_SUCCESS: 'Subscription plan updated successfully.',
+  PLAN_DELETED_SUCCESS: 'Subscription plan archived successfully.',
+  PLAN_RETRIEVED_SUCCESS: 'Subscription plan retrieved successfully.',
+  PLANS_RETRIEVED_SUCCESS: 'Subscription plans retrieved successfully.',
 };
 
 // ==========================================

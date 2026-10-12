@@ -8,15 +8,20 @@
     "dev": "nodemon server.js",
     "migrate": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
-    "seed": "knex seed:run"
+    "seed": "knex seed:run",
+    "test": "node tests/hotelRegistration.test.js && node tests/subscriptionPlan.test.js",
+    "test:hotels": "node tests/hotelRegistration.test.js",
+    "test:plans": "node tests/subscriptionPlan.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "bullmq": "^6.3.12",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-validator": "^7.2.1",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
     "knex": "^3.1.0",
     "mysql2": "^3.12.0",

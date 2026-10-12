@@ -5,6 +5,7 @@
 const nodemailer = require('nodemailer');
 const {
   passwordResetLinkTemplate,
+  hotelRegisteredWelcomeTemplate,
 } = require('../templates/emailTemplates');
 
 /**
@@ -99,8 +100,34 @@ const sendPasswordResetLinkEmail = async (to, userName, resetUrl, expiryMinutes 
   });
 };
 
+/**
+ * Send Hotel Registration Welcome Email with Free Trial details
+ * @param {Object} data
+ * @param {string} data.hotelName
+ * @param {string} data.ownerName
+ * @param {string} data.adminEmail
+ * @param {string} [data.temporaryPassword]
+ * @param {string} [data.setupUrl]
+ * @param {string} [data.portalUrl]
+ * @param {string} data.trialStartDate
+ * @param {string} data.trialEndDate
+ * @returns {Promise<Object>}
+ */
+const sendHotelRegisteredEmail = async (data) => {
+  const htmlContent = hotelRegisteredWelcomeTemplate(data);
+  const portalUrl = data.portalUrl || process.env.ADMIN_URL || 'https://hotel-management-admin-livid.vercel.app/login';
+
+  return sendEmail({
+    to: data.adminEmail,
+    subject: `🎉 Congratulations! ${data.hotelName} Registered - Your Admin Access & Free Trial`,
+    html: htmlContent,
+    text: `Congratulations ${data.ownerName}!\n\nYour property ${data.hotelName} has been successfully registered on The Grand Royale Cloud.\nAdmin Email: ${data.adminEmail}\nTrial Period: ${data.trialStartDate} to ${data.trialEndDate}\nPortal URL: ${portalUrl}\n\nPlease check your email client for the full access pass and password setup instructions.`,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendPasswordResetLinkEmail,
+  sendHotelRegisteredEmail,
   maskEmail,
 };

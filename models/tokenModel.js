@@ -1,5 +1,6 @@
 /**
  * Password Reset Token database operations using Knex.
+ * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
 
@@ -23,7 +24,6 @@ const createResetToken = ({ userId, token, expiresAt }) => {
   return db('password_reset_tokens').insert({
     user_id: userId,
     token,
-    otp: 'N/A', // Set default value for DB schema non-null constraint
     expires_at: expiresAt,
     used: false,
   });

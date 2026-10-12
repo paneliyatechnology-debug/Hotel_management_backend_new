@@ -26,8 +26,17 @@ const errorHandler = (err, req, res, _next) => {
     message = 'Duplicate entry found';
 
     const sqlMsg = err.sqlMessage || '';
-    if (sqlMsg.includes('users_email_unique') || sqlMsg.includes('users.email')) {
+    if (
+      sqlMsg.includes('users_email_unique') ||
+      sqlMsg.includes('users.email') ||
+      sqlMsg.includes('hotels_owner_email_unique') ||
+      sqlMsg.includes('owner_email')
+    ) {
       message = 'An account with this email already exists';
+    } else if (sqlMsg.includes('hotels_slug_unique') || sqlMsg.includes('slug')) {
+      message = 'A hotel with this slug already exists';
+    } else if (sqlMsg.includes('subscription_plans_code_unique') || sqlMsg.includes('subscription_plans.code')) {
+      message = 'A subscription plan with this code already exists';
     } else if (sqlMsg.includes('unique')) {
       const match = sqlMsg.match(/key '([^']+)'/);
       if (match && match[1]) {
