@@ -9,9 +9,7 @@ const {
   validate,
   loginValidator,
   forgotPasswordValidator,
-  verifyTokenValidator,
   resetPasswordValidator,
-  changePasswordValidator,
 } = require('../middleware/validation');
 
 const router = express.Router();
@@ -26,15 +24,12 @@ router.post('/logout', authController.logout);
 
 // Forgot Password & Token-based Reset
 router.post('/forgot-password', forgotPasswordValidator, validate, authController.forgotPassword);
-router.get('/verify-token', verifyTokenValidator, validate, authController.verifyResetToken);
-router.post('/verify-token', verifyTokenValidator, validate, authController.verifyResetToken);
 router.post('/reset-password', resetPasswordValidator, validate, authController.resetPassword);
 
 // ==========================================
 // Protected Routes
 // ==========================================
 
-router.put('/change-password', authenticateUser, changePasswordValidator, validate, authController.changePassword);
 router.get('/me', authenticateUser, authController.getMe);
 
 module.exports = router;

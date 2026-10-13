@@ -6,6 +6,7 @@ const nodemailer = require('nodemailer');
 const {
   passwordResetLinkTemplate,
   hotelRegisteredWelcomeTemplate,
+  staffUserWelcomeTemplate,
 } = require('../templates/emailTemplates');
 
 /**
@@ -119,9 +120,33 @@ const sendHotelRegisteredEmail = async (data) => {
 
   return sendEmail({
     to: data.adminEmail,
-    subject: `🎉 Congratulations! ${data.hotelName} Registered - Your Admin Access & Free Trial`,
+    subject: `🎉 Congratulations! ${data.hotelName} Registered - Your Admin Temporary Password & Password Setup Link`,
     html: htmlContent,
-    text: `Congratulations ${data.ownerName}!\n\nYour property ${data.hotelName} has been successfully registered on The Grand Royale Cloud.\nAdmin Email: ${data.adminEmail}\nTrial Period: ${data.trialStartDate} to ${data.trialEndDate}\nPortal URL: ${portalUrl}\n\nPlease check your email client for the full access pass and password setup instructions.`,
+    text: `Congratulations ${data.ownerName}!\n\nYour property ${data.hotelName} has been successfully registered on The Grand Royale Cloud.\n\nAdmin Email: ${data.adminEmail}\nTemporary Password: ${data.temporaryPassword}\nPassword Reset Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\nTrial Period: ${data.trialStartDate} to ${data.trialEndDate}\n\nPlease use your temporary password to log in or click the password reset link above to set your permanent password.`,
+  });
+};
+
+/**
+ * Send Staff Member Welcome Email with Temporary Password and Password Reset Link
+ * @param {Object} data
+ * @param {string} data.userName
+ * @param {string} data.email
+ * @param {string} data.role
+ * @param {string} data.hotelName
+ * @param {string} [data.temporaryPassword]
+ * @param {string} [data.setupUrl]
+ * @param {string} [data.portalUrl]
+ * @returns {Promise<Object>}
+ */
+const sendStaffUserCreatedEmail = async (data) => {
+  const htmlContent = staffUserWelcomeTemplate(data);
+  const portalUrl = data.portalUrl || process.env.ADMIN_URL || 'https://hotel-management-admin-livid.vercel.app/login';
+
+  return sendEmail({
+    to: data.email,
+    subject: `🎉 Welcome to ${data.hotelName} - Your Staff Login Password & Account Setup Link`,
+    html: htmlContent,
+    text: `Hello ${data.userName},\n\nYour staff account (${data.role}) has been created for ${data.hotelName}.\n\nLogin Email: ${data.email}\nTemporary Password: ${data.temporaryPassword}\nPassword Reset Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\n\nPlease use your temporary password to log in or click the password reset link above to set your permanent password.`,
   });
 };
 
@@ -129,5 +154,6 @@ module.exports = {
   sendEmail,
   sendPasswordResetLinkEmail,
   sendHotelRegisteredEmail,
+  sendStaffUserCreatedEmail,
   maskEmail,
 };

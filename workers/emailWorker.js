@@ -2,7 +2,11 @@
  * Email Queue Worker.
  * Processes transactional email jobs dispatched through BullMQ or the in-memory fallback queue.
  */
-const { sendHotelRegisteredEmail, maskEmail } = require('../services/emailService');
+const {
+  sendHotelRegisteredEmail,
+  sendStaffUserCreatedEmail,
+  maskEmail,
+} = require('../services/emailService');
 
 const EMAIL_QUEUE_NAME = 'email_queue';
 
@@ -20,6 +24,12 @@ const processEmailJob = async (job) => {
       return await sendHotelRegisteredEmail({
         ...data,
         adminEmail: to,
+      });
+
+    case 'STAFF_USER_CREATED':
+      return await sendStaffUserCreatedEmail({
+        ...data,
+        email: to,
       });
 
     default:

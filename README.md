@@ -85,22 +85,63 @@ Base endpoints are mounted under both `/api/v1` and `/api`:
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/hotel/register` | Register new hotel & activate 30-day trial | No |
-| `POST` | `/api/v1/auth/login` | Login with email & password (sets HTTP-only cookies) | No |
-| `POST` | `/api/v1/auth/refresh-token` | Rotate access token using `refreshToken` cookie | No (reads cookie) |
+| `GET` | `/health` | Server health check | No |
+| `GET` | `/api/health` | API namespace health check | No |
+| `POST` | `/api/v1/auth/login` | Login with email & password (sets HTTP-only cookies & returns Bearer token) | No |
+| `POST` | `/api/v1/auth/refresh-token` | Rotate access token using `refreshToken` cookie / body | No (reads cookie) |
 | `POST` | `/api/v1/auth/logout` | Clear session cookies | No |
 | `POST` | `/api/v1/auth/forgot-password` | Generate & email secure reset link with CTA button | No |
-| `GET` | `/api/v1/auth/verify-token` | Validate single-use reset token from query/body | No |
 | `POST` | `/api/v1/auth/reset-password` | Reset password using `{ token, password }` | No |
-| `PUT` | `/api/v1/auth/change-password` | Change password for logged-in user | Yes (cookie / Bearer) |
 | `GET` | `/api/v1/auth/me` | Fetch authenticated user profile | Yes (cookie / Bearer) |
+| `POST` | `/api/v1/hotel/register` | Register new hotel & activate 30-day trial (alias `/hotels/register`) | No |
 | `GET` | `/api/v1/subscription-plans` | List active plans (supports cycle, popularity filters & pagination) | No |
 | `GET` | `/api/v1/subscription-plans/:id` | Get single subscription plan details with features | No |
 | `POST` | `/api/v1/subscription-plans` | Create subscription plan with synchronized features | Yes (`SUPER_ADMIN`) |
 | `PUT` | `/api/v1/subscription-plans/:id` | Partial update plan details & synchronize features | Yes (`SUPER_ADMIN`) |
 | `DELETE` | `/api/v1/subscription-plans/:id` | Soft-delete plan (sets `deleted_at`) | Yes (`SUPER_ADMIN`) |
 | `POST` | `/api/v1/subscription-plans/reset-defaults` | Restore standard 6 default enterprise plans | Yes (`SUPER_ADMIN`) |
-| `GET` | `/health` | Server and database health check | No |
+| `GET` | `/api/v1/room-types` | List active room categories (optional `hotel_id` filter) | No |
+| `GET` | `/api/v1/room-types/:id` | Get single room category with photos | No |
+| `POST` | `/api/v1/room-types` | Create room category with S3 photo uploads | No |
+| `PUT` | `/api/v1/room-types/:id` | Update room category details | No |
+| `DELETE` | `/api/v1/room-types/:id` | Safely delete room category (checks assigned physical rooms) | No |
+| `POST` | `/api/v1/rooms` | Create physical room with composite floor uniqueness & S3 media | No |
+| `GET` | `/api/v1/rooms` | List rooms with filters (`hotel_id`, `floor`, `room_type_id`, `status`, pagination) | No |
+| `GET` | `/api/v1/rooms/:id` | Get single physical room by ID | No |
+| `PUT` | `/api/v1/rooms/:id` | Update physical room details | No |
+| `DELETE` | `/api/v1/rooms/:id` | Soft-delete physical room | No |
+| `POST` | `/api/v1/bookings` | Create booking (overlap guard, tax/GST calculations, S3 media) | Optional |
+| `GET` | `/api/v1/bookings` | List bookings (filters: `hotel_id`, `room_id`, `payment_status`, dates, search) | Optional |
+| `GET` | `/api/v1/bookings/:id` | Get complete booking details by ID | Optional |
+| `PUT` | `/api/v1/bookings/:id` | Update booking details & auto recalculate financial totals | Optional |
+| `DELETE` | `/api/v1/bookings/:id` | Soft-delete booking (releases room availability) | Optional |
+| `POST` | `/api/v1/users` | Create staff member (`RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT`) | Yes (`HOTEL_ADMIN` / `SUPER_ADMIN`) |
+| `GET` | `/api/v1/users` | List staff members with pagination, sorting, and search | Yes (`HOTEL_ADMIN` / `SUPER_ADMIN`) |
+| `GET` | `/api/v1/users/:id` | Get staff member details by ID | Yes (`HOTEL_ADMIN` / `SUPER_ADMIN`) |
+| `PUT` | `/api/v1/users/:id` | Update staff member details | Yes (`HOTEL_ADMIN` / `SUPER_ADMIN`) |
+| `DELETE` | `/api/v1/users/:id` | Soft-delete staff member (prevents self-deletion) | Yes (`HOTEL_ADMIN` / `SUPER_ADMIN`) |
+
+---
+
+## 📬 Postman Collection
+
+A complete, production-grade Postman collection is ready to import at:
+- **File:** `postman_collection.json` (Collection Schema v2.1.0)
+- **Regenerate Command:** `npm run generate:postman`
+
+### How to Import & Use:
+1. Open **Postman**.
+2. Click **Import** (top-left) -> select `d:/Hotal_Management_Backend/postman_collection.json`.
+3. The collection is organized into 8 modular folders:
+   - `1. Health & System Diagnostics`
+   - `2. Authentication`
+   - `3. Hotel Onboarding & Registration`
+   - `4. Subscription Plans`
+   - `5. Room Types (Categories)`
+   - `6. Physical Rooms`
+   - `7. Bookings Management`
+   - `8. User & Staff Management`
+4. **Auto-Token Propagation:** Execute **Login User** or **Register New Hotel**; the test scripts automatically save `accessToken`, `refreshToken`, and `hotelId` to collection variables so protected endpoints work instantly without manual copy-pasting!
 
 ---
 
@@ -113,6 +154,9 @@ npm run seed
 
 # 2. Start development server
 npm run dev
+
+# 3. Run all automated test suites
+npm test
 ```
 
 *Initial Seeded Account:*

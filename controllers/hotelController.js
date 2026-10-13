@@ -14,7 +14,7 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const registerHotel = async (req, res, next) => {
   try {
-    const data = await hotelService.registerHotel(req.body, res);
+    const data = await hotelService.registerHotel(req.body, res, req.files);
     return success(
       res,
       MESSAGES.HOTEL_REGISTERED_SUCCESS,

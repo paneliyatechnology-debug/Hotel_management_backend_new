@@ -246,9 +246,12 @@ const hotelRegisteredWelcomeTemplate = (data) => {
             </table>
           </div>
 
-          <!-- CTA Button -->
-          <div style="text-align: center; margin: 30px 0 20px 0;">
-            <a href="${ctaUrl}" target="_blank" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; font-weight: 800; font-size: 15px; text-decoration: none; padding: 16px 36px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 18px rgba(16, 185, 129, 0.4); text-transform: uppercase; letter-spacing: 0.8px;">
+          <!-- CTA Button & Password Update Notice -->
+          <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 20px; margin: 24px 0; text-align: center;">
+            <p style="color: #fcd34d; font-size: 14px; margin: 0 0 14px 0; font-weight: 600; line-height: 1.5;">
+              &#128274; You can log in directly with your Temporary Password, or click below to update and set your permanent password:
+            </p>
+            <a href="${ctaUrl}" target="_blank" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #0f172a; font-weight: 800; font-size: 15px; text-decoration: none; padding: 15px 36px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 18px rgba(245, 158, 11, 0.4); text-transform: uppercase; letter-spacing: 0.8px;">
               ${ctaLabel}
             </a>
           </div>
@@ -257,7 +260,7 @@ const hotelRegisteredWelcomeTemplate = (data) => {
             data.setupUrl
               ? `
           <div style="background: #1e293b; border-radius: 8px; padding: 12px 16px; margin: 15px 0; text-align: left; border: 1px solid #334155;">
-            <p style="color: #94a3b8; font-size: 12px; margin: 0 0 4px 0;">Direct Password Setup Link (Valid for 48 hours):</p>
+            <p style="color: #94a3b8; font-size: 12px; margin: 0 0 4px 0;">Direct Password Reset / Setup Link (Valid for 48 hours):</p>
             <p style="margin: 0; word-break: break-all;">
               <a href="${data.setupUrl}" style="color: #38bdf8; font-size: 12px; text-decoration: underline; font-family: monospace;">${data.setupUrl}</a>
             </p>
@@ -283,8 +286,129 @@ const hotelRegisteredWelcomeTemplate = (data) => {
   `;
 };
 
+/**
+ * Professional Staff / Team Member Onboarding Email Template
+ * Dispatches login credentials (temporary password) and 48-hour password reset link.
+ * @param {Object} data
+ * @param {string} data.userName
+ * @param {string} data.email
+ * @param {string} data.role
+ * @param {string} data.hotelName
+ * @param {string} [data.temporaryPassword]
+ * @param {string} [data.setupUrl]
+ * @param {string} [data.portalUrl]
+ * @returns {string} HTML string
+ */
+const staffUserWelcomeTemplate = (data) => {
+  const portalUrl = data.portalUrl || process.env.ADMIN_URL || 'https://hotel-management-admin-livid.vercel.app/login';
+  const ctaUrl = data.setupUrl || portalUrl;
+  const ctaLabel = 'SET / RESET YOUR PASSWORD';
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Welcome to the Team</title>
+    </head>
+    <body style="margin: 0; padding: 25px 0; background-color: #0b1120;">
+      <div style="${BASE_STYLES}">
+        <!-- Header -->
+        <div style="background: #1e293b; border-bottom: 2px solid #38bdf8; padding: 25px; text-align: center;">
+          <h2 style="color: #38bdf8; margin: 0; font-size: 22px; font-weight: 700;">&#127881; Welcome to the Team</h2>
+        </div>
+
+        <!-- Body Content -->
+        <div style="padding: 28px 25px; text-align: center;">
+          ${renderHeroBanner({
+            badge: 'OFFICIAL STAFF ONBOARDING PASS',
+            name: data.userName || 'Team Member',
+            hotelName: data.hotelName || 'The Grand Royale Cloud',
+            tagline: `Assigned Role: ${data.role || 'Staff Member'}`,
+            colorTheme: 'emerald',
+          })}
+
+          <p style="color: #e2e8f0; font-size: 15px; line-height: 1.6; margin: 20px 0 10px 0;">
+            Your staff account has been created for <strong>${data.hotelName}</strong>. You can log in to the management portal using the credentials below or click the reset link to choose your permanent password.
+          </p>
+
+          <!-- Account Details Box -->
+          <div style="background: #1e293b; border: 1px solid #334155; padding: 20px; margin: 20px 0; border-radius: 10px; text-align: left;">
+            <h4 style="color: #38bdf8; margin-top: 0; margin-bottom: 14px; font-size: 16px;">&#128273; Staff Login Credentials</h4>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="color: #94a3b8; padding: 8px 0; font-size: 14px; width: 40%;">Portal URL:</td>
+                <td style="color: #38bdf8; padding: 8px 0; font-weight: bold; font-size: 14px;"><a href="${portalUrl}" style="color: #38bdf8; text-decoration: underline;">${portalUrl}</a></td>
+              </tr>
+              <tr>
+                <td style="color: #94a3b8; padding: 8px 0; font-size: 14px;">Login Email:</td>
+                <td style="color: #f8fafc; padding: 8px 0; font-weight: bold; font-size: 14px;">${data.email}</td>
+              </tr>
+              <tr>
+                <td style="color: #94a3b8; padding: 8px 0; font-size: 14px;">Assigned Role:</td>
+                <td style="color: #10b981; padding: 8px 0; font-weight: bold; font-size: 14px;">${data.role}</td>
+              </tr>
+              ${
+                data.temporaryPassword
+                  ? `
+              <tr>
+                <td style="color: #94a3b8; padding: 8px 0; font-size: 14px;">Temporary Password:</td>
+                <td style="color: #f59e0b; padding: 8px 0; font-family: 'Courier New', monospace; font-size: 15px; font-weight: bold;">
+                  <span style="background: rgba(245, 158, 11, 0.15); padding: 3px 8px; border-radius: 4px; border: 1px dashed #f59e0b;">
+                    ${data.temporaryPassword}
+                  </span>
+                </td>
+              </tr>
+              `
+                  : ''
+              }
+            </table>
+          </div>
+
+          <!-- CTA Button & Password Update Notice -->
+          <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 20px; margin: 24px 0; text-align: center;">
+            <p style="color: #7dd3fc; font-size: 14px; margin: 0 0 14px 0; font-weight: 600; line-height: 1.5;">
+              &#128274; You can log in directly with your Temporary Password, or click below to easily set/reset your permanent password:
+            </p>
+            <a href="${ctaUrl}" target="_blank" style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: #ffffff; font-weight: 800; font-size: 15px; text-decoration: none; padding: 15px 36px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 18px rgba(14, 165, 233, 0.4); text-transform: uppercase; letter-spacing: 0.8px;">
+              ${ctaLabel}
+            </a>
+          </div>
+
+          ${
+            data.setupUrl
+              ? `
+          <div style="background: #1e293b; border-radius: 8px; padding: 12px 16px; margin: 15px 0; text-align: left; border: 1px solid #334155;">
+            <p style="color: #94a3b8; font-size: 12px; margin: 0 0 4px 0;">Direct Password Reset Link (Valid for 48 hours):</p>
+            <p style="margin: 0; word-break: break-all;">
+              <a href="${data.setupUrl}" style="color: #38bdf8; font-size: 12px; text-decoration: underline; font-family: monospace;">${data.setupUrl}</a>
+            </p>
+          </div>
+          `
+              : ''
+          }
+
+          <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin-top: 24px; text-align: center;">
+            If you have questions about your system access or assignments, please contact your Hotel Administrator.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #0b1120; padding: 16px; text-align: center; border-top: 1px solid #1e293b;">
+          <p style="color: #64748b; font-size: 12px; margin: 0;">
+            &copy; ${new Date().getFullYear()} ${data.hotelName}. Powered by The Grand Royale Cloud.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
 module.exports = {
   passwordResetLinkTemplate,
   hotelRegisteredWelcomeTemplate,
+  staffUserWelcomeTemplate,
   renderHeroBanner,
 };

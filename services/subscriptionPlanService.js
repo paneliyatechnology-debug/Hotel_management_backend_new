@@ -311,15 +311,8 @@ const getAllSubscriptionPlans = async (query = {}) => {
 
   const totalPages = Math.ceil(total / numLimit) || 1;
 
-  // Categorized helpers
-  const monthlyPlans = plans.filter((p) => p.billingCycle === 'MONTHLY');
-  const annualPlans = plans.filter((p) => p.billingCycle === 'ANNUAL');
-
   return {
     plans,
-    all: plans,
-    monthly: monthlyPlans,
-    annual: annualPlans,
     pagination: {
       total,
       page: numPage,

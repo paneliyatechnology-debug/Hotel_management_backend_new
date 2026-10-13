@@ -26,8 +26,7 @@ const createUserValidator = [
     .toLowerCase(),
 
   body('password')
-    .notEmpty()
-    .withMessage('Password is required.')
+    .optional({ checkFalsy: true })
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long.'),
 

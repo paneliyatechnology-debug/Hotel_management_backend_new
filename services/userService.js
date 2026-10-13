@@ -5,11 +5,23 @@
  * and soft deletion for User Management.
  * Follows TradeNexa service architecture with consistent snake_case.
  */
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
 const hotelModel = require('../models/hotelModel');
+const tokenModel = require('../models/tokenModel');
+const { queueEmail } = require('../queues/emailQueue');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, ROLE_CODES } = require('../constants');
+
+/**
+ * Generate a cryptographically secure temporary password.
+ * Format: "Temp#" + 8 random hex characters (e.g. Temp#a8f12b0e)
+ */
+const generateSecureTempPassword = () => {
+  const randomSuffix = crypto.randomBytes(4).toString('hex');
+  return `Temp#${randomSuffix}`;
+};
 
 // Permitted staff roles that a HOTEL_ADMIN can manage
 const STAFF_ROLES = [
@@ -110,16 +122,27 @@ const createUser = async (payload, req_user) => {
     }
   }
 
-  // Hash password securely with bcrypt (10 rounds)
-  if (!payload.password || typeof payload.password !== 'string' || payload.password.length < 6) {
-    throw new AppError('Password is required and must be at least 6 characters long.', HTTP_STATUS.BAD_REQUEST);
+  // Password handling: if supplied, validate length; if omitted, generate secure temp password
+  let rawPassword;
+  if (payload.password && typeof payload.password === 'string' && payload.password.trim()) {
+    if (payload.password.trim().length < 6) {
+      throw new AppError('Password must be at least 6 characters long.', HTTP_STATUS.BAD_REQUEST);
+    }
+    rawPassword = payload.password.trim();
+  } else {
+    rawPassword = generateSecureTempPassword();
   }
-  const hashed_password = await bcrypt.hash(payload.password, 10);
+
+  const hashed_password = await bcrypt.hash(rawPassword, 10);
+
+  // Setup token for expiring password reset link (48 hours)
+  const setupToken = crypto.randomBytes(32).toString('hex');
+  const setupTokenExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
   const is_active = payload.is_active !== undefined ? Boolean(payload.is_active) : true;
   const must_change_password = payload.must_change_password !== undefined
     ? Boolean(payload.must_change_password)
-    : false;
+    : (payload.password ? false : true);
 
   const user_data = {
     name: payload.name ? payload.name.trim() : '',
@@ -134,6 +157,55 @@ const createUser = async (payload, req_user) => {
   };
 
   const created_user = await userModel.createUser(user_data);
+
+  // Save setup token in password_reset_tokens
+  if (setupToken) {
+    try {
+      await tokenModel.invalidateUserTokens(created_user.id);
+      await tokenModel.createResetToken({
+        userId: created_user.id,
+        token: setupToken,
+        expiresAt: setupTokenExpiry,
+      });
+    } catch (tokenErr) {
+      console.error('[UserService] Failed to create setup token:', tokenErr.message);
+    }
+  }
+
+  // Enqueue onboarding email with temporary password & password reset link
+  const adminBaseUrl = (
+    process.env.ADMIN_URL ||
+    process.env.WEB_URL ||
+    'https://hotel-management-admin-livid.vercel.app'
+  ).replace(/\/+$/, '');
+
+  const portalUrl = `${adminBaseUrl}/login`;
+  const setupUrl = `${adminBaseUrl}/reset-password?token=${setupToken}`;
+
+  let hotelName = 'The Grand Royale Cloud';
+  if (hotel_id) {
+    try {
+      const hotelRecord = await hotelModel.findHotelById(hotel_id);
+      if (hotelRecord && hotelRecord.name) {
+        hotelName = hotelRecord.name;
+      }
+    } catch (_) {}
+  }
+
+  try {
+    await queueEmail('STAFF_USER_CREATED', email, {
+      userName: created_user.name || 'Team Member',
+      email,
+      role: created_user.role,
+      hotelName,
+      portalUrl,
+      setupUrl,
+      temporaryPassword: rawPassword,
+    });
+  } catch (queueErr) {
+    console.error('[UserService] Failed to enqueue staff welcome email:', queueErr.message);
+  }
+
   return formatUserResponse(created_user);
 };
 

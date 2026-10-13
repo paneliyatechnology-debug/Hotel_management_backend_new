@@ -15,7 +15,8 @@
     "test:room-types": "node tests/roomType.test.js",
     "test:rooms": "node tests/physicalRoom.test.js",
     "test:bookings": "node tests/booking.test.js",
-    "test:users": "node tests/user.test.js"
+    "test:users": "node tests/user.test.js",
+    "generate:postman": "node scripts/generate_postman.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.758.0",

@@ -4,9 +4,6 @@
  */
 const { body } = require('express-validator');
 
-// Disallowed dangerous file extensions
-const DANGEROUS_EXTENSIONS = /\.(exe|bat|cmd|sh|php|pl|cgi|vbs|msi|bin|scr)$/i;
-
 // Indian Mobile Number Normalizer & Custom Validator
 const validateIndianMobile = (value) => {
   if (!value) return false;
@@ -147,31 +144,6 @@ const registerHotelValidator = [
   body('logo')
     .optional()
     .trim(),
-
-  body('idProofDocument')
-    .optional({ checkFalsy: true })
-    .trim()
-    .custom((val) => {
-      if (val && DANGEROUS_EXTENSIONS.test(val)) {
-        throw new Error('Disallowed file format for ID proof document. Executable files are prohibited.');
-      }
-      return true;
-    }),
-
-  body('businessProofDocument')
-    .optional({ checkFalsy: true })
-    .trim()
-    .custom((val) => {
-      if (val && DANGEROUS_EXTENSIONS.test(val)) {
-        throw new Error('Disallowed file format for business proof document. Executable files are prohibited.');
-      }
-      return true;
-    }),
-
-  body('password')
-    .optional({ checkFalsy: true })
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long'),
 
   body('subscription_plan_id')
     .optional({ checkFalsy: true })

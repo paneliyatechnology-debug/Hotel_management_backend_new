@@ -1,0 +1,2184 @@
+{
+  "info": {
+    "_postman_id": "hotel-management-backend-complete-api-v1",
+    "name": "Hotel Management Backend - Complete API Collection (TradeNexa Architecture)",
+    "description": "# 🏨 Hotel Management Backend API Collection\n\nProduction-ready Postman collection covering 100% of the APIs for the **Hotel Management Backend** (Node.js + Express.js + MySQL Knex), built following the **TradeNexa Architecture**.\n\n---\n\n## 🌟 Collection Highlights\n- **Folder-Wise Modular Structure**: Health Check, Authentication, Hotel Onboarding, Subscription Plans, Room Categories, Physical Rooms, Bookings Management, and Staff Management.\n- **Full Parameter & Body Documentation**: Every request includes markdown descriptions with comprehensive tables for all required and optional fields, constraints, and validation rules.\n- **Automated Token & ID Propagation**: Pre-request and Test scripts automatically capture `accessToken`, `refreshToken`, `hotelId`, `roomTypeId`, `roomId`, `bookingId`, `userId`, and `planId` into collection variables upon successful creation/login.\n- **RBAC & Security**: Configured with collection-level Bearer Token authorization (`{{accessToken}}`) and dual HTTP-Only cookie support.\n- **Standardized Responses**: Every endpoint returns `{ success: true, message: \"...\", data: { ... } }` on success, or `{ success: false, message: \"...\", errors: [...] }` on error.\n\n---\n\n## 🚀 Quick Start Guide\n1. Import this JSON file directly into Postman (**File -> Import**).\n2. Ensure the backend server is running (`npm run dev` at `http://localhost:5000`).\n3. Execute **Authentication -> Login User** with initial credentials (`admin@hotel.com` / `Admin@123`). The `accessToken` is automatically stored in collection variables.\n4. Execute requests down the list in order: register hotel, create room category, create room, create booking, manage staff!",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string",
+      "description": "Base URL of the backend API server"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT Access token auto-captured from login or registration"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT Refresh token auto-captured from login"
+    },
+    {
+      "key": "hotelId",
+      "value": "1",
+      "type": "string",
+      "description": "Default or active Hotel Property ID"
+    },
+    {
+      "key": "roomTypeId",
+      "value": "1",
+      "type": "string",
+      "description": "Active Room Category / Type ID"
+    },
+    {
+      "key": "roomId",
+      "value": "1",
+      "type": "string",
+      "description": "Active Physical Room ID"
+    },
+    {
+      "key": "bookingId",
+      "value": "1",
+      "type": "string",
+      "description": "Active Booking ID"
+    },
+    {
+      "key": "userId",
+      "value": "1",
+      "type": "string",
+      "description": "Active Staff / User ID"
+    },
+    {
+      "key": "planId",
+      "value": "1",
+      "type": "string",
+      "description": "Active Subscription Plan ID"
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "type": "string",
+      "description": "Password reset token captured from email or API"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Health & System Diagnostics",
+      "description": "Server uptime and API namespace diagnostics endpoints. Useful for health checks, load balancers, and monitoring systems.",
+      "item": [
+        {
+          "name": "Root Server Health Check",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "### Health Check (Root)\nVerifies that the Node.js Express server process is running and accepting HTTP requests.\n\n- **Access:** Public (No authentication required)\n- **Response:** \n```json\n{\n  \"success\": true,\n  \"message\": \"Server is running\",\n  \"data\": { \"status\": \"UP\" }\n}\n```"
+          }
+        },
+        {
+          "name": "API Namespace Health Check",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "### Health Check (API Namespace)\nVerifies that the `/api` route prefix and routing middleware are actively responding.\n\n- **Access:** Public (No authentication required)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Authentication",
+      "description": "Complete authentication flows implementing the TradeNexa dual-token architecture: Login, Refresh Token rotation, Logout, Password Reset with cryptographically secure single-use tokens, and Authenticated Profile inspection.",
+      "item": [
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', res.data.accessToken);",
+                  "        console.log('✅ Access Token updated in collection variables');",
+                  "    }",
+                  "    if (res.data && res.data.refreshToken) {",
+                  "        pm.collectionVariables.set('refreshToken', res.data.refreshToken);",
+                  "        console.log('✅ Refresh Token updated in collection variables');",
+                  "    }",
+                  "    if (res.data && res.data.user && res.data.user.hotel_id) {",
+                  "        pm.collectionVariables.set('hotelId', String(res.data.user.hotel_id));",
+                  "        console.log('✅ Active hotelId set to: ' + res.data.user.hotel_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@hotel.com\",\n  \"password\": \"Admin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "### User Login\nAuthenticates an existing user account using email and password.\n- Sets secure `accessToken` and `refreshToken` as HTTP-Only cookies.\n- Returns JWT tokens in response body for Bearer token authorization.\n- Test script automatically saves `accessToken` to collection variable `{{accessToken}}`.\n\n#### Request Fields\n| Field | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `email` | String | **Required** | Registered account email address (e.g. `admin@hotel.com`) |\n| `password` | String | **Required** | User password |\n\n#### Initial Seeded Super Admin Credentials\n- **Email:** `admin@hotel.com`\n- **Password:** `Admin@123`\n- **Role:** `SUPER_ADMIN`"
+          }
+        },
+        {
+          "name": "Refresh Access Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', res.data.accessToken);",
+                  "        console.log('✅ Refreshed Access Token saved to collection variables');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh-token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh-token"
+              ]
+            },
+            "description": "### Rotate & Refresh Access Token\nIssues a new JWT access token using the active refresh session.\n- Automatically reads the `refreshToken` HTTP-only cookie if sent by browser.\n- Alternatively reads `refreshToken` passed in the JSON body.\n- Rotates access token and updates collection variable `{{accessToken}}`.\n\n#### Request Fields\n| Field | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `refreshToken` | String | *Optional* (if cookie present) | The 30-day refresh token issued during login |"
+          }
+        },
+        {
+          "name": "Logout User",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "### User Logout\nClears the session cookies (`accessToken`, `refreshToken`) on the client.\n- **Access:** Public / Session holder\n- **Response:** `{ \"success\": true, \"message\": \"Logged out successfully.\", \"data\": null }`"
+          }
+        },
+        {
+          "name": "Forgot Password (Request Reset Link)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@hotel.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "### Forgot Password\nGenerates a cryptographically secure single-use reset token and dispatches an HTML password reset email containing a secure CTA link button.\n\n#### Request Fields\n| Field | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `email` | String | **Required** | Registered user email address |"
+          }
+        },
+        {
+          "name": "Reset Password with Token",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"password\": \"NewPassword@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "### Reset Password\nUpdates user's password using the validated reset token.\n- Hashes new password with Bcrypt.\n- Invalidates the single-use token to prevent replay attacks.\n- Resets failed login attempt counters and clears temporary lockouts.\n\n#### Request Fields\n| Field | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `token` | String | **Required** | Valid unexpired reset token |\n| `password` | String | **Required** | New password (minimum 6 characters) |"
+          }
+        },
+        {
+          "name": "Get Current Authenticated Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "### Get Current User Profile (/me)\nRetrieves the profile of the authenticated user whose token is in the Authorization header.\n- Returns user ID, name, email, phone, role, status, hotel ID, and permissions.\n- **Access:** Requires Bearer Token (`{{accessToken}}`)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Hotel Onboarding & Registration",
+      "description": "Self-serve hotel registration and property onboarding. Supports multipart/form-data for uploading hotel logo directly to AWS S3. Uses the Temporary Password & Password Reset Link flow: automatically provisions the Hotel Admin user with a cryptographically secure temporary password, creates an expiring 48-hour password reset link, establishes foreign key relations, computes 30-day Free Trial dates, enforces Indian phone/GSTIN/PAN formatting, and dispatches a welcome email with both the temporary password and direct password reset link.",
+      "item": [
+        {
+          "name": "Register New Hotel (Multipart Form-Data with S3 Logo Upload)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.hotel && res.data.hotel.id) {",
+                  "        pm.collectionVariables.set('hotelId', String(res.data.hotel.id));",
+                  "        console.log('✅ New hotelId set to: ' + res.data.hotel.id);",
+                  "    }",
+                  "    if (res.data && res.data.auth && res.data.auth.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', res.data.auth.accessToken);",
+                  "        console.log('✅ Switched active accessToken to newly registered Hotel Admin');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Grand Imperial Palace & Resort",
+                  "type": "text",
+                  "description": "Property name (Required)"
+                },
+                {
+                  "key": "ownerName",
+                  "value": "Devendra Singh Rathore",
+                  "type": "text",
+                  "description": "Owner full name (Required)"
+                },
+                {
+                  "key": "ownerEmail",
+                  "value": "owner26171@imperialresort.com",
+                  "type": "text",
+                  "description": "Owner login email (Required)"
+                },
+                {
+                  "key": "ownerPhone",
+                  "value": "9829012345",
+                  "type": "text",
+                  "description": "10-digit Indian mobile (Required)"
+                },
+                {
+                  "key": "address",
+                  "value": "101 Heritage Drive, Civil Lines",
+                  "type": "text",
+                  "description": "Property address (Required)"
+                },
+                {
+                  "key": "city",
+                  "value": "Jaipur",
+                  "type": "text",
+                  "description": "City (Required)"
+                },
+                {
+                  "key": "state",
+                  "value": "Rajasthan",
+                  "type": "text",
+                  "description": "State (Required)"
+                },
+                {
+                  "key": "country",
+                  "value": "India",
+                  "type": "text",
+                  "description": "Country (Optional, Default: India)"
+                },
+                {
+                  "key": "pincode",
+                  "value": "302006",
+                  "type": "text",
+                  "description": "6-digit postal pincode (Required)"
+                },
+                {
+                  "key": "gstNumber",
+                  "value": "08AAAAA1234A1Z5",
+                  "type": "text",
+                  "description": "15-character GSTIN (Optional)"
+                },
+                {
+                  "key": "panNumber",
+                  "value": "ABCDE1234F",
+                  "type": "text",
+                  "description": "10-character PAN (Optional)"
+                },
+                {
+                  "key": "totalRooms",
+                  "value": "45",
+                  "type": "text",
+                  "description": "Number of inventory rooms (Optional)"
+                },
+                {
+                  "key": "hotelType",
+                  "value": "Heritage Palace & Resort",
+                  "type": "text",
+                  "description": "Property category (Optional)"
+                },
+                {
+                  "key": "website",
+                  "value": "https://www.grandimperialresort.com",
+                  "type": "text",
+                  "description": "Official website URL (Optional)"
+                },
+                {
+                  "key": "upi_id",
+                  "value": "imperialresort@upi",
+                  "type": "text",
+                  "description": "Custom UPI ID for direct payments (Optional, no hardcoded default)"
+                },
+                {
+                  "key": "subscription_plan_id",
+                  "value": "1",
+                  "type": "text",
+                  "description": "Subscription Plan ID (Optional)"
+                },
+                {
+                  "key": "subscription_plan_active",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Trial / plan active flag (Optional)"
+                },
+                {
+                  "key": "logo",
+                  "type": "file",
+                  "src": [],
+                  "description": "Hotel Logo file uploaded directly to AWS S3 (Optional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotel/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotel",
+                "register"
+              ]
+            },
+            "description": "### Register New Hotel (Multipart Form-Data & S3 Logo Upload)\nRegisters a new hotel property and creates a linked `HOTEL_ADMIN` user account in an atomic transaction.\n- **Multipart/Form-Data:** Supports direct file upload for `logo` which is saved directly to AWS S3 storage, and the permanent image URL is saved to `hotels.logo`.\n- **Clean Schema:** Deprecated keys (`id_proof_document`, `business_proof_document`, `rejection_reason`, `default_gst_rate`, `default_cgst_rate`, `default_sgst_rate`, `gstin`, `tax_inclusive`, `bank_details`) have been removed.\n- **Custom UPI ID:** `upi_id` is optional with no hardcoded fallback value.\n\n#### 🔐 Temporary Password & Reset Link Workflow\n1. **Zero-Password Input:** The client does not supply a password during registration.\n2. **Auto-Generated Temp Password:** The backend generates a cryptographically secure temporary password (e.g. `Temp#a8f12b0e`) and hashes it with Bcrypt.\n3. **Password Reset Token:** A 48-hour secure `PasswordResetToken` is created in the database.\n4. **Email Dispatch:** A welcome email is dispatched to the owner's email containing:\n   - **Temporary Password** clearly displayed for immediate front desk / admin login.\n   - **Reset Password Button & Link** so the owner can easily click to update/set their permanent password.\n5. **Account State:** The user account is saved with `must_change_password: true`.\n\n#### Request Fields\n| Field | Type | Required | Description | Validation / Constraints |\n| :--- | :--- | :--- | :--- | :--- |\n| `name` | String | **Required** | Property name | Max 150 chars, auto-generates slug |\n| `ownerName` | String | **Required** | Owner or General Manager full name | Max 150 chars |\n| `ownerEmail` | String | **Required** | Owner login email | Valid email, receives temp password & reset link |\n| `ownerPhone` | String | **Required** | Owner contact mobile | 10-digit Indian mobile starting with 6, 7, 8, or 9 |\n| `address` | String | **Required** | Physical property address | Street / landmark |\n| `city` | String | **Required** | City | Max 100 chars |\n| `state` | String | **Required** | State / Province | Max 100 chars |\n| `pincode` | String | **Required** | Postal pincode | Exactly 6 Indian digits |\n| `country` | String | *Optional* | Country name | Default: `\"India\"` |\n| `gstNumber` | String | *Optional* | GSTIN tax identifier | 15-character GSTIN regex format |\n| `panNumber` | String | *Optional* | Permanent Account Number | 10-character PAN regex format |\n| `totalRooms` | Integer | *Optional* | Number of inventory rooms | Non-negative integer (e.g. 45) |\n| `hotelType` | String | *Optional* | Property category | E.g. `\"Boutique Hotel\"`, `\"Resort\"`, `\"Heritage\"` |\n| `website` | String | *Optional* | Official hotel website | Valid URL format |\n| `upi_id` | String | *Optional* | Custom UPI ID | Direct payment identifier |\n| `logo` | File | *Optional* | Image file for brand logo | Uploaded directly to S3 |\n| `subscription_plan_id` | Integer | *Optional* | Initial subscription plan ID | Positive integer ID |\n| `subscription_plan_active` | Boolean | *Optional* | Trial / plan active flag | Default: `true` |"
+          }
+        },
+        {
+          "name": "Register Hotel (JSON Payload Alias)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.hotel && res.data.hotel.id) {",
+                  "        pm.collectionVariables.set('hotelId', String(res.data.hotel.id));",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Seaside Haven Resort 514\",\n  \"ownerName\": \"Pooja Hegde\",\n  \"ownerEmail\": \"pooja55009@seasidehaven.com\",\n  \"ownerPhone\": \"9871122334\",\n  \"address\": \"Beach Road, Calangute\",\n  \"city\": \"North Goa\",\n  \"state\": \"Goa\",\n  \"pincode\": \"403516\",\n  \"upi_id\": \"seasidehaven@okaxis\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                "register"
+              ]
+            },
+            "description": "### Register Hotel (Plural Endpoint Alias & JSON Mode)\nTests route mounting under `/api/v1/hotels/register` (plural alias of `/hotel/register`).\n- Uses the same Temporary Password & Password Reset Link workflow."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Subscription Plans",
+      "description": "Subscription tier catalog, pricing configuration, and feature synchronization. Public endpoints for hotel onboarding query; Super Admin endpoints for plan creation, feature sync, soft-deletion, and factory default resets.",
+      "item": [
+        {
+          "name": "List Subscription Plans (Public)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscription-plans?billingCycle=MONTHLY&isActive=true&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscription-plans"
+              ],
+              "query": [
+                {
+                  "key": "billingCycle",
+                  "value": "MONTHLY",
+                  "description": "Filter by MONTHLY or ANNUAL. If omitted, returns all plans."
+                },
+                {
+                  "key": "isActive",
+                  "value": "true",
+                  "description": "Filter active plans (true/false)"
+                },
+                {
+                  "key": "isPopular",
+                  "value": "true",
+                  "description": "Filter popular plans (true/false)",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (min 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Results per page (1-100)"
+                }
+              ]
+            },
+            "description": "### List All Subscription Plans\nRetrieves active subscription plans with full feature lists.\n- **Access:** Public (No authentication required)\n- **Response Structure:** Returns `{ plans: [...], pagination: { ... } }` (grouped keys `all`, `monthly`, `annual` have been removed).\n- **Billing Cycle Filter:**\n  - If omitted: returns **all** plans.\n  - If `billingCycle=MONTHLY`: returns **monthly** plans only.\n  - If `billingCycle=ANNUAL`: returns **annual** plans only.\n\n#### Query Filters\n| Query Param | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `billingCycle` | String | *Optional* | Filter by `\"MONTHLY\"` or `\"ANNUAL\"` (returns all if omitted) |\n| `isActive` | Boolean | *Optional* | `true` or `false` |\n| `isPopular` | Boolean | *Optional* | `true` or `false` |\n| `page` | Integer | *Optional* | Page index (default: 1) |\n| `limit` | Integer | *Optional* | Page size (default: 10, max: 100) |"
+          }
+        },
+        {
+          "name": "Get Subscription Plan by ID",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscription-plans/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscription-plans",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{planId}}",
+                  "description": "Subscription Plan ID"
+                }
+              ]
+            },
+            "description": "### Get Subscription Plan by ID\nRetrieves details of a single subscription plan including its ordered feature items.\n- **Access:** Public"
+          }
+        },
+        {
+          "name": "Create Subscription Plan (Super Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.id) {",
+                  "        pm.collectionVariables.set('planId', String(res.data.id));",
+                  "        console.log('✅ Created planId set to: ' + res.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Royal Heritage Ultra 856\",\n  \"billingCycle\": \"MONTHLY\",\n  \"price\": 18999,\n  \"code\": \"MONTHLY_ROYAL_25\",\n  \"discountPercent\": 10,\n  \"maxRooms\": 120,\n  \"description\": \"Curated for premium luxury heritage palaces with 100+ suites.\",\n  \"badge\": \"ULTRA LUXURY\",\n  \"isPopular\": true,\n  \"isActive\": true,\n  \"displayOrder\": 5,\n  \"features\": [\n    \"Up to 120 Luxury Rooms Inventory\",\n    \"Multi-Channel OTA Two-Way Sync\",\n    \"Front Desk & Express Walk-in Wizard\",\n    \"Govt ID Compliance & Police Verification Ledger\",\n    \"GST Tax Invoice & Receipt Generator\",\n    \"Dedicated 24/7 Priority Relationship Manager\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscription-plans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscription-plans"
+              ]
+            },
+            "description": "### Create Subscription Plan\nCreates a new subscription plan with synchronized feature bullet points.\n- **Access:** Protected (Requires `SUPER_ADMIN` role)\n\n#### Request Fields\n| Field | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `name` | String | **Required** | Plan title (max 150 chars) |\n| `billingCycle` | String | **Required** | Must be either `\"MONTHLY\"` or `\"ANNUAL\"` |\n| `price` | Number | **Required** | Plan fee in INR (min 0) |\n| `code` | String | *Optional* | Unique identifier (uppercase alphanumeric, hyphens, underscores) |\n| `discountPercent` | Number | *Optional* | Discount percentage (0 - 100) |\n| `maxRooms` | Integer | *Optional* | Room limit ceiling (positive integer) |\n| `description` | String | *Optional* | Commercial description text |\n| `badge` | String | *Optional* | Display badge (e.g. `\"BEST VALUE\"`, max 100 chars) |\n| `isPopular` | Boolean | *Optional* | Popular highlight flag (default: false) |\n| `isActive` | Boolean | *Optional* | Active availability flag (default: true) |\n| `displayOrder` | Integer | *Optional* | Sorting position index (min 0) |\n| `features` | Array/String| *Optional* | Array of feature string bullet points |"
+          }
+        },
+        {
+          "name": "Update Subscription Plan (Super Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 19999,\n  \"discountPercent\": 15,\n  \"badge\": \"TOP PICK 2026\",\n  \"features\": [\n    \"Up to 150 Luxury Rooms Inventory\",\n    \"Multi-Channel OTA Two-Way Sync\",\n    \"Full POS & Restaurant Matrix\",\n    \"24/7 Dedicated Account Manager\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscription-plans/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscription-plans",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{planId}}",
+                  "description": "Plan ID to update"
+                }
+              ]
+            },
+            "description": "### Update Subscription Plan\nModifies an existing plan and replaces its feature bullet points atomically.\n- **Access:** Protected (`SUPER_ADMIN`)"
+          }
+        },
+        {
+          "name": "Soft-Delete Subscription Plan (Super Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscription-plans/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscription-plans",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{planId}}",
+                  "description": "Plan ID to soft-delete"
+                }
+              ]
+            },
+            "description": "### Soft-Delete Subscription Plan\nArchives plan by setting `deleted_at`. Excluded from future queries.\n- **Access:** Protected (`SUPER_ADMIN`)"
+          }
+        },
+        {
+          "name": "Reset Default Enterprise Plans (Super Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscription-plans/reset-defaults",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscription-plans",
+                "reset-defaults"
+              ]
+            },
+            "description": "### Reset Standard 6 Enterprise Plans\nRestores the default suite of 6 subscription plans:\n1. Starter Boutique (Monthly)\n2. Professional Resort (Monthly)\n3. Enterprise Multi-Property (Monthly)\n4. Starter Boutique (Annual)\n5. Professional Resort (Annual)\n6. Enterprise Multi-Property (Annual)\n- **Access:** Protected (`SUPER_ADMIN`)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Room Types (Categories)",
+      "description": "Room Category (Room Type) management. Supports hotel-scoped category creation, S3 image uploads, name uniqueness per hotel, and safe-deletion constraints that prevent category removal if physical rooms are linked.",
+      "item": [
+        {
+          "name": "List Room Categories",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/room-types?hotel_id={{hotelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "room-types"
+              ],
+              "query": [
+                {
+                  "key": "hotel_id",
+                  "value": "{{hotelId}}",
+                  "description": "Filter categories by Hotel ID"
+                }
+              ]
+            },
+            "description": "### List Room Categories\nFetches all active room types / categories, optionally filtered by hotel ID.\n\n#### Query Parameters\n| Parameter | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `hotel_id` | Integer | *Optional* | Filter categories belonging to a specific hotel |"
+          }
+        },
+        {
+          "name": "Get Room Category by ID",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/room-types/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "room-types",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{roomTypeId}}",
+                  "description": "Room Category ID"
+                }
+              ]
+            },
+            "description": "### Get Room Category by ID\nRetrieves details of a single room category along with all associated S3 photo records."
+          }
+        },
+        {
+          "name": "Create Room Category (JSON Mode)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.id) {",
+                  "        pm.collectionVariables.set('roomTypeId', String(res.data.id));",
+                  "        console.log('✅ Created roomTypeId set to: ' + res.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hotel_id\": 1,\n  \"name\": \"Presidential Royal Suite 617\",\n  \"description\": \"Opulent 1,200 sq ft suite featuring master king bedroom, private terrace, dining area, jacuzzi, and dedicated butler service.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/room-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "room-types"
+              ]
+            },
+            "description": "### Create Room Category (JSON Body)\nCreates a room category using JSON.\n\n#### Request Fields\n| Field | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `hotel_id` | Integer | **Required** | Valid hotel ID where category belongs |\n| `name` | String | **Required** | Category name (unique within hotel, max 150 chars) |\n| `description` | String | *Optional* | Detailed textual category description |"
+          }
+        },
+        {
+          "name": "Create Room Category (Multipart Form-Data with Images)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.id) {",
+                  "        pm.collectionVariables.set('roomTypeId', String(res.data.id));",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "hotel_id",
+                  "value": "{{hotelId}}",
+                  "type": "text",
+                  "description": "Hotel ID (Required)"
+                },
+                {
+                  "key": "name",
+                  "value": "Executive Lakeview Suite 83",
+                  "type": "text",
+                  "description": "Category Name (Required)"
+                },
+                {
+                  "key": "description",
+                  "value": "Spacious corner room with lake view and king size bed.",
+                  "type": "text",
+                  "description": "Category description (Optional)"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Image file upload (JPEG, PNG, WebP up to 10MB, Optional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/room-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "room-types"
+              ]
+            },
+            "description": "### Create Room Category with Image Uploads (Multipart Form-Data)\nUploads up to 10 photos directly to AWS S3 storage while saving category record in MySQL."
+          }
+        },
+        {
+          "name": "Update Room Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Executive Lakeview Suite\",\n  \"description\": \"Updated description with upgraded interior furnishings and espresso machine.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/room-types/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "room-types",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{roomTypeId}}",
+                  "description": "Category ID"
+                }
+              ]
+            },
+            "description": "### Update Room Category\nModifies room category details."
+          }
+        },
+        {
+          "name": "Delete Room Category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/room-types/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "room-types",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{roomTypeId}}",
+                  "description": "Category ID"
+                }
+              ]
+            },
+            "description": "### Delete Room Category (Safe Guarded)\nSafely deletes a category.\n- **Data Integrity Guard:** Will return `400 Bad Request` if any physical rooms in the hotel are currently assigned to this category."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Physical Rooms",
+      "description": "Inventory of physical rooms (e.g. Room 101, 102, 201). Enforces composite floor uniqueness (room number unique per hotel and floor), room status workflows (AVAILABLE, OCCUPIED, MAINTENANCE, CLEANING, RESERVED), and S3 photo galleries.",
+      "item": [
+        {
+          "name": "Create Physical Room (Full Payload)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.id) {",
+                  "        pm.collectionVariables.set('roomId', String(res.data.id));",
+                  "        console.log('✅ Created roomId set to: ' + res.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "hotel_id",
+                  "value": "{{hotelId}}",
+                  "type": "text",
+                  "description": "Hotel property ID (Required)"
+                },
+                {
+                  "key": "room_number",
+                  "value": "Suite-693",
+                  "type": "text",
+                  "description": "Room identifier (Required, unique per hotel + floor)"
+                },
+                {
+                  "key": "room_type_id",
+                  "value": "{{roomTypeId}}",
+                  "type": "text",
+                  "description": "Category ID (Required)"
+                },
+                {
+                  "key": "floor",
+                  "value": "2",
+                  "type": "text",
+                  "description": "Floor number (Optional, default: 1)"
+                },
+                {
+                  "key": "status",
+                  "value": "AVAILABLE",
+                  "type": "text",
+                  "description": "Status: AVAILABLE, OCCUPIED, MAINTENANCE, etc. (Optional, default: AVAILABLE)"
+                },
+                {
+                  "key": "seating_capacity",
+                  "value": "3",
+                  "type": "text",
+                  "description": "Max guest capacity (Optional, default: 2)"
+                },
+                {
+                  "key": "bed_count",
+                  "value": "1",
+                  "type": "text",
+                  "description": "Number of beds (Optional, default: 1)"
+                },
+                {
+                  "key": "bed_type",
+                  "value": "1 Super King Bed",
+                  "type": "text",
+                  "description": "Bed description (Optional)"
+                },
+                {
+                  "key": "custom_price_per_night",
+                  "value": "4500.00",
+                  "type": "text",
+                  "description": "Custom price per night in INR (Optional)"
+                },
+                {
+                  "key": "notes",
+                  "value": "Spacious corner room with private balcony and valley view.",
+                  "type": "text",
+                  "description": "Internal staff notes (Optional)"
+                },
+                {
+                  "key": "amenities",
+                  "value": "High-Speed Wi-Fi, Smart TV 55 inch, Mini Bar, Air Conditioning",
+                  "type": "text",
+                  "description": "List of amenities (Optional)"
+                },
+                {
+                  "key": "cleaning_duration_minutes",
+                  "value": "20",
+                  "type": "text",
+                  "description": "Turnaround duration min (Optional, default: 15)"
+                },
+                {
+                  "key": "is_active",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Active availability flag (Optional, default: true)"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Room photo uploads directly stored in S3 (Optional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rooms"
+              ]
+            },
+            "description": "### Create Physical Room (Multipart Form-Data)\nCreates a physical inventory room in the hotel and uploads room photos directly to AWS S3.\n\n#### Request Fields\n| Field | Type | Required | Description | Defaults & Rules |\n| :--- | :--- | :--- | :--- | :--- |\n| `hotel_id` | Integer | **Required** | Hotel property ID | Positive integer |\n| `room_number` | String | **Required** | Room identifier (e.g. `\"101\"`, `\"201B\"`) | Max 50 chars, unique per hotel + floor |\n| `room_type_id` | Integer | **Required** | Category ID | Must belong to specified hotel |\n| `floor` | Integer | *Optional* | Floor number | Default: `1` |\n| `status` | String | *Optional* | Current status | One of: `AVAILABLE`, `OCCUPIED`, `MAINTENANCE`, `CLEANING`, `RESERVED` (Default: `AVAILABLE`) |\n| `seating_capacity`| Integer | *Optional* | Max guest capacity | Min 1 (Default: `2`) |\n| `bed_count` | Integer | *Optional* | Number of beds | Min 1 (Default: `1`) |\n| `bed_type` | String | *Optional* | Bed description | Default: `\"1 King Bed\"` |\n| `custom_price_per_night` | Number | *Optional* | Custom price per night in INR | Positive number (e.g. 4500.00) |\n| `notes` | String | *Optional* | Internal staff notes | Any text |\n| `amenities` | String | *Optional* | List of amenities | Comma-separated or JSON array |\n| `cleaning_duration_minutes` | Integer | *Optional* | Housekeeping turnaround min | Default: `15` |\n| `is_active` | Boolean | *Optional* | Active availability flag | Default: `true` |\n| `images` | File | *Optional* | Room photos | Uploaded directly to AWS S3 |"
+          }
+        },
+        {
+          "name": "List Physical Rooms (Filters & Pagination)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms?hotel_id={{hotelId}}&status=AVAILABLE&floor=2&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rooms"
+              ],
+              "query": [
+                {
+                  "key": "hotel_id",
+                  "value": "{{hotelId}}",
+                  "description": "Filter by Hotel ID"
+                },
+                {
+                  "key": "status",
+                  "value": "AVAILABLE",
+                  "description": "Filter by status (AVAILABLE, OCCUPIED, etc.)"
+                },
+                {
+                  "key": "floor",
+                  "value": "2",
+                  "description": "Filter by floor number",
+                  "disabled": true
+                },
+                {
+                  "key": "room_type_id",
+                  "value": "{{roomTypeId}}",
+                  "description": "Filter by room category ID",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "true",
+                  "description": "Filter active rooms (true/false)",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "Suite",
+                  "description": "Search room number or notes",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Page limit (1-100)"
+                }
+              ]
+            },
+            "description": "### List Physical Rooms\nQueries rooms with multi-criteria filtering, search, and pagination.\n\n#### Query Filters\n| Query Param | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `hotel_id` | Integer | *Optional* | Filter by hotel ID |\n| `floor` | Integer | *Optional* | Filter by floor |\n| `room_type_id` | Integer | *Optional* | Filter by category ID |\n| `status` | String | *Optional* | Status: `AVAILABLE`, `OCCUPIED`, `MAINTENANCE`, `CLEANING`, `RESERVED` |\n| `is_active` | Boolean | *Optional* | `true` or `false` |\n| `search` | String | *Optional* | Substring match on room number or notes |\n| `page` | Integer | *Optional* | Page index (default: 1) |\n| `limit` | Integer | *Optional* | Results limit (default: 10, max: 100) |"
+          }
+        },
+        {
+          "name": "Get Physical Room by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rooms",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{roomId}}",
+                  "description": "Room ID"
+                }
+              ]
+            },
+            "description": "### Get Physical Room by ID\nRetrieves room specifications, current status, category details, and photos."
+          }
+        },
+        {
+          "name": "Update Physical Room",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "status",
+                  "value": "MAINTENANCE",
+                  "type": "text",
+                  "description": "Room status update (Optional)"
+                },
+                {
+                  "key": "notes",
+                  "value": "AC maintenance scheduled with technician.",
+                  "type": "text",
+                  "description": "Room notes (Optional)"
+                },
+                {
+                  "key": "custom_price_per_night",
+                  "value": "4800.00",
+                  "type": "text",
+                  "description": "Custom nightly rate in INR (Optional)"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Additional room photos uploaded to S3 (Optional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rooms",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{roomId}}",
+                  "description": "Room ID to update"
+                }
+              ]
+            },
+            "description": "### Update Physical Room (Multipart Form-Data)\nUpdates room attributes (e.g. status transition from AVAILABLE to OCCUPIED or MAINTENANCE) and supports attaching additional photos to S3."
+          }
+        },
+        {
+          "name": "Soft-Delete Physical Room",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rooms/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rooms",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{roomId}}",
+                  "description": "Room ID to delete"
+                }
+              ]
+            },
+            "description": "### Soft-Delete Physical Room\nSoft-deletes physical room by populating `deleted_at`. Preserves booking history."
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Bookings Management",
+      "description": "Complete reservation lifecycle management. Features automatic chronological date validation, room availability & overlap conflict prevention (409 Conflict), automated financial & GST tax computation (CGST, SGST, taxable base, discounts), payment status derivation (PENDING, PARTIALLY_PAID, PAID), and S3 guest ID & signature captures.",
+      "item": [
+        {
+          "name": "Create New Booking (Full Payload)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.id) {",
+                  "        pm.collectionVariables.set('bookingId', String(res.data.id));",
+                  "        console.log('✅ Created bookingId set to: ' + res.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "hotel_id",
+                  "value": "{{hotelId}}",
+                  "type": "text",
+                  "description": "Hotel ID (Optional, defaults to authenticated user's hotel)"
+                },
+                {
+                  "key": "room_id",
+                  "value": "{{roomId}}",
+                  "type": "text",
+                  "description": "Physical room ID to reserve (Required)"
+                },
+                {
+                  "key": "primary_guest_name",
+                  "value": "Aaditya Vikramaditya",
+                  "type": "text",
+                  "description": "Primary guest full name (Required)"
+                },
+                {
+                  "key": "secondary_guest_name",
+                  "value": "Sneha Vikramaditya",
+                  "type": "text",
+                  "description": "Accompanying guest name (Optional)"
+                },
+                {
+                  "key": "mobile_number",
+                  "value": "+919876543210",
+                  "type": "text",
+                  "description": "Guest contact mobile (Required)"
+                },
+                {
+                  "key": "address",
+                  "value": "42 Park Avenue, South Extension Part 2, New Delhi",
+                  "type": "text",
+                  "description": "Guest residential address (Optional)"
+                },
+                {
+                  "key": "check_in_date",
+                  "value": "2026-11-01T14:00:00.000Z",
+                  "type": "text",
+                  "description": "Scheduled arrival timestamp (Required)"
+                },
+                {
+                  "key": "check_out_date",
+                  "value": "2026-11-04T11:00:00.000Z",
+                  "type": "text",
+                  "description": "Scheduled departure timestamp (Required)"
+                },
+                {
+                  "key": "adults",
+                  "value": "2",
+                  "type": "text",
+                  "description": "Number of adults (Optional, default: 1)"
+                },
+                {
+                  "key": "children",
+                  "value": "1",
+                  "type": "text",
+                  "description": "Number of children (Optional, default: 0)"
+                },
+                {
+                  "key": "base_amount",
+                  "value": "10500.00",
+                  "type": "text",
+                  "description": "Base charge before discount & taxes (Optional)"
+                },
+                {
+                  "key": "discount_amount",
+                  "value": "500.00",
+                  "type": "text",
+                  "description": "Discount deduction (Optional, default: 0)"
+                },
+                {
+                  "key": "extra_charges_total",
+                  "value": "200.00",
+                  "type": "text",
+                  "description": "Extra incidentals total (Optional, default: 0)"
+                },
+                {
+                  "key": "gst_rate",
+                  "value": "18.00",
+                  "type": "text",
+                  "description": "GST percentage rate (Optional, default: 18.00)"
+                },
+                {
+                  "key": "paid_amount",
+                  "value": "5000.00",
+                  "type": "text",
+                  "description": "Advance payment paid at desk (Optional, default: 0)"
+                },
+                {
+                  "key": "notes",
+                  "value": "Early check-in requested; anniversary celebration complimentary cake.",
+                  "type": "text",
+                  "description": "Special requests or front desk remarks (Optional)"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Guest Government ID proof document photo uploaded directly to S3 (Optional)"
+                },
+                {
+                  "key": "signatures",
+                  "type": "file",
+                  "src": [],
+                  "description": "Guest digital signature image uploaded directly to S3 with is_signature=true (Optional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bookings"
+              ]
+            },
+            "description": "### Create New Booking (Multipart Form-Data)\nCreates a reservation with overlap validation, automated tax/payment computation, and S3 ID photo & signature uploads.\n\n#### Automated Calculations Done by Server\n- **Nights:** Calculated from `check_in_date` and `check_out_date`.\n- **Taxable Amount:** `(base_amount - discount_amount) + extra_charges_total + late_checkout_charge`.\n- **GST Taxes:** CGST = `gst_rate / 2` (9%), SGST = `gst_rate / 2` (9%).\n- **Total Amount:** `taxable_amount + gst_amount`.\n- **Due Amount:** `total_amount - paid_amount`.\n- **Payment Status:** Auto-derived as `PAID`, `PARTIALLY_PAID`, or `PENDING`.\n- **Overlap Prevention:** Checks if room is booked during overlapping dates; returns `409 Conflict` if conflict detected.\n\n#### Request Fields\n| Field | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `primary_guest_name` | String | **Required** | Primary guest full name (2 - 255 chars) |\n| `mobile_number` | String | **Required** | Primary guest contact phone (7 - 20 chars) |\n| `room_id` | Integer | **Required** | Physical room ID to reserve |\n| `check_in_date` | ISO Date | **Required** | Scheduled arrival timestamp |\n| `check_out_date` | ISO Date | **Required** | Scheduled departure timestamp (must be > check-in) |\n| `hotel_id` | Integer | *Optional* | Hotel ID (auto-scoped from auth user if omitted) |\n| `secondary_guest_name`| String | *Optional* | Name of accompanying guest |\n| `address` | String | *Optional* | Guest address |\n| `adults` | Integer | *Optional* | Number of adults (min 1, default: 1) |\n| `children` | Integer | *Optional* | Number of children (min 0, default: 0) |\n| `base_amount` | Number | *Optional* | Base charge (auto-calculated from room rate if omitted) |\n| `discount_amount` | Number | *Optional* | Discount deducted before tax (default: 0) |\n| `extra_charges_total`| Number | *Optional* | Incidental / extra services total (default: 0) |\n| `late_checkout_charge`| Number | *Optional* | Late departure surcharge (default: 0) |\n| `late_checkout_hours` | Number | *Optional* | Late checkout hours approved (default: 0) |\n| `gst_rate` | Number | *Optional* | GST percentage (default: 18.00) |\n| `paid_amount` | Number | *Optional* | Advance payment made (default: 0) |\n| `notes` | String | *Optional* | Special requests or front desk remarks |\n| `images` | File | *Optional* | Guest ID document photo uploaded directly to S3 |\n| `signatures` | File | *Optional* | Digital signature image uploaded directly to S3 |"
+          }
+        },
+        {
+          "name": "List Bookings (Filters & Search)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bookings?hotel_id={{hotelId}}&payment_status=PARTIALLY_PAID&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bookings"
+              ],
+              "query": [
+                {
+                  "key": "hotel_id",
+                  "value": "{{hotelId}}",
+                  "description": "Filter by Hotel ID"
+                },
+                {
+                  "key": "payment_status",
+                  "value": "PARTIALLY_PAID",
+                  "description": "Filter by status: PENDING, PARTIALLY_PAID, PAID"
+                },
+                {
+                  "key": "room_id",
+                  "value": "{{roomId}}",
+                  "description": "Filter by Room ID",
+                  "disabled": true
+                },
+                {
+                  "key": "booking_number",
+                  "value": "BK-",
+                  "description": "Filter by booking code (e.g. BK-17918-999)",
+                  "disabled": true
+                },
+                {
+                  "key": "primary_guest_name",
+                  "value": "Aaditya",
+                  "description": "Filter by primary guest name",
+                  "disabled": true
+                },
+                {
+                  "key": "mobile_number",
+                  "value": "9876543210",
+                  "description": "Filter by guest mobile number",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "Aaditya",
+                  "description": "Search guest name or booking number",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Page limit (1-100)"
+                }
+              ]
+            },
+            "description": "### List Bookings\nRetrieves paginated bookings with flexible filtering and search criteria.\n\n#### Query Filters\n| Query Param | Type | Required | Description |\n| :--- | :--- | :--- | :--- |\n| `hotel_id` | Integer | *Optional* | Hotel property ID |\n| `room_id` | Integer | *Optional* | Assigned room ID |\n| `booking_number` | String | *Optional* | Exact booking reference code |\n| `primary_guest_name` | String | *Optional* | Guest name |\n| `payment_status` | String | *Optional* | `PENDING`, `PARTIALLY_PAID`, or `PAID` |\n| `check_in_from` | ISO Date | *Optional* | Start date of check-in window |\n| `check_in_to` | ISO Date | *Optional* | End date of check-in window |\n| `check_out_from` | ISO Date | *Optional* | Start date of check-out window |\n| `check_out_to` | ISO Date | *Optional* | End date of check-out window |\n| `search` | String | *Optional* | Search query across guest name or booking number |\n| `page` | Integer | *Optional* | Page number (default: 1) |\n| `limit` | Integer | *Optional* | Results per page (default: 10, max: 100) |"
+          }
+        },
+        {
+          "name": "Get Booking Details by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bookings/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bookings",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{bookingId}}",
+                  "description": "Booking ID"
+                }
+              ]
+            },
+            "description": "### Get Booking by ID\nReturns complete booking record joined with hotel property information, assigned room number, financial breakdown, tax amounts, guest ID photos, and signature records."
+          }
+        },
+        {
+          "name": "Update Booking (Dates, Financials, Status)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "paid_amount",
+                  "value": "12036.00",
+                  "type": "text",
+                  "description": "Updated paid amount (recalculates due balance to 0 and transitions status to PAID)"
+                },
+                {
+                  "key": "notes",
+                  "value": "Payment cleared in full via UPI at front desk.",
+                  "type": "text",
+                  "description": "Updated front desk notes (Optional)"
+                },
+                {
+                  "key": "actual_check_in",
+                  "value": "2026-11-01T14:15:00.000Z",
+                  "type": "text",
+                  "description": "Actual check-in time recorded at front desk (Optional)"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Additional guest ID photo uploaded to S3 (Optional)"
+                },
+                {
+                  "key": "signatures",
+                  "type": "file",
+                  "src": [],
+                  "description": "Updated digital signature image uploaded to S3 (Optional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bookings/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bookings",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{bookingId}}",
+                  "description": "Booking ID to update"
+                }
+              ]
+            },
+            "description": "### Update Booking (Multipart Form-Data)\nUpdates booking fields and automatically recalculates tax balances.\n- Supports uploading additional ID proof photos or signature files to AWS S3.\n- If `paid_amount` is increased to meet total balance, `payment_status` transitions to `PAID`.\n- If dates or room are updated, validates that new dates do not collide with another booking."
+          }
+        },
+        {
+          "name": "Soft-Delete Booking (Releases Room)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bookings/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bookings",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{bookingId}}",
+                  "description": "Booking ID to delete"
+                }
+              ]
+            },
+            "description": "### Soft-Delete Booking\nMarks booking as deleted by setting `deleted_at`.\n- Immediately frees the room so the dates can be booked by new guests."
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. User & Staff Management",
+      "description": "Internal staff governance and role-based access control. Hotel Admins can manage their property's staff accounts (RECEPTIONIST, MANAGER, HOUSEKEEPING, ACCOUNTANT). Super Admins have universal platform access. Includes password hashing with Bcrypt, hotel isolation, and self-deletion protection.",
+      "item": [
+        {
+          "name": "Create Staff Member",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var res = pm.response.json();",
+                  "    if (res.data && res.data.id) {",
+                  "        pm.collectionVariables.set('userId', String(res.data.id));",
+                  "        console.log('✅ Created userId set to: ' + res.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rohit Deshmukh\",\n  \"email\": \"rohit81056@frontdesk.com\",\n  \"password\": \"StaffPassword@123\",\n  \"phone\": \"+919876543210\",\n  \"role\": \"RECEPTIONIST\",\n  \"hotel_id\": 1,\n  \"is_active\": true,\n  \"must_change_password\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
+            },
+            "description": "### Create Staff User\nCreates a staff user account.\n- **Access:** Protected (Requires `HOTEL_ADMIN` or `SUPER_ADMIN`)\n- **Hotel Admin Restriction:** Hotel Admins can create staff roles (`RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT`) for their own hotel only.\n- **Temporary Password & Setup Link Flow:** If `password` is omitted, the system generates a secure temporary password (e.g. `Temp#a8f12b0e`).\n- **Welcome Email:** Dispatches an onboarding email to the staff user containing both their initial login password and an expiring 48-hour password reset link so they can easily set/reset their permanent password.\n\n#### Request Fields\n| Field | Type | Required | Description | Validation |\n| :--- | :--- | :--- | :--- | :--- |\n| `name` | String | **Required** | Staff full name | 2 - 100 chars |\n| `email` | String | **Required** | Unique login email | Valid email format |\n| `phone` | String | **Required** | Contact mobile | 5 - 20 chars |\n| `role` | String | **Required** | Role code | One of: `HOTEL_ADMIN`, `RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` |\n| `password` | String | *Optional* | Initial login password (auto-generated if omitted) | Min 6 chars (hashed with bcrypt) |\n| `hotel_id` | Integer | *Optional* | Hotel ID | Hotel Admin automatically forced to their own hotel |\n| `is_active` | Boolean | *Optional* | Active status | Default: `true` |\n| `must_change_password` | Boolean | *Optional* | Require password change on first login | Default: `true` when auto-generated |"
+          }
+        },
+        {
+          "name": "List Staff Members (Filter, Sort, Search)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users?role=RECEPTIONIST&is_active=true&sort_by=created_at&sort_order=desc&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "role",
+                  "value": "RECEPTIONIST",
+                  "description": "Filter by role code"
+                },
+                {
+                  "key": "is_active",
+                  "value": "true",
+                  "description": "Filter by active status (true/false)"
+                },
+                {
+                  "key": "hotel_id",
+                  "value": "{{hotelId}}",
+                  "description": "Filter by Hotel ID",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "created_at",
+                  "description": "Sort column: id, name, email, role, is_active, created_at, updated_at, last_login_at"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort order: asc or desc"
+                },
+                {
+                  "key": "search",
+                  "value": "Rohit",
+                  "description": "Search query across name, email, or phone",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Results per page (1-100)"
+                }
+              ]
+            },
+            "description": "### List Staff Members\nReturns paginated list of staff members with sorting and filtering.\n- **Access:** Protected (`HOTEL_ADMIN` or `SUPER_ADMIN`)"
+          }
+        },
+        {
+          "name": "Get Staff Member by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "User ID"
+                }
+              ]
+            },
+            "description": "### Get Staff Member by ID\nRetrieves details of a staff user without exposing password hashes."
+          }
+        },
+        {
+          "name": "Update Staff Member Details",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rohit Deshmukh (Senior Front Desk)\",\n  \"phone\": \"+919876543299\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "User ID to update"
+                }
+              ]
+            },
+            "description": "### Update Staff Member\nModifies staff attributes.\n- **Access:** Protected (`HOTEL_ADMIN` or `SUPER_ADMIN`)"
+          }
+        },
+        {
+          "name": "Soft-Delete Staff Member",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "User ID to delete"
+                }
+              ]
+            },
+            "description": "### Soft-Delete Staff Member\nSoft-deletes a user account by setting `deleted_at`.\n- **Self-Deletion Guard:** Prevents an administrator from deleting their own account."
+          }
+        }
+      ]
+    }
+  ]
+}

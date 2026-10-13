@@ -142,8 +142,7 @@ const runTests = async () => {
         pincode: '302001',
         gstNumber: 'INVALID_GSTIN_123',
         panNumber: 'INVALID_PAN',
-        idProofDocument: 'https://example.com/trojan.exe',
-        password: '123', // < 6 chars
+        totalRooms: -5,
       }),
     });
     const data3 = await res3.json();
@@ -152,8 +151,7 @@ const runTests = async () => {
     const errFields3 = data3.errors.map((e) => e.field);
     assert(errFields3.includes('gstNumber'), 'Catches invalid GSTIN format');
     assert(errFields3.includes('panNumber'), 'Catches invalid PAN format');
-    assert(errFields3.includes('idProofDocument'), 'Catches disallowed document extension (.exe)');
-    assert(errFields3.includes('password'), 'Catches short password (< 6 chars)');
+    assert(errFields3.includes('totalRooms'), 'Catches negative totalRooms');
 
     // =========================================================================
     // 4️⃣ Testing Global Email Uniqueness Guard
@@ -184,9 +182,9 @@ const runTests = async () => {
     );
 
     // =========================================================================
-    // 5️⃣ Testing Hotel Registration with Custom Password
+    // 5️⃣ Testing Hotel Registration (Temporary Password & Setup Token Flow)
     // =========================================================================
-    console.log('\n5️⃣ Testing Hotel Registration with Custom Password');
+    console.log('\n5️⃣ Testing Hotel Registration (Temporary Password & Setup Token Flow)');
     const uniqueEmail1 = `test_hotel_${Date.now()}@example.com`;
     const res5 = await fetch(`${baseUrl}/api/v1/hotel/register`, {
       method: 'POST',
@@ -205,7 +203,6 @@ const runTests = async () => {
         panNumber: 'ABCDE1234F',
         totalRooms: 35,
         hotelType: 'Heritage Resort',
-        password: 'CustomSecret@123',
       }),
     });
     const data5 = await res5.json();
@@ -227,9 +224,8 @@ const runTests = async () => {
     assert(data5.data.hotel.settings?.checkInTime === '14:00', 'Default check-in time is 14:00');
     assert(data5.data.hotel.settings?.checkOutTime === '12:00', 'Default check-out time is 12:00');
     assert(data5.data.hotel.settings?.timezone === 'Asia/Kolkata', 'Timezone is Asia/Kolkata');
-    assert(data5.data.hotel.settings?.currency === 'INR', 'Currency is INR');
-    assert(data5.data.hotel.settings?.defaultGstRate === 18, 'Default GST rate is 18%');
-    assert(data5.data.hotel.settings?.upiId === 'jatinkakadiya234-1@okicici', 'Default UPI ID set');
+    assert(data5.data.hotel.settings?.defaultGstRate === undefined, 'Deprecated defaultGstRate removed');
+    assert(data5.data.hotel.settings?.upiId === '', 'No hardcoded default UPI ID');
 
     // Admin details
     assert(Boolean(data5.data?.admin?.id), 'Admin user created with ID');
@@ -245,7 +241,12 @@ const runTests = async () => {
     assert(dbHotel.owner_id === data5.data.admin.id, 'Database hotel record stores owner_id foreign key');
     assert(dbHotel.owner_name === undefined, 'Database hotel table no longer has owner_name column');
 
-    assert(data5.data.admin.mustChangePassword === false, 'mustChangePassword is false for custom password');
+    assert(data5.data.admin.mustChangePassword === true, 'mustChangePassword is true for temporary password flow');
+
+    // Verify PasswordResetToken setup token was generated
+    const setupTokenRecord5 = await db('password_reset_tokens').where({ user_id: data5.data.admin.id }).first();
+    assert(Boolean(setupTokenRecord5), 'Generates secure PasswordResetToken for expiring setup link in temp password flow');
+    assert(setupTokenRecord5.token.length >= 32, 'Setup token has cryptographically secure length');
 
     // Security check: No password or password hash exposed
     assert(data5.data.admin.password === undefined, 'Does not expose plaintext password in admin data');
@@ -374,7 +375,41 @@ const runTests = async () => {
     createdUserIds.push(data8.data.admin.id);
 
     // =========================================================================
-    // 9️⃣ Clean up
+    // 9️⃣ Testing Hotel Registration via multipart/form-data with Logo Upload
+    // =========================================================================
+    console.log('\n9️⃣ Testing Hotel Registration via multipart/form-data with Logo Upload');
+    const uniqueEmail5 = `test_hotel_formdata_${Date.now()}@example.com`;
+    const formData = new FormData();
+    formData.append('name', 'Seaside Coral Resort');
+    formData.append('ownerName', 'Karan Singhania');
+    formData.append('ownerEmail', uniqueEmail5);
+    formData.append('ownerPhone', '9812345678');
+    formData.append('address', '12 Ocean Drive');
+    formData.append('city', 'Goa');
+    formData.append('state', 'Goa');
+    formData.append('pincode', '403001');
+    formData.append('totalRooms', '40');
+    formData.append('upi_id', 'customupi@bank');
+    const dummyLogo = new Blob(['fake-image-bytes-for-hotel-logo'], { type: 'image/png' });
+    formData.append('logo', dummyLogo, 'hotel_logo.png');
+
+    const res9 = await fetch(`${baseUrl}/api/v1/hotel/register`, {
+      method: 'POST',
+      body: formData,
+    });
+    const data9 = await res9.json();
+
+    assert(res9.status === 201, 'Returns 201 Created on multipart/form-data registration');
+    assert(Boolean(data9.data?.hotel?.id), 'Hotel created via form-data');
+    assert(data9.data.hotel.name === 'Seaside Coral Resort', 'Hotel name matches form-data');
+    assert(Boolean(data9.data.hotel.logo), 'Logo URL stored from S3 upload');
+    assert(data9.data.hotel.settings?.upiId === 'customupi@bank', 'Custom upi_id preserved from form-data');
+
+    if (data9.data?.hotel?.id) createdHotelIds.push(data9.data.hotel.id);
+    if (data9.data?.admin?.id) createdUserIds.push(data9.data.admin.id);
+
+    // =========================================================================
+    // 🔟 Clean up
     // =========================================================================
     console.log('\n🧹 Cleaning up test records from database...');
     await cleanup();

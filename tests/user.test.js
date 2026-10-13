@@ -403,6 +403,37 @@ const runTests = async () => {
       createdUserIds.push(createdStaff2Id);
     }
 
+    // 1.7b Hotel Admin creates staff WITHOUT password (Auto-generated Temp Password & Reset Token flow)
+    {
+      const res = await sendRequest(
+        'POST',
+        '/api/v1/users',
+        {
+          name: 'Charlie Manager',
+          email: 'charlie.manager@hotel.com',
+          phone: '9876543299',
+          role: 'MANAGER',
+        },
+        { Authorization: `Bearer ${hotelAdmin1Token}` }
+      );
+
+      assert(res.status === 201, 'POST /api/v1/users without password returns 201 Created');
+      assert(res.body.data.must_change_password === true, 'must_change_password is true for auto-generated password');
+      assert(res.body.data.password === undefined, 'Does not expose password in API response');
+
+      const staffUserId = res.body.data.id;
+      createdUserIds.push(staffUserId);
+
+      // Verify DB record has bcrypt hash
+      const dbUser = await db('users').where({ id: staffUserId }).first();
+      assert(dbUser.password.startsWith('$2'), 'Auto-generated temporary password is saved as bcrypt hash');
+
+      // Verify PasswordResetToken was generated
+      const resetToken = await db('password_reset_tokens').where({ user_id: staffUserId }).first();
+      assert(Boolean(resetToken), 'Generates PasswordResetToken for staff setup link');
+      assert(resetToken.token.length >= 32, 'Setup token has cryptographically secure length');
+    }
+
     // 1.8 Hotel Admin cannot create SUPER_ADMIN or HOTEL_ADMIN
     {
       const res1 = await sendRequest(
