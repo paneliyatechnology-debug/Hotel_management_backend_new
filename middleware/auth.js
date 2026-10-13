@@ -71,6 +71,14 @@ const authenticateUser = async (req, res, next) => {
       throw new AppError('User account not found.', HTTP_STATUS.UNAUTHORIZED);
     }
 
+    // A disabled user cannot call any protected API, even with a valid token.
+    if (userModel.isUserDisabled(user)) {
+      throw new AppError(
+        'Your account has been disabled. Please contact your hotel administrator.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+
     // Verify account active state based on is_active, is_deleted, and deleted_at (status column dropped)
     if (
       user.is_active === false ||

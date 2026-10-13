@@ -8,6 +8,7 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
+const bookingModel = require('../models/bookingModel');
 const hotelModel = require('../models/hotelModel');
 const tokenModel = require('../models/tokenModel');
 const { queueEmail } = require('../queues/emailQueue');
@@ -46,6 +47,7 @@ const formatUserResponse = (user) => {
   return {
     ...safe_user,
     is_active: Boolean(user.is_active),
+    is_disabled: Boolean(user.is_disabled),
     must_change_password: Boolean(user.must_change_password),
     failed_login_attempts: Number(user.failed_login_attempts) || 0,
     deleted_at: user.deleted_at || null,
@@ -72,6 +74,9 @@ const createUser = async (payload, req_user) => {
   const exists = await userModel.emailExists(email);
   if (exists) {
     throw new AppError('A user with this email already exists.', HTTP_STATUS.CONFLICT);
+  }
+  if (await bookingModel.emailUsedOnBooking(email)) {
+    throw new AppError('This email is used on a booking.', HTTP_STATUS.CONFLICT);
   }
 
   const role = String(payload.role || '').toUpperCase();
@@ -146,6 +151,10 @@ const createUser = async (payload, req_user) => {
   const setupTokenExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
   const is_active = payload.is_active !== undefined ? Boolean(payload.is_active) : true;
+  const is_disabled = payload.is_disabled === true
+    || payload.is_disabled === 1
+    || payload.is_disabled === '1'
+    || payload.is_disabled === 'true';
   const must_change_password = payload.must_change_password !== undefined
     ? Boolean(payload.must_change_password)
     : (payload.password ? false : true);
@@ -158,6 +167,7 @@ const createUser = async (payload, req_user) => {
     role,
     hotel_id: hotel_id || null,
     is_active,
+    is_disabled,
     must_change_password,
     failed_login_attempts: 0,
   };
@@ -227,6 +237,7 @@ const getUsers = async (query = {}, req_user) => {
     search: query.search,
     role: query.role,
     is_active: query.is_active,
+    is_disabled: query.is_disabled,
   };
 
   // Hotel isolation. Hotel admins are scoped by the token hotel, not query hotel_id.
@@ -414,6 +425,9 @@ const updateUser = async (id, payload, req_user) => {
       if (email_taken) {
         throw new AppError('A user with this email already exists.', HTTP_STATUS.CONFLICT);
       }
+      if (await bookingModel.emailUsedOnBooking(normalized_email)) {
+        throw new AppError('This email is used on a booking.', HTTP_STATUS.CONFLICT);
+      }
     }
   }
 
@@ -499,6 +513,84 @@ const deleteUser = async (id, req_user) => {
   return { id: Number(id), is_deleted: true, isDeleted: true };
 };
 
+/**
+ * Read a true/false flag. "false" stays false, unlike JavaScript Boolean("false").
+ * @param {*} value
+ * @param {string} field
+ * @returns {boolean}
+ */
+const parseFlag = (value, field) => {
+  if (value === true || value === 1 || value === '1' || value === 'true') return true;
+  if (value === false || value === 0 || value === '0' || value === 'false') return false;
+  throw new AppError(`${field} must be a boolean value.`, HTTP_STATUS.BAD_REQUEST);
+};
+
+/**
+ * Turn is_active and is_disabled on or off.
+ * A disabled user cannot log in and cannot call any protected API.
+ * @param {number|string} id
+ * @param {Object} payload
+ * @param {Object} req_user
+ * @returns {Promise<Object>}
+ */
+const updateAccountStatus = async (id, payload, req_user) => {
+  const existing_user = await userModel.findUserById(id);
+
+  if (!existing_user || existing_user.deleted_at) {
+    throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  if (payload.is_active === undefined && payload.is_disabled === undefined) {
+    throw new AppError('is_active or is_disabled is required.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (String(req_user.id) === String(id)) {
+    throw new AppError('You cannot change your own account status.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (req_user.role === ROLE_CODES.HOTEL_ADMIN) {
+    if (Number(existing_user.hotel_id) !== Number(req_user.hotel_id)) {
+      throw new AppError(
+        'Access denied. You do not have permission to update this user.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+    if (existing_user.role === ROLE_CODES.SUPER_ADMIN || existing_user.role === ROLE_CODES.HOTEL_ADMIN) {
+      throw new AppError(
+        'Hotel administrators are not permitted to change Super Admin or Hotel Admin account status.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+  } else if (req_user.role !== ROLE_CODES.SUPER_ADMIN) {
+    throw new AppError(
+      `Access denied. Role '${req_user.role}' is not authorized to update account status.`,
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
+  const updates = {};
+  if (payload.is_active !== undefined) updates.is_active = parseFlag(payload.is_active, 'is_active');
+  if (payload.is_disabled !== undefined) updates.is_disabled = parseFlag(payload.is_disabled, 'is_disabled');
+
+  const willBeInactive = updates.is_active === false || (updates.is_active === undefined && !existing_user.is_active);
+  const willBeDisabled = updates.is_disabled === true || (updates.is_disabled === undefined && userModel.isUserDisabled(existing_user));
+
+  if (existing_user.role === ROLE_CODES.SUPER_ADMIN && (willBeInactive || willBeDisabled)) {
+    const active_super_admins = await userModel.countActiveSuperAdmins();
+    const thisAdminStillCounts = existing_user.is_active && !userModel.isUserDisabled(existing_user);
+    if (thisAdminStillCounts && active_super_admins <= 1) {
+      throw new AppError(
+        'Cannot disable or deactivate the last active Super Administrator.',
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+  }
+
+  await userModel.updateUser(id, updates);
+  const updated_user = await userModel.findUserById(id);
+  return formatUserResponse(updated_user);
+};
+
 module.exports = {
   STAFF_ROLES,
   ALL_ROLES,
@@ -506,5 +598,6 @@ module.exports = {
   getUsers,
   getUserById,
   updateUser,
+  updateAccountStatus,
   deleteUser,
 };

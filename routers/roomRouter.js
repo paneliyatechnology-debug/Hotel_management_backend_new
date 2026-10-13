@@ -2,7 +2,7 @@
  * Physical Room Router.
  * Mounts endpoints for Physical Rooms:
  * 1. POST /api/v1/rooms – Create a physical room with validation and S3 image uploads.
- * 2. GET /api/v1/rooms – List rooms with pagination and filters (hotel, floor, room_type, status, active).
+ * 2. GET /api/v1/rooms – List rooms with pagination, filters, and floor sort (asc or desc).
  * 3. GET /api/v1/rooms/:id – Get a single room by ID.
  * 4. PUT /api/v1/rooms/:id – Update room details.
  * 5. PATCH /api/v1/rooms/:id/status – Update only the room status.

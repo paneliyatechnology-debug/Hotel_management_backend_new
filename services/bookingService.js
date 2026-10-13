@@ -11,6 +11,7 @@ const userModel = require('../models/userModel');
 const s3Service = require('./s3Service');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
+const { checkEmailExistsGlobally } = require('../utils/emailValidator');
 const { resolveHotelId } = require('../utils/hotelScope');
 const {
   HTTP_STATUS,
@@ -21,6 +22,25 @@ const {
 
 // Stays that can still hold the room or its dates. Derived so the list cannot drift
 // from BOOKING_STATUSES.
+/**
+ * Guest email is optional. A login email from users or hotel owners is rejected.
+ * @param {*} value
+ * @returns {Promise<string|null|undefined>} undefined when the field was not sent
+ */
+const resolveGuestEmail = async (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || String(value).trim() === '') return null;
+
+  const email = String(value).trim().toLowerCase();
+  const usedByAccount = await checkEmailExistsGlobally(email);
+  if (usedByAccount) {
+    throw new AppError('This email belongs to a user account.', HTTP_STATUS.BAD_REQUEST, [
+      { field: 'email', message: 'This email belongs to a user account.' },
+    ]);
+  }
+  return email;
+};
+
 const OPEN_BOOKING_STATUSES = BOOKING_STATUSES.filter(
   (status) => !NON_BLOCKING_BOOKING_STATUSES.includes(status)
 );
@@ -89,12 +109,19 @@ const resolveBookingStatus = (value, { required = false, fallback = 'CHECKED_IN'
  */
 const findOtherOpenStays = async (roomId, bookingId) => {
   const rows = await db('bookings')
-    .where('room_id', Number(roomId))
-    .whereNot('id', Number(bookingId))
-    .whereNull('deleted_at')
-    .whereNull('actual_check_out')
-    .whereIn('booking_status', OPEN_BOOKING_STATUSES)
-    .select('booking_status');
+    .whereNot('bookings.id', Number(bookingId))
+    .whereNull('bookings.deleted_at')
+    .whereNull('bookings.actual_check_out')
+    .whereIn('bookings.booking_status', OPEN_BOOKING_STATUSES)
+    .where(function () {
+      this.where('bookings.room_id', Number(roomId)).orWhereExists(function () {
+        this.select(db.raw('1'))
+          .from('booking_rooms')
+          .whereRaw('booking_rooms.booking_id = bookings.id')
+          .where('booking_rooms.room_id', Number(roomId));
+      });
+    })
+    .select('bookings.booking_status');
 
   return {
     checkedIn: rows.some((row) => row.booking_status === 'CHECKED_IN'),
@@ -127,18 +154,98 @@ const roomStatusAfterRelease = (currentRoomStatus, stayStatus, others) => {
 };
 
 /**
- * Move the assigned room to match this stay.
- * Check-in always occupies the room. Checkout always starts cleaning, even when another
- * stay exists, so housekeeping is not skipped.
+ * Room ids on a booking. room_id from the API is an array.
+ * @param {Object} booking
+ * @returns {number[]}
+ */
+const roomIdsFromBooking = (booking) => {
+  if (Array.isArray(booking?.room_id) && booking.room_id.length) {
+    return [...new Set(booking.room_id.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  }
+  if (Array.isArray(booking?.rooms) && booking.rooms.length) {
+    return [...new Set(booking.rooms.map((room) => Number(room.id)).filter((id) => id > 0))];
+  }
+  const single = Number(booking?.room_id);
+  return Number.isInteger(single) && single > 0 ? [single] : [];
+};
+
+/**
+ * Read room_id from the request. Accepts an array, a JSON array string,
+ * a comma-separated string, or one room id.
+ * @param {*} value
+ * @param {{ required?: boolean }} [options]
+ * @returns {number[]|null} null when the field was omitted and is not required
+ */
+const parseRoomIds = (value, { required = false } = {}) => {
+  if (value === undefined || value === null || value === '') {
+    if (required) {
+      throw new AppError('room_id is required.', HTTP_STATUS.BAD_REQUEST, [
+        { field: 'room_id', message: 'room_id is required.' },
+      ]);
+    }
+    return null;
+  }
+
+  let list = value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      if (required) {
+        throw new AppError('room_id is required.', HTTP_STATUS.BAD_REQUEST, [
+          { field: 'room_id', message: 'room_id is required.' },
+        ]);
+      }
+      return null;
+    }
+    if (trimmed.startsWith('[')) {
+      try {
+        list = JSON.parse(trimmed);
+      } catch (_) {
+        list = null;
+      }
+    } else {
+      list = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
+    }
+  } else if (!Array.isArray(value)) {
+    list = [value];
+  }
+
+  const ids = Array.isArray(list)
+    ? [...new Set(list.map((item) => Number(item)))]
+    : [];
+  if (!ids.length || ids.some((id) => !Number.isInteger(id) || id <= 0)) {
+    throw new AppError('room_id must be an array of room ids.', HTTP_STATUS.BAD_REQUEST, [
+      { field: 'room_id', message: 'room_id must be an array of room ids.' },
+    ]);
+  }
+  return ids;
+};
+
+/**
+ * Move every room on this stay to match the stay status.
+ * Check-in occupies each room. Checkout starts cleaning on each room.
  * @param {Object} booking
  * @param {string} status
  * @param {Date} [now]
+ * @param {number[]|null} [onlyRoomIds] - When set, only these rooms are updated
  * @returns {Promise<void>}
  */
-const syncRoomForBookingStatus = async (booking, status, now = new Date()) => {
-  if (!booking.room_id) return;
+const syncRoomForBookingStatus = async (booking, status, now = new Date(), onlyRoomIds = null) => {
+  const roomIds = onlyRoomIds || roomIdsFromBooking(booking);
+  for (const roomId of roomIds) {
+    await syncOneRoomForBookingStatus(booking, roomId, status, now);
+  }
+};
 
-  const room = await roomModel.findRoomById(booking.room_id);
+/**
+ * Move one assigned room to match this stay.
+ * @param {Object} booking
+ * @param {number} roomId
+ * @param {string} status
+ * @param {Date} now
+ */
+const syncOneRoomForBookingStatus = async (booking, roomId, status, now) => {
+  const room = await roomModel.findRoomById(roomId);
   if (!room || Number(room.hotel_id) !== Number(booking.hotel_id)) return;
 
   if (status === 'CHECKED_IN') {
@@ -204,12 +311,17 @@ const calculatePricing = ({
   gst_rate = 18.00,
   paid_amount = 0,
   room = null,
+  rooms = null,
   numberOfNights = 1,
 }) => {
   let baseAmount = Number(base_amount);
   if (isNaN(baseAmount) || baseAmount <= 0) {
-    const roomRate = Number(room?.custom_price_per_night) || 0;
-    baseAmount = roomRate > 0 ? roomRate * numberOfNights : 0;
+    const pricedRooms = Array.isArray(rooms) && rooms.length ? rooms : (room ? [room] : []);
+    const nightlyTotal = pricedRooms.reduce(
+      (sum, item) => sum + (Number(item?.custom_price_per_night) || 0),
+      0
+    );
+    baseAmount = nightlyTotal > 0 ? nightlyTotal * numberOfNights : 0;
   }
 
   const discountAmount = Math.max(0, Number(discount_amount) || 0);
@@ -272,7 +384,7 @@ const calculatePricing = ({
  */
 const validateBookingPreconditions = async ({
   hotelId,
-  roomId,
+  roomIds,
   checkInDate,
   checkOutDate,
   excludeBookingId = null,
@@ -322,62 +434,66 @@ const validateBookingPreconditions = async ({
     }
   }
 
-  // 4. Room existence, ownership, active, and soft-delete verification
-  const room = await db('rooms')
-    .where({ id: roomId })
-    .whereNull('deleted_at')
-    .first();
+  // 4. Every room must exist, belong to this hotel, and be free for these dates.
+  const rooms = [];
+  for (const roomId of roomIds) {
+    const room = await db('rooms')
+      .where({ id: roomId })
+      .whereNull('deleted_at')
+      .first();
 
-  if (!room) {
-    throw new AppError(
-      `Room ID ${roomId} not found or has been deleted.`,
-      HTTP_STATUS.BAD_REQUEST,
-      [{ field: 'room_id', message: `Invalid room ID: ${roomId}` }]
+    if (!room) {
+      throw new AppError(
+        `Room ID ${roomId} not found or has been deleted.`,
+        HTTP_STATUS.BAD_REQUEST,
+        [{ field: 'room_id', message: `Invalid room ID: ${roomId}` }]
+      );
+    }
+
+    if (Number(room.hotel_id) !== Number(hotelId)) {
+      throw new AppError(
+        `Room '${room.room_number}' (ID ${room.id}) belongs to hotel ID ${room.hotel_id}, not hotel ID ${hotelId}.`,
+        HTTP_STATUS.BAD_REQUEST,
+        [{ field: 'room_id', message: `Room ${room.id} belongs to a different hotel.` }]
+      );
+    }
+
+    if (!room.is_active) {
+      throw new AppError(
+        `Room '${room.room_number}' (ID ${room.id}) is currently inactive and cannot be booked.`,
+        HTTP_STATUS.BAD_REQUEST,
+        [{ field: 'room_id', message: `Room ${room.id} is marked inactive.` }]
+      );
+    }
+
+    const conflicts = await bookingModel.checkRoomOverlaps(
+      roomId,
+      inDate,
+      outDate,
+      { excludeBookingId }
     );
+
+    if (conflicts.length > 0) {
+      const first = conflicts[0];
+      const confStart = new Date(first.check_in_date).toISOString().slice(0, 10);
+      const confEnd = new Date(first.check_out_date).toISOString().slice(0, 10);
+      throw new AppError(
+        `Room '${room.room_number}' is already booked from ${confStart} to ${confEnd} (Booking #${first.booking_number}). Overlapping bookings are not allowed.`,
+        HTTP_STATUS.CONFLICT,
+        [
+          {
+            field: 'room_id',
+            message: `Room ${room.id} overlaps booking ${first.booking_number}`,
+            conflicts,
+          },
+        ]
+      );
+    }
+
+    rooms.push(room);
   }
 
-  if (Number(room.hotel_id) !== Number(hotelId)) {
-    throw new AppError(
-      `Room '${room.room_number}' (ID ${room.id}) belongs to hotel ID ${room.hotel_id}, not hotel ID ${hotelId}.`,
-      HTTP_STATUS.BAD_REQUEST,
-      [{ field: 'room_id', message: `Room ${room.id} belongs to a different hotel.` }]
-    );
-  }
-
-  if (!room.is_active) {
-    throw new AppError(
-      `Room '${room.room_number}' (ID ${room.id}) is currently inactive and cannot be booked.`,
-      HTTP_STATUS.BAD_REQUEST,
-      [{ field: 'room_id', message: `Room ${room.id} is marked inactive.` }]
-    );
-  }
-
-  // 5. Overlapping booking conflict prevention
-  const conflicts = await bookingModel.checkRoomOverlaps(
-    roomId,
-    inDate,
-    outDate,
-    { excludeBookingId }
-  );
-
-  if (conflicts.length > 0) {
-    const first = conflicts[0];
-    const confStart = new Date(first.check_in_date).toISOString().slice(0, 10);
-    const confEnd = new Date(first.check_out_date).toISOString().slice(0, 10);
-    throw new AppError(
-      `Room '${first.room_number || roomId}' is already booked from ${confStart} to ${confEnd} (Booking #${first.booking_number}). Overlapping bookings are not allowed.`,
-      HTTP_STATUS.CONFLICT,
-      [
-        {
-          field: 'room_id',
-          message: `Room overlap conflict with booking ${first.booking_number}`,
-          conflicts,
-        },
-      ]
-    );
-  }
-
-  return { inDate, outDate, numberOfNights, hotel, room };
+  return { inDate, outDate, numberOfNights, hotel, rooms, room: rooms[0] };
 };
 
 /**
@@ -391,12 +507,7 @@ const createBooking = async (body, files = [], reqUser = null) => {
   // hotel_id comes from the authenticated user token. Body hotel_id is ignored.
   const hotelId = resolveHotelId(reqUser);
 
-  const roomId = Number(body.room_id);
-  if (!roomId || isNaN(roomId) || roomId <= 0) {
-    throw new AppError('room_id is required and must be a positive integer.', HTTP_STATUS.BAD_REQUEST, [
-      { field: 'room_id', message: 'room_id is required.' },
-    ]);
-  }
+  const roomIds = parseRoomIds(body.room_id, { required: true });
 
   // Primary Guest Details
   const primaryGuestName = body.primary_guest_name ? String(body.primary_guest_name).trim() : '';
@@ -433,15 +544,15 @@ const createBooking = async (body, files = [], reqUser = null) => {
   }
 
   // Preconditions & Overlap check
-  const { inDate, outDate, numberOfNights, room } = await validateBookingPreconditions({
+  const { inDate, outDate, numberOfNights, rooms } = await validateBookingPreconditions({
     hotelId,
-    roomId,
+    roomIds,
     checkInDate: body.check_in_date,
     checkOutDate: body.check_out_date,
     reqUser,
   });
 
-  // Calculate pricing breakdown
+  // Calculate pricing breakdown. When base_amount is omitted, add every room's nightly rate.
   const pricing = calculatePricing({
     base_amount: body.base_amount,
     discount_amount: body.discount_amount,
@@ -450,7 +561,7 @@ const createBooking = async (body, files = [], reqUser = null) => {
     late_checkout_hours: body.late_checkout_hours,
     gst_rate: body.gst_rate,
     paid_amount: body.paid_amount,
-    room,
+    rooms,
     numberOfNights,
   });
 
@@ -484,7 +595,8 @@ const createBooking = async (body, files = [], reqUser = null) => {
     secondary_guest_name: body.secondary_guest_name ? String(body.secondary_guest_name).trim() : null,
     mobile_number: mobileNumber,
     address: body.address ? String(body.address).trim() : null,
-    room_id: roomId,
+    room_id: roomIds[0],
+    room_ids: roomIds,
     created_by: createdBy,
     check_in_date: inDate,
     check_out_date: outDate,
@@ -503,13 +615,15 @@ const createBooking = async (body, files = [], reqUser = null) => {
     deleted_at: null,
   };
 
+  const guestEmail = await resolveGuestEmail(body.email);
+  if (guestEmail !== undefined) bookingData.email = guestEmail;
+
   const newBooking = await bookingModel.createBooking(bookingData, {
     imageRecords: uploadedImages,
     signatureRecords: uploadedSignatures,
   });
 
-  // PENDING leaves the room unchanged. Any other status moves the room, then we re-read
-  // so the response includes that room status and actual_check_in when it was just recorded.
+  // PENDING leaves every room unchanged. Any other status moves all rooms together.
   if (newBooking.booking_status && newBooking.booking_status !== 'PENDING') {
     await applyBookingStatusEffects(newBooking, newBooking.booking_status);
     return bookingModel.findBookingById(newBooking.id);
@@ -595,12 +709,13 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   const hotelId = existing.hotel_id;
   const inDate = body.check_in_date ? new Date(body.check_in_date) : new Date(existing.check_in_date);
   const outDate = body.check_out_date ? new Date(body.check_out_date) : new Date(existing.check_out_date);
-  const roomId = body.room_id ? Number(body.room_id) : existing.room_id;
+  const previousRoomIds = roomIdsFromBooking(existing);
+  const roomIds = parseRoomIds(body.room_id, { required: false }) || previousRoomIds;
 
   // Preconditions & Overlap check (excluding current booking)
-  const { numberOfNights, room } = await validateBookingPreconditions({
+  const { numberOfNights, rooms } = await validateBookingPreconditions({
     hotelId,
-    roomId,
+    roomIds,
     checkInDate: inDate,
     checkOutDate: outDate,
     excludeBookingId: existing.id,
@@ -616,12 +731,13 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
     late_checkout_hours: body.late_checkout_hours !== undefined ? body.late_checkout_hours : existing.late_checkout_hours,
     gst_rate: body.gst_rate !== undefined ? body.gst_rate : existing.gst_rate,
     paid_amount: body.paid_amount !== undefined ? body.paid_amount : existing.paid_amount,
-    room,
+    rooms,
     numberOfNights,
   });
 
   const updatePayload = {
-    room_id: roomId,
+    room_id: roomIds[0],
+    room_ids: roomIds,
     check_in_date: inDate,
     check_out_date: outDate,
     number_of_nights: numberOfNights,
@@ -633,6 +749,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
     updatePayload.secondary_guest_name = body.secondary_guest_name ? String(body.secondary_guest_name).trim() : null;
   }
   if (body.mobile_number) updatePayload.mobile_number = String(body.mobile_number).trim();
+  if (body.email !== undefined) updatePayload.email = await resolveGuestEmail(body.email);
   if (body.address !== undefined) updatePayload.address = body.address ? String(body.address).trim() : null;
   if (body.actual_check_in !== undefined) {
     updatePayload.actual_check_in = body.actual_check_in ? new Date(body.actual_check_in) : null;
@@ -666,19 +783,29 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   const uploadedImages = await s3Service.uploadFiles(imageFiles, 'bookings/images');
   const uploadedSignatures = await s3Service.uploadFiles(signatureFiles, 'bookings/signatures');
 
-  const updated = await bookingModel.updateBooking(existing.id, updatePayload, {
+  await bookingModel.updateBooking(existing.id, updatePayload, {
     imageRecords: uploadedImages,
     signatureRecords: uploadedSignatures,
   });
 
-  return updated;
+  // Rooms dropped from the stay are released. Rooms added pick up the current stay status.
+  const removedRoomIds = previousRoomIds.filter((id) => !roomIds.includes(id));
+  const addedRoomIds = roomIds.filter((id) => !previousRoomIds.includes(id));
+  if (removedRoomIds.length > 0) {
+    await syncRoomForBookingStatus(existing, 'CANCELLED', new Date(), removedRoomIds);
+  }
+  if (addedRoomIds.length > 0 && existing.booking_status && existing.booking_status !== 'PENDING') {
+    await syncRoomForBookingStatus(existing, existing.booking_status, new Date(), addedRoomIds);
+  }
+
+  return getBookingById(existing.id, reqUser);
 };
 
 /**
  * Check a guest out of a booking.
  * body.paid_amount is added to the amount already paid. It does not replace it.
  * A late fee is run through the same GST calculation. Scheduled dates and nights stay as booked.
- * The stay becomes CHECKED_OUT and the room is marked CLEANING, so those dates can be booked again.
+ * The stay becomes CHECKED_OUT and every room on the booking is marked CLEANING.
  * @param {number|string} id
  * @param {Object} [body={}]
  * @param {Object} [reqUser=null]
@@ -745,7 +872,7 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
 /**
  * Update only booking_status.
  * hotel_id comes from the authenticated user token.
- * Guest details, dates, and payment totals are left unchanged. The room follows the new status.
+ * Guest details, dates, and payment totals are left unchanged. Every room on the booking follows the new status.
  * @param {number|string} id
  * @param {Object} body
  * @param {Object} [reqUser=null]
@@ -775,6 +902,8 @@ const updateBookingStatus = async (id, body = {}, reqUser = null) => {
  */
 const deleteBooking = async (id, reqUser = null) => {
   const existing = await getBookingById(id, reqUser);
+  // Free rooms this stay was holding before the row is hidden.
+  await syncRoomForBookingStatus(existing, 'CANCELLED');
   const result = await bookingModel.softDeleteBooking(existing.id);
   return result;
 };

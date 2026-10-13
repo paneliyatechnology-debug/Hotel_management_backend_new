@@ -1,7 +1,7 @@
 /**
  * Booking Router.
  * Mounts endpoints for Booking management:
- * 1. POST /api/v1/bookings – Create a booking with guest details, room allocations, accompanying guests, S3 images & signatures.
+ * 1. POST /api/v1/bookings – Create a booking. room_id is an array, and every room is occupied together.
  * 2. GET /api/v1/bookings – List bookings with pagination and filters (hotel, room, booking number, guest, mobile, status, dates).
  * 3. GET /api/v1/bookings/:id – Get complete booking details.
  * 4. PUT /api/v1/bookings/:id – Update booking details and relations.

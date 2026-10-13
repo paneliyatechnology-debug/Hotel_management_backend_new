@@ -53,6 +53,11 @@ const createUserValidator = [
     .isBoolean()
     .withMessage('is_active must be a boolean value.'),
 
+  body('is_disabled')
+    .optional()
+    .isBoolean()
+    .withMessage('is_disabled must be a boolean value.'),
+
   body('must_change_password')
     .optional()
     .isBoolean()
@@ -164,6 +169,11 @@ const getUsersQueryValidator = [
     .isBoolean()
     .withMessage('is_active query filter must be a boolean.'),
 
+  query('is_disabled')
+    .optional()
+    .isBoolean()
+    .withMessage('is_disabled query filter must be a boolean.'),
+
   query('hotel_id')
     .optional()
     .isInt({ min: 1 })
@@ -175,9 +185,31 @@ const getUsersQueryValidator = [
     .withMessage('search query must be a string.'),
 ];
 
+/**
+ * Validation schema for PATCH /api/v1/users/:id/account-status
+ */
+const updateAccountStatusValidator = [
+  param('id')
+    .notEmpty()
+    .withMessage('User ID is required.')
+    .isInt({ min: 1 })
+    .withMessage('User ID must be a positive integer.'),
+
+  body('is_active')
+    .optional()
+    .isBoolean()
+    .withMessage('is_active must be a boolean value.'),
+
+  body('is_disabled')
+    .optional()
+    .isBoolean()
+    .withMessage('is_disabled must be a boolean value.'),
+];
+
 module.exports = {
   createUserValidator,
   updateUserValidator,
+  updateAccountStatusValidator,
   getUserByIdValidator,
   deleteUserValidator,
   getUsersQueryValidator,

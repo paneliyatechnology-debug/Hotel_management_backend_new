@@ -6,6 +6,51 @@ const { body, param, query } = require('express-validator');
 const { BOOKING_STATUSES } = require('../constants');
 
 /**
+ * room_id is an array of room ids. A JSON string or one id is accepted.
+ * Repeated ids are ignored.
+ * @param {*} value
+ * @returns {number[]|null}
+ */
+const readRoomIds = (value) => {
+  let list = value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('[')) {
+      try {
+        list = JSON.parse(trimmed);
+      } catch (_) {
+        return null;
+      }
+    } else {
+      list = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
+    }
+  } else if (!Array.isArray(value)) {
+    list = [value];
+  }
+
+  if (!Array.isArray(list) || list.length === 0) return null;
+  const ids = [...new Set(list.map((item) => Number(item)))];
+  if (ids.some((id) => !Number.isInteger(id) || id <= 0)) return null;
+  return ids;
+};
+
+/**
+ * @param {*} value
+ * @param {boolean} required
+ */
+const assertRoomIdList = (value, required) => {
+  if (value === undefined || value === null || value === '') {
+    if (required) throw new Error('room_id is required.');
+    return true;
+  }
+  if (!readRoomIds(value)) {
+    throw new Error('room_id must be an array of room ids.');
+  }
+  return true;
+};
+
+/**
  * Validation schema for POST /api/v1/bookings
  */
 const createBookingValidator = [
@@ -29,11 +74,15 @@ const createBookingValidator = [
     .matches(/^[0-9+\-\s]{7,20}$/)
     .withMessage('Please provide a valid mobile number.'),
 
+  body('email')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isEmail()
+    .withMessage('Please enter a valid email address.')
+    .normalizeEmail(),
+
   body('room_id')
-    .notEmpty()
-    .withMessage('room_id is required.')
-    .isInt({ min: 1 })
-    .withMessage('room_id must be a positive integer.'),
+    .custom((value) => assertRoomIdList(value, true)),
 
   body('check_in_date')
     .notEmpty()
@@ -108,10 +157,16 @@ const updateBookingValidator = [
     .matches(/^[0-9+\-\s]{7,20}$/)
     .withMessage('Please provide a valid mobile number.'),
 
+  body('email')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isEmail()
+    .withMessage('Please enter a valid email address.')
+    .normalizeEmail(),
+
   body('room_id')
     .optional()
-    .isInt({ min: 1 })
-    .withMessage('room_id must be a positive integer.'),
+    .custom((value) => assertRoomIdList(value, false)),
 
   body('check_in_date')
     .optional()

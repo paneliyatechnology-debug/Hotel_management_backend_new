@@ -60,8 +60,10 @@ const formatBooking = (row, relations = {}) => {
     primary_guest_name: row.primary_guest_name,
     secondary_guest_name: row.secondary_guest_name || null,
     mobile_number: row.mobile_number,
+    email: row.email || null,
     address: row.address || '',
-    room_id: row.room_id,
+    // Filled below from booking_rooms. Falls back to the first room column.
+    room_id: [],
     created_by: row.created_by,
     check_in_date: row.check_in_date,
     check_out_date: row.check_out_date,
@@ -109,15 +111,22 @@ const formatBooking = (row, relations = {}) => {
     };
   }
 
-  if (row.room_number) {
-    booking.room = {
+  const linkedRooms = Array.isArray(relations.rooms) ? relations.rooms.filter((room) => room && room.id) : [];
+  const fallbackRoom = row.room_number
+    ? [{
       id: row.room_id,
       room_number: row.room_number,
       floor: row.room_floor,
       status: row.room_status,
       room_type_name: row.room_type_name || null,
-    };
-  }
+    }]
+    : (row.room_id ? [{ id: row.room_id, room_number: null, floor: null, status: null, room_type_name: null }] : []);
+  const rooms = linkedRooms.length > 0 ? linkedRooms : fallbackRoom;
+
+  // room_id is every room on this stay. room is the first one, for older screens.
+  booking.room_id = rooms.map((room) => room.id);
+  booking.rooms = rooms;
+  booking.room = rooms[0] || null;
 
   if (row.created_by_name) {
     booking.creator = {
@@ -183,6 +192,82 @@ const loadBookingMedia = async (bookingIds, client = db) => {
 };
 
 /**
+ * Rooms assigned to each booking. Order follows booking_rooms.id.
+ * @param {number[]} bookingIds
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Record<number, Array<Object>>>}
+ */
+const loadRoomsByBookingIds = async (bookingIds, client = db) => {
+  if (!Array.isArray(bookingIds) || bookingIds.length === 0) return {};
+
+  const rows = await client('booking_rooms')
+    .leftJoin('rooms', 'booking_rooms.room_id', 'rooms.id')
+    .leftJoin('room_types', 'rooms.room_type_id', 'room_types.id')
+    .whereIn('booking_rooms.booking_id', bookingIds)
+    .orderBy('booking_rooms.id', 'asc')
+    .select(
+      'booking_rooms.booking_id',
+      'rooms.id as id',
+      'rooms.room_number',
+      'rooms.floor',
+      'rooms.status',
+      'room_types.name as room_type_name'
+    );
+
+  const map = {};
+  for (const row of rows) {
+    if (!row.id) continue;
+    if (!map[row.booking_id]) map[row.booking_id] = [];
+    map[row.booking_id].push({
+      id: row.id,
+      room_number: row.room_number,
+      floor: row.floor,
+      status: row.status,
+      room_type_name: row.room_type_name || null,
+    });
+  }
+  return map;
+};
+
+/**
+ * Replace the rooms on a booking. bookings.room_id stays the first room
+ * because that column is still a required foreign key.
+ * @param {number|string} bookingId
+ * @param {number[]} roomIds
+ * @param {import('knex').Knex} client
+ */
+const replaceBookingRooms = async (bookingId, roomIds, client) => {
+  await client('booking_rooms').where({ booking_id: bookingId }).delete();
+  if (!roomIds.length) return;
+
+  const now = new Date();
+  await client('booking_rooms').insert(
+    roomIds.map((roomId) => ({
+      booking_id: bookingId,
+      room_id: roomId,
+      created_at: now,
+      updated_at: now,
+    }))
+  );
+};
+
+/**
+ * A stay blocks a room when that room is the primary room or one of booking_rooms.
+ * @param {import('knex').QueryBuilder} qb
+ * @param {number} roomId
+ */
+const whereBookingIncludesRoom = (qb, roomId) => {
+  qb.where(function () {
+    this.where('bookings.room_id', roomId).orWhereExists(function () {
+      this.select(db.raw('1'))
+        .from('booking_rooms')
+        .whereRaw('booking_rooms.booking_id = bookings.id')
+        .where('booking_rooms.room_id', roomId);
+    });
+  });
+};
+
+/**
  * Check if the room already has a stay on these dates.
  * Soft-deleted rows are ignored. A stay also stops blocking the room once it is
  * checked out, cancelled, or marked no-show. Both actual_check_out and
@@ -210,13 +295,13 @@ const checkRoomOverlaps = async (
   const outDate = new Date(checkOutDate);
 
   let query = client('bookings')
-    .leftJoin('rooms', 'bookings.room_id', 'rooms.id')
     .whereNull('bookings.deleted_at')
     .whereNull('bookings.actual_check_out')
     .whereNotIn('bookings.booking_status', NON_BLOCKING_BOOKING_STATUSES)
-    .where('bookings.room_id', Number(roomId))
     .where('bookings.check_in_date', '<', outDate)
     .where('bookings.check_out_date', '>', inDate);
+
+  whereBookingIncludesRoom(query, Number(roomId));
 
   if (excludeBookingId) {
     query = query.whereNot('bookings.id', excludeBookingId);
@@ -268,10 +353,12 @@ const findBookingById = async (id, { includeDeleted = false } = {}, client = db)
   if (!row) return null;
 
   const { imagesMap, signaturesMap } = await loadBookingMedia([row.id], client);
+  const roomsMap = await loadRoomsByBookingIds([row.id], client);
 
   return formatBooking(row, {
     images: imagesMap[row.id] || [],
     signatures: signaturesMap[row.id] || [],
+    rooms: roomsMap[row.id] || [],
   });
 };
 
@@ -297,7 +384,7 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
     }
 
     if (filters.room_id) {
-      qb.where('bookings.room_id', Number(filters.room_id));
+      whereBookingIncludesRoom(qb, Number(filters.room_id));
     }
 
     if (filters.booking_number) {
@@ -384,11 +471,13 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
   const bookingIds = rows.map((r) => r.id);
 
   const { imagesMap, signaturesMap } = await loadBookingMedia(bookingIds, client);
+  const roomsMap = await loadRoomsByBookingIds(bookingIds, client);
 
   const bookings = rows.map((row) =>
     formatBooking(row, {
       images: imagesMap[row.id] || [],
       signatures: signaturesMap[row.id] || [],
+      rooms: roomsMap[row.id] || [],
     })
   );
 
@@ -430,8 +519,12 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
       ...imageRecords.map((i) => i.image_url || i.imageUrl),
     ].filter(Boolean);
 
+    const roomIds = Array.isArray(bookingData.room_ids) ? bookingData.room_ids : [];
+    const { room_ids: _roomIds, ...bookingColumns } = bookingData;
+
     const insertPayload = {
-      ...bookingData,
+      ...bookingColumns,
+      room_id: roomIds[0] || bookingColumns.room_id,
       booking_number: bookingNumber,
       signatures: JSON.stringify(storedSignatures),
       images: JSON.stringify(storedImages),
@@ -440,6 +533,10 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
     };
 
     const [bookingId] = await trx('bookings').insert(insertPayload);
+
+    if (roomIds.length > 0) {
+      await replaceBookingRooms(bookingId, roomIds, trx);
+    }
 
     // 3. Store images and signatures in images table
     const allImageInserts = [];
@@ -566,15 +663,26 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
       finalImages = JSON.stringify(newImgs);
     }
 
+    const roomIds = Array.isArray(updateData.room_ids) ? updateData.room_ids : null;
+    const { room_ids: _roomIds, ...columnUpdates } = updateData;
+
     const payload = {
-      ...updateData,
+      ...columnUpdates,
       updated_at: new Date(),
     };
+
+    if (roomIds && roomIds.length > 0) {
+      payload.room_id = roomIds[0];
+    }
 
     if (finalSignatures !== undefined) payload.signatures = finalSignatures;
     if (finalImages !== undefined) payload.images = finalImages;
 
     await trx('bookings').where({ id }).update(payload);
+
+    if (roomIds && roomIds.length > 0) {
+      await replaceBookingRooms(id, roomIds, trx);
+    }
 
     // Insert new images and signatures in images table
     const newMediaRows = [];
@@ -639,15 +747,27 @@ const softDeleteBooking = async (id, client = db) => {
 };
 
 /**
- * Count active bookings assigned to a physical room
- * @param {number|string} roomId
+ * True when a non-deleted booking already stores this guest email.
+ * @param {string} email
  * @param {import('knex').Knex} [client=db]
- * @returns {Promise<number>}
+ * @returns {Promise<boolean>}
  */
+const emailUsedOnBooking = async (email, client = db) => {
+  if (!email) return false;
+  const row = await client('bookings')
+    .whereNull('deleted_at')
+    .whereRaw('LOWER(email) = ?', [String(email).trim().toLowerCase()])
+    .select('id')
+    .first();
+  return Boolean(row);
+};
+
 const countBookingsByRoomId = async (roomId, client = db) => {
   const result = await client('bookings')
     .whereNull('bookings.deleted_at')
-    .where('bookings.room_id', roomId)
+    .where(function () {
+      whereBookingIncludesRoom(this, Number(roomId));
+    })
     .count('bookings.id as count')
     .first();
 
@@ -664,4 +784,5 @@ module.exports = {
   updateBooking,
   softDeleteBooking,
   countBookingsByRoomId,
+  emailUsedOnBooking,
 };

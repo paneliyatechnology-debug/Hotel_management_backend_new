@@ -220,6 +220,16 @@ const getRoomsQueryValidator = [
     .optional()
     .isInt({ min: 1, max: 100 })
     .withMessage('limit must be an integer between 1 and 100.'),
+
+  query('sort_by')
+    .optional()
+    .isIn(['floor'])
+    .withMessage("sort_by must be 'floor'."),
+
+  query('sort_order')
+    .optional()
+    .isIn(['asc', 'desc', 'ASC', 'DESC'])
+    .withMessage("sort_order must be 'asc' or 'desc'."),
 ];
 
 module.exports = {

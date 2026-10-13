@@ -55,6 +55,7 @@ const MESSAGES = {
   BOOKING_RETRIEVED_SUCCESS: 'Booking retrieved successfully.',
   BOOKINGS_RETRIEVED_SUCCESS: 'Bookings retrieved successfully.',
   USER_CREATED_SUCCESS: 'User created successfully.',
+  USER_ACCOUNT_STATUS_UPDATED_SUCCESS: 'User account status updated successfully.',
   USER_UPDATED_SUCCESS: 'User updated successfully.',
   USER_DELETED_SUCCESS: 'User deleted successfully.',
   USER_RETRIEVED_SUCCESS: 'User retrieved successfully.',

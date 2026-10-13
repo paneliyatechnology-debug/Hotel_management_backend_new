@@ -254,10 +254,11 @@ const applyRoomFilters = (query, filters = {}) => {
  * Find physical rooms with pagination and filtering
  * @param {Object} [filters={}]
  * @param {Object} [pagination={}]
+ * @param {Object} [sorting={}]
  * @param {import('knex').Knex} [client=db]
  * @returns {Promise<{ rooms: Object[], total: number, page: number, limit: number, totalPages: number }>}
  */
-const findRooms = async (filters = {}, pagination = {}, client = db) => {
+const findRooms = async (filters = {}, pagination = {}, sorting = {}, client = db) => {
   const page = Math.max(1, Number(pagination.page) || 1);
   const limit = Math.max(1, Math.min(100, Number(pagination.limit) || 10));
   const offset = (page - 1) * limit;
@@ -279,7 +280,8 @@ const findRooms = async (filters = {}, pagination = {}, client = db) => {
     );
 
   applyRoomFilters(query, filters);
-  query.orderBy('rooms.floor', 'asc').orderBy('rooms.room_number', 'asc');
+  const floorOrder = String(sorting.sort_order || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
+  query.orderBy('rooms.floor', floorOrder).orderBy('rooms.room_number', floorOrder);
   query.limit(limit).offset(offset);
 
   const rows = await query;

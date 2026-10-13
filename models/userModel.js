@@ -195,6 +195,11 @@ const findUsers = async (filters = {}, pagination = {}, sorting = {}) => {
       qb.where('users.is_active', activeBool);
     }
 
+    if (filters.is_disabled !== undefined && filters.is_disabled !== null && filters.is_disabled !== '') {
+      const disabledBool = filters.is_disabled === true || filters.is_disabled === 'true' || filters.is_disabled === 1 || filters.is_disabled === '1';
+      qb.where('users.is_disabled', disabledBool);
+    }
+
     if (filters.hotel_id) {
       qb.where('users.hotel_id', Number(filters.hotel_id));
     }
@@ -229,7 +234,16 @@ const findUsers = async (filters = {}, pagination = {}, sorting = {}) => {
   };
 };
 
+/**
+ * True when the account is blocked from login and from every protected API.
+ * @param {Object|null|undefined} user
+ * @returns {boolean}
+ */
+const isUserDisabled = (user) =>
+  Boolean(user) && (user.is_disabled === true || user.is_disabled === 1 || user.is_disabled === '1');
+
 module.exports = {
+  isUserDisabled,
   findUserById,
   findUserByEmail,
   emailExists,

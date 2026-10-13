@@ -1,1234 +1,1532 @@
 /**
- * Postman Collection Generator for Hotel Management Backend.
- * Generates a complete, professional Postman v2.1.0 collection file.
+ * Builds a Postman Collection v2.1 file the frontend team can import directly.
+ * Every request key is listed in the body or query, and explained in the request description.
+ *
+ * Run: npm run generate:postman
  */
 const fs = require('fs');
 const path = require('path');
 
+const NO_AUTH = { type: 'noauth' };
+
+const jsonHeaders = () => [
+  { key: 'Content-Type', value: 'application/json', type: 'text' },
+  { key: 'Accept', value: 'application/json', type: 'text' },
+];
+
+const acceptHeader = () => [
+  { key: 'Accept', value: 'application/json', type: 'text' },
+];
+
+const jsonBody = (value) => ({
+  mode: 'raw',
+  raw: JSON.stringify(value, null, 2),
+  options: { raw: { language: 'json' } },
+});
+
+const queryParam = (key, value, description, disabled = false) => {
+  const item = { key, value, description };
+  if (disabled) item.disabled = true;
+  return item;
+};
+
+const textField = (key, value, description, disabled = false) => {
+  const item = { key, value, type: 'text', description };
+  if (disabled) item.disabled = true;
+  return item;
+};
+
+const fileField = (key, description) => ({
+  key,
+  type: 'file',
+  src: [],
+  description,
+});
+
+const buildUrl = (raw, pathSegments, query = [], variable = []) => {
+  const url = {
+    raw,
+    host: ['{{baseUrl}}'],
+    path: pathSegments,
+  };
+  if (query.length) url.query = query;
+  if (variable.length) url.variable = variable;
+  return url;
+};
+
+const testScript = (lines) => ([
+  {
+    listen: 'test',
+    script: { type: 'text/javascript', exec: lines },
+  },
+]);
+
+const saveTokens = [
+  "const body = pm.response.json();",
+  "const data = body && body.data ? body.data : {};",
+  "const token = data.access_token || (data.auth && data.auth.access_token);",
+  "if (token) pm.collectionVariables.set('accessToken', token);",
+  "if (data.refresh_token) pm.collectionVariables.set('refreshToken', data.refresh_token);",
+  "const user = data.user || data.admin;",
+  "if (user && user.id) pm.collectionVariables.set('userId', String(user.id));",
+  "if (user && user.hotel_id) pm.collectionVariables.set('hotelId', String(user.hotel_id));",
+  "if (data.hotel && data.hotel.id) pm.collectionVariables.set('hotelId', String(data.hotel.id));",
+];
+
+const saveId = (dataPath, variableName) => [
+  "const body = pm.response.json();",
+  "let value = body && body.data;",
+  ...dataPath.split('.').filter(Boolean).map((part) => `if (value) value = value.${part};`),
+  "if (value !== undefined && value !== null && value !== '') {",
+  `    pm.collectionVariables.set('${variableName}', String(value));`,
+  "}",
+];
+
+const envelope = `
+Every response uses the same envelope.
+
+Success:
+\`\`\`json
+{ "success": true, "message": "Human readable message", "data": {} }
+\`\`\`
+
+Error:
+\`\`\`json
+{ "success": false, "message": "First error", "errors": [{ "field": "email", "message": "Why this field failed" }] }
+\`\`\`
+`;
+
+const authNote = (who) => `**Who can call this:** ${who}
+
+Send the access token as \`Authorization: Bearer {{accessToken}}\`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send \`hotel_id\` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.`;
+
+const item = ({
+  name,
+  method,
+  raw,
+  pathSegments,
+  description,
+  query = [],
+  variable = [],
+  body,
+  auth,
+  headers,
+  events,
+}) => ({
+  name,
+  ...(events ? { event: events } : {}),
+  request: {
+    method,
+    header: headers || (body && body.mode === 'raw' ? jsonHeaders() : acceptHeader()),
+    ...(auth ? { auth } : {}),
+    ...(body ? { body } : {}),
+    url: buildUrl(raw, pathSegments, query, variable),
+    description,
+  },
+});
+
+const idVar = (key, value, description) => ({ key, value, description });
+
 const collection = {
   info: {
-    _postman_id: "hotel-management-backend-complete-api-v1",
-    name: "Hotel Management Backend - Complete API Collection (TradeNexa Architecture)",
-    description: `# 🏨 Hotel Management Backend API Collection\n\nProduction-ready Postman collection covering 100% of the APIs for the **Hotel Management Backend** (Node.js + Express.js + MySQL Knex), built following the **TradeNexa Architecture**.\n\n---\n\n## 🌟 Collection Highlights\n- **Folder-Wise Modular Structure**: Health Check, Authentication, Hotel Onboarding, Subscription Plans, Room Categories, Physical Rooms, Bookings Management, and Staff Management.\n- **Full Parameter & Body Documentation**: Every request includes markdown descriptions with comprehensive tables for all required and optional fields, constraints, and validation rules.\n- **Automated Token & ID Propagation**: Pre-request and Test scripts automatically capture \`accessToken\`, \`refreshToken\`, \`hotelId\`, \`roomTypeId\`, \`roomId\`, \`bookingId\`, \`userId\`, and \`planId\` into collection variables upon successful creation/login.\n- **RBAC & Security**: Configured with collection-level Bearer Token authorization (\`{{accessToken}}\`) and dual HTTP-Only cookie support.\n- **Standardized Responses**: Every endpoint returns \`{ success: true, message: "...", data: { ... } }\` on success, or \`{ success: false, message: "...", errors: [...] }\` on error.\n\n---\n\n## 🚀 Quick Start Guide\n1. Import this JSON file directly into Postman (**File -> Import**).\n2. Ensure the backend server is running (\`npm run dev\` at \`http://localhost:5000\`).\n3. Execute **Authentication -> Login User** with initial credentials (\`admin@hotel.com\` / \`Admin@123\`). The \`accessToken\` is automatically stored in collection variables.\n4. Execute requests down the list in order: register hotel, create room category, create room, create booking, manage staff!`,
-    schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    _postman_id: 'hotel-management-api-v1',
+    name: 'Hotel Management API',
+    description: `# Hotel Management API
+
+Import this file in Postman with **File → Import**. No environment file is required. Collection variables are included.
+
+## Start here
+1. Set \`baseUrl\` if the server is not on \`http://localhost:5000\`.
+2. Run **Authentication → Login**.
+3. The test script saves \`accessToken\`, \`refreshToken\`, \`userId\`, and \`hotelId\`.
+4. Protected requests reuse \`{{accessToken}}\` as a Bearer token.
+
+Seeded platform admin, after \`npm run seed\`:
+- Email: \`admin@hotel.com\`
+- Password: \`Admin@123\`
+- Role: \`SUPER_ADMIN\`
+
+## Base URL
+Use \`{{baseUrl}}/api/v1/...\`. The same routes also answer on \`{{baseUrl}}/api/...\`.
+
+These pairs hit the same router. This collection uses the plural path:
+| Use this | Same router |
+| --- | --- |
+| \`/api/v1/hotels\` | \`/api/v1/hotel\` |
+| \`/api/v1/rooms\` | \`/api/v1/room\` |
+| \`/api/v1/bookings\` | \`/api/v1/booking\` |
+| \`/api/v1/users\` | \`/api/v1/user\` |
+
+## Auth and hotel scope
+- Public routes do not need a token.
+- Protected routes need \`Authorization: Bearer <access_token>\`.
+- The token carries the user id. The server loads that user and uses \`user.hotel_id\`.
+- \`hotel_id\` in a body or query does not switch hotels for a hotel admin or receptionist.
+- Only a super admin may pass \`hotel_id\` when creating or filtering staff.
+- \`requireRole\` allows \`SUPER_ADMIN\` in addition to the roles named on that folder.
+
+## Roles
+| Role | What they can call in this API |
+| --- | --- |
+| \`SUPER_ADMIN\` | Plans write APIs, staff APIs, and the hotel modules |
+| \`HOTEL_ADMIN\` | Rooms, room categories, bookings, and staff of their hotel |
+| \`RECEPTIONIST\` | Rooms, room categories, and bookings of their hotel |
+| \`MANAGER\`, \`HOUSEKEEPING\`, \`ACCOUNTANT\` | Accounts can be created. These routes return 403 for them |
+
+## Response envelope
+${envelope}
+
+Dates are ISO 8601 strings. Send dates as \`2026-10-14\` or \`2026-10-14T14:00:00.000Z\`.
+
+## Files
+Image uploads use \`multipart/form-data\`. Allowed types: JPEG, PNG, WebP, GIF, SVG, AVIF. Max 10 MB per file, max 10 files. When there is no file, the same text keys can be sent as JSON.
+`,
+    schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
   },
   variable: [
-    { key: "baseUrl", value: "http://localhost:5000", type: "string", description: "Base URL of the backend API server" },
-    { key: "accessToken", value: "", type: "string", description: "JWT Access token auto-captured from login or registration" },
-    { key: "refreshToken", value: "", type: "string", description: "JWT Refresh token auto-captured from login" },
-    { key: "hotelId", value: "1", type: "string", description: "Default or active Hotel Property ID" },
-    { key: "roomTypeId", value: "1", type: "string", description: "Active Room Category / Type ID" },
-    { key: "roomId", value: "1", type: "string", description: "Active Physical Room ID" },
-    { key: "bookingId", value: "1", type: "string", description: "Active Booking ID" },
-    { key: "userId", value: "1", type: "string", description: "Active Staff / User ID" },
-    { key: "planId", value: "1", type: "string", description: "Active Subscription Plan ID" },
-    { key: "resetToken", value: "", type: "string", description: "Password reset token captured from email or API" }
+    { key: 'baseUrl', value: 'http://localhost:5000', type: 'string', description: 'API server origin, without a trailing slash. Local default is http://localhost:5000.' },
+    { key: 'accessToken', value: '', type: 'string', description: 'JWT access token. Login and hotel registration save data.access_token here. Send it as Authorization: Bearer {{accessToken}}.' },
+    { key: 'refreshToken', value: '', type: 'string', description: 'JWT refresh token from data.refresh_token. Send it as refresh_token in the refresh request body. The cookie name is refreshToken.' },
+    { key: 'hotelId', value: '', type: 'string', description: 'Hotel id of the logged-in user. Saved from login or hotel registration. The server reads the hotel from the token, so this is for display and for the super admin staff filter.' },
+    { key: 'roomTypeId', value: '', type: 'string', description: 'Room category id. Saved when you create a room category.' },
+    { key: 'roomId', value: '', type: 'string', description: 'Physical room id. Saved when you create a room.' },
+    { key: 'bookingId', value: '', type: 'string', description: 'Booking id. Saved when you create a booking.' },
+    { key: 'userId', value: '', type: 'string', description: 'Staff user id. Saved from login, or when a hotel admin creates a staff user.' },
+    { key: 'planId', value: '', type: 'string', description: 'Subscription plan id. Saved when a super admin creates a plan. List plans first if you need an existing id.' },
+    { key: 'resetToken', value: '', type: 'string', description: 'Password reset token from the email link, or from data.resetUrl in non-production forgot-password responses. Paste the token value only, not the full URL.' },
   ],
   auth: {
-    type: "bearer",
+    type: 'bearer',
     bearer: [
-      { key: "token", value: "{{accessToken}}", type: "string" }
-    ]
+      { key: 'token', value: '{{accessToken}}', type: 'string' },
+    ],
   },
-  item: []
+  item: [],
 };
 
-// Helper to build headers
-const jsonHeaders = () => [
-  { key: "Content-Type", value: "application/json", type: "text" },
-  { key: "Accept", value: "application/json", type: "text" }
-];
-
-const multipartHeaders = () => [
-  { key: "Accept", value: "application/json", type: "text" }
-];
-
-// Helper to build URL object
-const buildUrl = (raw, query = [], variable = []) => {
-  const parts = raw.replace('{{baseUrl}}/', '').split('?')[0].split('/');
-  return {
-    raw,
-    host: ["{{baseUrl}}"],
-    path: parts,
-    query: query.length > 0 ? query : undefined,
-    variable: variable.length > 0 ? variable : undefined
-  };
-};
-
-// =========================================================================
-// 1. HEALTH CHECK FOLDER
-// =========================================================================
 const healthFolder = {
-  name: "1. Health & System Diagnostics",
-  description: "Server uptime and API namespace diagnostics endpoints. Useful for health checks, load balancers, and monitoring systems.",
+  name: '01 Health',
+  description: 'Public checks. No token. Use these to confirm the server is up before calling other APIs.',
   item: [
-    {
-      name: "Root Server Health Check",
-      request: {
-        method: "GET",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/health"),
-        description: "### Health Check (Root)\nVerifies that the Node.js Express server process is running and accepting HTTP requests.\n\n- **Access:** Public (No authentication required)\n- **Response:** \n```json\n{\n  \"success\": true,\n  \"message\": \"Server is running\",\n  \"data\": { \"status\": \"UP\" }\n}\n```"
-      }
-    },
-    {
-      name: "API Namespace Health Check",
-      request: {
-        method: "GET",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/health"),
-        description: "### Health Check (API Namespace)\nVerifies that the `/api` route prefix and routing middleware are actively responding.\n\n- **Access:** Public (No authentication required)"
-      }
-    }
-  ]
+    item({
+      name: 'Server health',
+      method: 'GET',
+      auth: NO_AUTH,
+      raw: '{{baseUrl}}/health',
+      pathSegments: ['health'],
+      description: `### GET /health
+Public. Confirms the Node process is accepting HTTP.
+
+No query keys. No body.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`status\` | string | \`"UP"\` when the process is running |`,
+    }),
+    item({
+      name: 'API health',
+      method: 'GET',
+      auth: NO_AUTH,
+      raw: '{{baseUrl}}/api/health',
+      pathSegments: ['api', 'health'],
+      description: `### GET /api/health
+Public. Same payload as \`GET /health\`. Confirms the \`/api\` prefix is mounted.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`status\` | string | \`"UP"\` |`,
+    }),
+  ],
 };
 
-// =========================================================================
-// 2. AUTHENTICATION FOLDER
-// =========================================================================
 const authFolder = {
-  name: "2. Authentication",
-  description: "Complete authentication flows implementing the TradeNexa dual-token architecture: Login, Refresh Token rotation, Logout, Password Reset with cryptographically secure single-use tokens, and Authenticated Profile inspection.",
+  name: '02 Authentication',
+  description: `Login, refresh, logout, password reset, and the current profile.
+
+Token response keys are snake_case: \`access_token\` and \`refresh_token\`.
+The browser cookies are camelCase: \`accessToken\` and \`refreshToken\`.
+Postman should use the Bearer token from the JSON body. Login saves it for the rest of this collection.
+
+${envelope}`,
   item: [
-    {
-      name: "Login User",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 200) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.accessToken) {",
-              "        pm.collectionVariables.set('accessToken', res.data.accessToken);",
-              "        console.log('✅ Access Token updated in collection variables');",
-              "    }",
-              "    if (res.data && res.data.refreshToken) {",
-              "        pm.collectionVariables.set('refreshToken', res.data.refreshToken);",
-              "        console.log('✅ Refresh Token updated in collection variables');",
-              "    }",
-              "    if (res.data && res.data.user && res.data.user.hotel_id) {",
-              "        pm.collectionVariables.set('hotelId', String(res.data.user.hotel_id));",
-              "        console.log('✅ Active hotelId set to: ' + res.data.user.hotel_id);",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
-      ],
-      request: {
-        method: "POST",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            email: "admin@hotel.com",
-            password: "Admin@123"
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/auth/login"),
-        description: `### User Login
-Authenticates an existing user account using email and password.
-- Sets secure \`accessToken\` and \`refreshToken\` as HTTP-Only cookies.
-- Returns JWT tokens in response body for Bearer token authorization.
-- Test script automatically saves \`accessToken\` to collection variable \`{{accessToken}}\`.
+    item({
+      name: 'Login',
+      method: 'POST',
+      auth: NO_AUTH,
+      events: testScript(saveTokens),
+      raw: '{{baseUrl}}/api/v1/auth/login',
+      pathSegments: ['api', 'v1', 'auth', 'login'],
+      body: jsonBody({
+        email: 'admin@hotel.com',
+        password: 'Admin@123',
+      }),
+      description: `### POST /api/v1/auth/login
+Public. Checks email and password, sets HTTP-only cookies, and returns both tokens in \`data\`.
 
-#### Request Fields
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`email\` | String | **Required** | Registered account email address (e.g. \`admin@hotel.com\`) |
-| \`password\` | String | **Required** | User password |
+After 15 failed attempts the account is locked for 1 minute.
 
-#### Initial Seeded Super Admin Credentials
-- **Email:** \`admin@hotel.com\`
-- **Password:** \`Admin@123\`
-- **Role:** \`SUPER_ADMIN\``
-      }
-    },
-    {
-      name: "Refresh Access Token",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 200) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.accessToken) {",
-              "        pm.collectionVariables.set('accessToken', res.data.accessToken);",
-              "        console.log('✅ Refreshed Access Token saved to collection variables');",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
-      ],
-      request: {
-        method: "POST",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            refreshToken: "{{refreshToken}}"
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/auth/refresh-token"),
-        description: `### Rotate & Refresh Access Token
-Issues a new JWT access token using the active refresh session.
-- Automatically reads the \`refreshToken\` HTTP-only cookie if sent by browser.
-- Alternatively reads \`refreshToken\` passed in the JSON body.
-- Rotates access token and updates collection variable \`{{accessToken}}\`.
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`email\` | string | Yes | Account email. Stored and compared in lowercase. |
+| \`password\` | string | Yes | Account password. |
 
-#### Request Fields
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`refreshToken\` | String | *Optional* (if cookie present) | The 30-day refresh token issued during login |`
-      }
-    },
-    {
-      name: "Logout User",
-      request: {
-        method: "POST",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/auth/logout"),
-        description: `### User Logout
-Clears the session cookies (\`accessToken\`, \`refreshToken\`) on the client.
-- **Access:** Public / Session holder
-- **Response:** \`{ "success": true, "message": "Logged out successfully.", "data": null }\``
-      }
-    },
-    {
-      name: "Forgot Password (Request Reset Link)",
-      request: {
-        method: "POST",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            email: "admin@hotel.com"
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/auth/forgot-password"),
-        description: `### Forgot Password
-Generates a cryptographically secure single-use reset token and dispatches an HTML password reset email containing a secure CTA link button.
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`access_token\` | string | Short-lived JWT. Send as \`Authorization: Bearer <access_token>\`. |
+| \`refresh_token\` | string | Long-lived JWT. Send later as \`refresh_token\`. |
+| \`user.id\` | number | User id. |
+| \`user.name\` | string | Display name. |
+| \`user.email\` | string | Login email. |
+| \`user.role\` | string | \`SUPER_ADMIN\`, \`HOTEL_ADMIN\`, \`RECEPTIONIST\`, \`MANAGER\`, \`HOUSEKEEPING\`, or \`ACCOUNTANT\`. |
+| \`user.phone\` | string | Phone. Empty string when missing. |
+| \`user.hotel_id\` | number or null | Hotel this user belongs to. Null for super admin. |
+| \`user.is_active\` | boolean | \`false\` means the account cannot sign in. |
+| \`user.is_disabled\` | boolean | \`true\` means the account cannot sign in and cannot call any protected API. |
 
-#### Request Fields
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`email\` | String | **Required** | Registered user email address |`
-      }
-    },
-    {
-      name: "Reset Password with Token",
-      request: {
-        method: "POST",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            token: "{{resetToken}}",
-            password: "NewPassword@123"
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/auth/reset-password"),
-        description: `### Reset Password
-Updates user's password using the validated reset token.
-- Hashes new password with Bcrypt.
-- Invalidates the single-use token to prevent replay attacks.
-- Resets failed login attempt counters and clears temporary lockouts.
+The password is never returned.`,
+    }),
+    item({
+      name: 'Refresh access token',
+      method: 'POST',
+      auth: NO_AUTH,
+      events: testScript(saveTokens),
+      raw: '{{baseUrl}}/api/v1/auth/refresh-token',
+      pathSegments: ['api', 'v1', 'auth', 'refresh-token'],
+      body: jsonBody({
+        refresh_token: '{{refreshToken}}',
+      }),
+      description: `### POST /api/v1/auth/refresh-token
+Public. Issues a new access token and a new refresh token.
 
-#### Request Fields
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`token\` | String | **Required** | Valid unexpired reset token |
-| \`password\` | String | **Required** | New password (minimum 6 characters) |`
-      }
-    },
-    {
-      name: "Get Current Authenticated Profile",
-      request: {
-        method: "GET",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/auth/me"),
-        description: `### Get Current User Profile (/me)
-Retrieves the profile of the authenticated user whose token is in the Authorization header.
-- Returns user ID, name, email, phone, role, status, hotel ID, and permissions.
-- **Access:** Requires Bearer Token (\`{{accessToken}}\`)`
-      }
-    }
-  ]
+The body key is \`refresh_token\` (snake_case). A browser may instead send the \`refreshToken\` cookie. Postman should send the body key.
+
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`refresh_token\` | string | Yes in Postman | Value returned as \`data.refresh_token\` at login. |
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`access_token\` | string | New access token. Replaces the collection variable. |
+| \`refresh_token\` | string | New refresh token. Use this on the next refresh. |
+| \`user.id\` | number | User id. |
+| \`user.name\` | string | Display name. |
+| \`user.email\` | string | Login email. |
+| \`user.role\` | string | Role code. |
+| \`user.hotel_id\` | number or null | Hotel on the account. |
+| \`user.is_active\` | boolean | Account active flag. |`,
+    }),
+    item({
+      name: 'Logout',
+      method: 'POST',
+      auth: NO_AUTH,
+      raw: '{{baseUrl}}/api/v1/auth/logout',
+      pathSegments: ['api', 'v1', 'auth', 'logout'],
+      description: `### POST /api/v1/auth/logout
+Public. Clears the \`accessToken\` and \`refreshToken\` cookies.
+
+No body. No query keys.
+
+**Response \`data\`:** \`null\`.
+
+The Bearer token already issued is not stored server-side. The frontend should also drop \`access_token\` and \`refresh_token\` from memory after logout.`,
+    }),
+    item({
+      name: 'Forgot password',
+      method: 'POST',
+      auth: NO_AUTH,
+      raw: '{{baseUrl}}/api/v1/auth/forgot-password',
+      pathSegments: ['api', 'v1', 'auth', 'forgot-password'],
+      body: jsonBody({
+        email: 'admin@hotel.com',
+      }),
+      description: `### POST /api/v1/auth/forgot-password
+Public. Sends a single-use reset link. The link expires in 30 minutes. Older unused tokens for that user are cancelled.
+
+Unknown email returns 404. A deactivated account returns 403.
+
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`email\` | string | Yes | Registered email. |
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`email\` | string | Address the link was sent to. |
+| \`resetUrl\` | string | Present only when \`NODE_ENV\` is not \`production\`. Copy the \`token\` query value into \`{{resetToken}}\`. |`,
+    }),
+    item({
+      name: 'Reset password',
+      method: 'POST',
+      auth: NO_AUTH,
+      raw: '{{baseUrl}}/api/v1/auth/reset-password',
+      pathSegments: ['api', 'v1', 'auth', 'reset-password'],
+      body: jsonBody({
+        token: '{{resetToken}}',
+        password: 'NewPass@123',
+      }),
+      description: `### POST /api/v1/auth/reset-password
+Public. Sets a new password with the email token. The token can be used once.
+
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`token\` | string | Yes | Token from the reset link. Not the full URL. |
+| \`password\` | string | Yes | New password. Minimum 6 characters. |
+
+**Response \`data\`:** \`null\`. Then call Login with the new password.`,
+    }),
+    item({
+      name: 'Current profile',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/auth/me',
+      pathSegments: ['api', 'v1', 'auth', 'me'],
+      description: `### GET /api/v1/auth/me
+${authNote('Any logged-in role.')}
+
+No query keys. No body. Use this after login to know the role and hotel before showing screens.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | User id. |
+| \`name\` | string | Display name. |
+| \`email\` | string | Login email. |
+| \`phone\` | string | Phone. |
+| \`role\` | string | Role code. |
+| \`hotel_id\` | number or null | Hotel on the account. Use this as the active property. |
+| \`is_active\` | boolean | Account active flag. \`false\` blocks login. |
+| \`is_disabled\` | boolean | \`false\` by default. \`true\` blocks login and every protected API. |
+| \`must_change_password\` | boolean | \`true\` when the account was created with a temporary password. |
+| \`last_login_at\` | string or null | Last successful login. |
+| \`created_at\` | string | Account created time. |
+| \`updated_at\` | string | Account updated time. |`,
+    }),
+  ],
 };
 
-// =========================================================================
-// 3. HOTEL ONBOARDING FOLDER
-// =========================================================================
 const hotelFolder = {
-  name: "3. Hotel Onboarding & Registration",
-  description: "Self-serve hotel registration and property onboarding. Supports multipart/form-data for uploading hotel logo directly to AWS S3. Uses the Temporary Password & Password Reset Link flow: automatically provisions the Hotel Admin user with a cryptographically secure temporary password, creates an expiring 48-hour password reset link, establishes foreign key relations, computes 30-day Free Trial dates, enforces Indian phone/GSTIN/PAN formatting, and dispatches a welcome email with both the temporary password and direct password reset link.",
+  name: '03 Hotel registration',
+  description: `Public self-serve onboarding. Creates the hotel, a HOTEL_ADMIN user, a free trial, and returns an access token.
+
+Send JSON when there is no logo file. Send multipart/form-data when uploading a logo. The text keys are the same in both cases.
+
+${envelope}`,
   item: [
-    {
-      name: "Register New Hotel (Multipart Form-Data with S3 Logo Upload)",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 201) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.hotel && res.data.hotel.id) {",
-              "        pm.collectionVariables.set('hotelId', String(res.data.hotel.id));",
-              "        console.log('✅ New hotelId set to: ' + res.data.hotel.id);",
-              "    }",
-              "    if (res.data && res.data.auth && res.data.auth.accessToken) {",
-              "        pm.collectionVariables.set('accessToken', res.data.auth.accessToken);",
-              "        console.log('✅ Switched active accessToken to newly registered Hotel Admin');",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
-      ],
-      request: {
-        method: "POST",
-        auth: { type: "noauth" },
-        header: multipartHeaders(),
-        body: {
-          mode: "formdata",
-          formdata: [
-            { key: "name", value: "Grand Imperial Palace & Resort", type: "text", description: "Property name (Required)" },
-            { key: "ownerName", value: "Devendra Singh Rathore", type: "text", description: "Owner full name (Required)" },
-            { key: "ownerEmail", value: "owner" + Math.floor(Math.random() * 90000 + 10000) + "@imperialresort.com", type: "text", description: "Owner login email (Required)" },
-            { key: "ownerPhone", value: "9829012345", type: "text", description: "10-digit Indian mobile (Required)" },
-            { key: "address", value: "101 Heritage Drive, Civil Lines", type: "text", description: "Property address (Required)" },
-            { key: "city", value: "Jaipur", type: "text", description: "City (Required)" },
-            { key: "state", value: "Rajasthan", type: "text", description: "State (Required)" },
-            { key: "country", value: "India", type: "text", description: "Country (Optional, Default: India)" },
-            { key: "pincode", value: "302006", type: "text", description: "6-digit postal pincode (Required)" },
-            { key: "gstNumber", value: "08AAAAA1234A1Z5", type: "text", description: "15-character GSTIN (Optional)" },
-            { key: "panNumber", value: "ABCDE1234F", type: "text", description: "10-character PAN (Optional)" },
-            { key: "totalRooms", value: "45", type: "text", description: "Number of inventory rooms (Optional)" },
-            { key: "hotelType", value: "Heritage Palace & Resort", type: "text", description: "Property category (Optional)" },
-            { key: "website", value: "https://www.grandimperialresort.com", type: "text", description: "Official website URL (Optional)" },
-            { key: "upi_id", value: "imperialresort@upi", type: "text", description: "Custom UPI ID for direct payments (Optional, no hardcoded default)" },
-            { key: "subscription_plan_id", value: "1", type: "text", description: "Subscription Plan ID (Optional)" },
-            { key: "subscription_plan_active", value: "true", type: "text", description: "Trial / plan active flag (Optional)" },
-            { key: "logo", type: "file", src: [], description: "Hotel Logo file uploaded directly to AWS S3 (Optional)" }
-          ]
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/hotel/register"),
-        description: `### Register New Hotel (Multipart Form-Data & S3 Logo Upload)
-Registers a new hotel property and creates a linked \`HOTEL_ADMIN\` user account in an atomic transaction.
-- **Multipart/Form-Data:** Supports direct file upload for \`logo\` which is saved directly to AWS S3 storage, and the permanent image URL is saved to \`hotels.logo\`.
-- **Clean Schema:** Deprecated keys (\`id_proof_document\`, \`business_proof_document\`, \`rejection_reason\`, \`default_gst_rate\`, \`default_cgst_rate\`, \`default_sgst_rate\`, \`gstin\`, \`tax_inclusive\`, \`bank_details\`) have been removed.
-- **Custom UPI ID:** \`upi_id\` is optional with no hardcoded fallback value.
+    item({
+      name: 'Register hotel',
+      method: 'POST',
+      auth: NO_AUTH,
+      events: testScript(saveTokens),
+      headers: acceptHeader(),
+      raw: '{{baseUrl}}/api/v1/hotels/register',
+      pathSegments: ['api', 'v1', 'hotels', 'register'],
+      body: {
+        mode: 'formdata',
+        formdata: [
+          textField('name', 'Seaside Residency', 'Required. Property name. Max 150 characters. A URL slug is generated from this.'),
+          textField('owner_name', 'Asha Patel', 'Required. Owner or general manager name. Max 150 characters. This becomes the hotel admin display name.'),
+          textField('owner_email', 'owner@seaside.example', 'Required. Hotel admin login email. Must be unique among active users.'),
+          textField('owner_phone', '9876543210', 'Required. Indian mobile. 10 digits starting with 6, 7, 8, or 9. +91 and leading 0 are stripped.'),
+          textField('address', '12 Marine Drive', 'Required. Street address.'),
+          textField('city', 'Mumbai', 'Required. Max 100 characters.'),
+          textField('state', 'Maharashtra', 'Required. Max 100 characters.'),
+          textField('country', 'India', 'Optional. Defaults to India. Max 100 characters.'),
+          textField('pincode', '400001', 'Required. 6-digit Indian PIN code.'),
+          textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN. Empty is allowed. Stored uppercase. Turns GST on for the hotel when present.'),
+          textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN. Empty is allowed. Stored uppercase.'),
+          textField('total_rooms', '24', 'Optional. Whole number, 0 or more. Inventory count only. It does not create rooms.'),
+          textField('hotel_type', 'Boutique Hotel', 'Optional. Free text, max 100 characters. Example: Boutique Hotel, Resort, Lodge.'),
+          textField('upi_id', 'seaside@upi', 'Optional. UPI id shown for payments. Stored in hotel settings.'),
+          textField('website', 'https://seaside.example', 'Optional. Valid URL. A missing http:// is accepted and treated as https.'),
+          textField('logo', '', 'Optional. Existing logo URL. Leave empty when you upload a file in the logo field below.', true),
+          fileField('logo', 'Optional file. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB. Replaces the logo URL when sent.'),
+          textField('subscription_plan_id', '', 'Optional. Plan id from Subscription Plans. Empty starts the default trial plan selection on the server.', true),
+          textField('subscription_plan_active', 'true', 'Optional. true or false. Defaults to true.', true),
+          textField('subscription_plan_start_date', '', 'Optional. ISO date. Defaults to the trial start (now).', true),
+          textField('subscription_plan_end_date', '', 'Optional. ISO date. Defaults to the trial end from system settings (usually 30 days).', true),
+        ],
+      },
+      description: `### POST /api/v1/hotels/register
+Public. Same route: \`POST /api/v1/hotel/register\`.
 
-#### 🔐 Temporary Password & Reset Link Workflow
-1. **Zero-Password Input:** The client does not supply a password during registration.
-2. **Auto-Generated Temp Password:** The backend generates a cryptographically secure temporary password (e.g. \`Temp#a8f12b0e\`) and hashes it with Bcrypt.
-3. **Password Reset Token:** A 48-hour secure \`PasswordResetToken\` is created in the database.
-4. **Email Dispatch:** A welcome email is dispatched to the owner's email containing:
-   - **Temporary Password** clearly displayed for immediate front desk / admin login.
-   - **Reset Password Button & Link** so the owner can easily click to update/set their permanent password.
-5. **Account State:** The user account is saved with \`must_change_password: true\`.
+Creates the property as \`ACTIVE\`, creates a \`HOTEL_ADMIN\`, emails a temporary password and a 48-hour setup link, and returns an access token. The frontend does not choose the password. The server generates one.
 
-#### Request Fields
-| Field | Type | Required | Description | Validation / Constraints |
-| :--- | :--- | :--- | :--- | :--- |
-| \`name\` | String | **Required** | Property name | Max 150 chars, auto-generates slug |
-| \`ownerName\` | String | **Required** | Owner or General Manager full name | Max 150 chars |
-| \`ownerEmail\` | String | **Required** | Owner login email | Valid email, receives temp password & reset link |
-| \`ownerPhone\` | String | **Required** | Owner contact mobile | 10-digit Indian mobile starting with 6, 7, 8, or 9 |
-| \`address\` | String | **Required** | Physical property address | Street / landmark |
-| \`city\` | String | **Required** | City | Max 100 chars |
-| \`state\` | String | **Required** | State / Province | Max 100 chars |
-| \`pincode\` | String | **Required** | Postal pincode | Exactly 6 Indian digits |
-| \`country\` | String | *Optional* | Country name | Default: \`"India"\` |
-| \`gstNumber\` | String | *Optional* | GSTIN tax identifier | 15-character GSTIN regex format |
-| \`panNumber\` | String | *Optional* | Permanent Account Number | 10-character PAN regex format |
-| \`totalRooms\` | Integer | *Optional* | Number of inventory rooms | Non-negative integer (e.g. 45) |
-| \`hotelType\` | String | *Optional* | Property category | E.g. \`"Boutique Hotel"\`, \`"Resort"\`, \`"Heritage"\` |
-| \`website\` | String | *Optional* | Official hotel website | Valid URL format |
-| \`upi_id\` | String | *Optional* | Custom UPI ID | Direct payment identifier |
-| \`logo\` | File | *Optional* | Image file for brand logo | Uploaded directly to S3 |
-| \`subscription_plan_id\` | Integer | *Optional* | Initial subscription plan ID | Positive integer ID |
-| \`subscription_plan_active\` | Boolean | *Optional* | Trial / plan active flag | Default: \`true\` |`
-      }
-    },
-    {
-      name: "Register Hotel (JSON Payload Alias)",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 201) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.hotel && res.data.hotel.id) {",
-              "        pm.collectionVariables.set('hotelId', String(res.data.hotel.id));",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
-      ],
-      request: {
-        method: "POST",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            name: "Seaside Haven Resort " + Math.floor(Math.random() * 1000),
-            ownerName: "Pooja Hegde",
-            ownerEmail: "pooja" + Math.floor(Math.random() * 90000 + 10000) + "@seasidehaven.com",
-            ownerPhone: "9871122334",
-            address: "Beach Road, Calangute",
-            city: "North Goa",
-            state: "Goa",
-            pincode: "403516",
-            upi_id: "seasidehaven@okaxis"
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/hotels/register"),
-        description: `### Register Hotel (Plural Endpoint Alias & JSON Mode)
-Tests route mounting under \`/api/v1/hotels/register\` (plural alias of \`/hotel/register\`).
-- Uses the same Temporary Password & Password Reset Link workflow.`
-      }
-    }
-  ]
+A duplicate \`owner_email\` returns 409.
+
+**Body keys** are on the form-data rows. Each row has its own description. Do not send \`password\`. It is not used.
+
+Trial, slug, check-in time (\`14:00\`), check-out time (\`12:00\`), timezone \`Asia/Kolkata\`, currency \`INR\`, and tax 18 are set by the server.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`hotel\` | object | Saved hotel. See hotel object below. |
+| \`admin.id\` | number | New hotel admin user id. |
+| \`admin.name\` | string | Owner name. |
+| \`admin.email\` | string | Login email. |
+| \`admin.role\` | string | Always \`HOTEL_ADMIN\`. |
+| \`admin.is_active\` | boolean | Active flag. |
+| \`admin.hotel_id\` | number | New hotel id. |
+| \`trial.start_date\` | string | Trial start. |
+| \`trial.end_date\` | string | Trial end. |
+| \`trial.duration\` | number | Length from system settings. Default 30. |
+| \`trial.unit\` | string | \`days\` or \`hours\`. |
+| \`auth.token_type\` | string | \`Bearer\`. |
+| \`auth.access_token\` | string | Access token for the new admin. Saved into \`{{accessToken}}\`. |
+| \`auth.expires_in\` | string | Access token lifetime, usually \`1h\`. |
+
+**Hotel object keys**
+| Key | Meaning |
+| --- | --- |
+| \`id\`, \`name\`, \`slug\` | Id, display name, URL slug. |
+| \`owner_id\` | Hotel admin user id. |
+| \`address\`, \`city\`, \`state\`, \`country\`, \`pincode\` | Location. |
+| \`gst_number\`, \`pan_number\` | Tax ids. Empty string when omitted. |
+| \`total_rooms\`, \`hotel_type\`, \`website\`, \`logo\` | Profile. \`logo\` is a full URL. |
+| \`status\`, \`status_reason\` | \`ACTIVE\` on registration. |
+| \`subscription_plan_id\`, \`subscription_plan_active\` | Plan link and whether it is active. |
+| \`subscription_plan_start_date\`, \`subscription_plan_end_date\` | Plan window. |
+| \`subscription.plan_id\`, \`subscription.active\`, \`subscription.start_date\`, \`subscription.end_date\`, \`subscription.auto_renew\` | Same subscription data, grouped. \`auto_renew\` is false at registration. |
+| \`settings.check_in_time\`, \`settings.check_out_time\` | Default \`14:00\` and \`12:00\`. |
+| \`settings.timezone\`, \`settings.currency\`, \`settings.tax_percentage\` | \`Asia/Kolkata\`, \`INR\`, \`18\`. |
+| \`settings.gst_enabled\` | True when a GST number was sent. |
+| \`settings.upi_id\` | UPI id, or empty. |
+| \`settings.late_checkout_grace_minutes\` | Default 10. |
+| \`settings.amenities\` | Default string array. |
+| \`settings.policies\` | Default string array. |
+| \`owner\` | Present when the owner join is loaded: \`id\`, \`name\`, \`email\`. |
+| \`created_at\`, \`updated_at\`, \`deleted_at\` | Timestamps. \`deleted_at\` is null. |`,
+    }),
+  ],
 };
 
-// =========================================================================
-// 4. SUBSCRIPTION PLANS FOLDER
-// =========================================================================
 const planFolder = {
-  name: "4. Subscription Plans",
-  description: "Subscription tier catalog, pricing configuration, and feature synchronization. Public endpoints for hotel onboarding query; Super Admin endpoints for plan creation, feature sync, soft-deletion, and factory default resets.",
+  name: '04 Subscription plans',
+  description: `Plan catalog. List and get-one are public. Create, update, delete, and reset are super admin only.
+
+Plan JSON uses camelCase. This is different from rooms, bookings, and users, which use snake_case.
+
+${envelope}`,
   item: [
-    {
-      name: "List Subscription Plans (Public)",
-      request: {
-        method: "GET",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/subscription-plans?billingCycle=MONTHLY&isActive=true&page=1&limit=10", [
-          { key: "billingCycle", value: "MONTHLY", description: "Filter by MONTHLY or ANNUAL. If omitted, returns all plans." },
-          { key: "isActive", value: "true", description: "Filter active plans (true/false)" },
-          { key: "isPopular", value: "true", description: "Filter popular plans (true/false)", disabled: true },
-          { key: "page", value: "1", description: "Page number (min 1)" },
-          { key: "limit", value: "10", description: "Results per page (1-100)" }
-        ]),
-        description: `### List All Subscription Plans
-Retrieves active subscription plans with full feature lists.
-- **Access:** Public (No authentication required)
-- **Response Structure:** Returns \`{ plans: [...], pagination: { ... } }\` (grouped keys \`all\`, \`monthly\`, \`annual\` have been removed).
-- **Billing Cycle Filter:**
-  - If omitted: returns **all** plans.
-  - If \`billingCycle=MONTHLY\`: returns **monthly** plans only.
-  - If \`billingCycle=ANNUAL\`: returns **annual** plans only.
-
-#### Query Filters
-| Query Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`billingCycle\` | String | *Optional* | Filter by \`"MONTHLY"\` or \`"ANNUAL"\` (returns all if omitted) |
-| \`isActive\` | Boolean | *Optional* | \`true\` or \`false\` |
-| \`isPopular\` | Boolean | *Optional* | \`true\` or \`false\` |
-| \`page\` | Integer | *Optional* | Page index (default: 1) |
-| \`limit\` | Integer | *Optional* | Page size (default: 10, max: 100) |`
-      }
-    },
-    {
-      name: "Get Subscription Plan by ID",
-      request: {
-        method: "GET",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/subscription-plans/:id", [], [
-          { key: "id", value: "{{planId}}", description: "Subscription Plan ID" }
-        ]),
-        description: `### Get Subscription Plan by ID
-Retrieves details of a single subscription plan including its ordered feature items.
-- **Access:** Public`
-      }
-    },
-    {
-      name: "Create Subscription Plan (Super Admin)",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 201) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.id) {",
-              "        pm.collectionVariables.set('planId', String(res.data.id));",
-              "        console.log('✅ Created planId set to: ' + res.data.id);",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
+    item({
+      name: 'List plans',
+      method: 'GET',
+      auth: NO_AUTH,
+      raw: '{{baseUrl}}/api/v1/subscription-plans?page=1&limit=10',
+      pathSegments: ['api', 'v1', 'subscription-plans'],
+      query: [
+        queryParam('billingCycle', 'MONTHLY', 'Optional. MONTHLY or ANNUAL. Case-insensitive. Omit to return both.'),
+        queryParam('isActive', 'true', 'Optional. true or false. Omit to return active and inactive plans.'),
+        queryParam('isPopular', 'true', 'Optional. true or false.', true),
+        queryParam('page', '1', 'Optional. Page number, starting at 1. Default 1.'),
+        queryParam('limit', '10', 'Optional. Page size, 1 to 100. Default 10.'),
+        queryParam('sortBy', 'display_order', 'Optional. display_order, displayOrder, price, name, created_at, createdAt, updated_at, updatedAt. Default display_order.', true),
+        queryParam('sortOrder', 'asc', 'Optional. asc or desc. Default asc.', true),
       ],
-      request: {
-        method: "POST",
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            name: "Royal Heritage Ultra " + Math.floor(Math.random() * 1000),
-            billingCycle: "MONTHLY",
-            price: 18999,
-            code: "MONTHLY_ROYAL_" + Math.floor(Math.random() * 1000),
-            discountPercent: 10,
-            maxRooms: 120,
-            description: "Curated for premium luxury heritage palaces with 100+ suites.",
-            badge: "ULTRA LUXURY",
-            isPopular: true,
-            isActive: true,
-            displayOrder: 5,
-            features: [
-              "Up to 120 Luxury Rooms Inventory",
-              "Multi-Channel OTA Two-Way Sync",
-              "Front Desk & Express Walk-in Wizard",
-              "Govt ID Compliance & Police Verification Ledger",
-              "GST Tax Invoice & Receipt Generator",
-              "Dedicated 24/7 Priority Relationship Manager"
-            ]
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/subscription-plans"),
-        description: `### Create Subscription Plan
-Creates a new subscription plan with synchronized feature bullet points.
-- **Access:** Protected (Requires \`SUPER_ADMIN\` role)
+      description: `### GET /api/v1/subscription-plans
+Public. Soft-deleted plans are omitted.
 
-#### Request Fields
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`name\` | String | **Required** | Plan title (max 150 chars) |
-| \`billingCycle\` | String | **Required** | Must be either \`"MONTHLY"\` or \`"ANNUAL"\` |
-| \`price\` | Number | **Required** | Plan fee in INR (min 0) |
-| \`code\` | String | *Optional* | Unique identifier (uppercase alphanumeric, hyphens, underscores) |
-| \`discountPercent\` | Number | *Optional* | Discount percentage (0 - 100) |
-| \`maxRooms\` | Integer | *Optional* | Room limit ceiling (positive integer) |
-| \`description\` | String | *Optional* | Commercial description text |
-| \`badge\` | String | *Optional* | Display badge (e.g. \`"BEST VALUE"\`, max 100 chars) |
-| \`isPopular\` | Boolean | *Optional* | Popular highlight flag (default: false) |
-| \`isActive\` | Boolean | *Optional* | Active availability flag (default: true) |
-| \`displayOrder\` | Integer | *Optional* | Sorting position index (min 0) |
-| \`features\` | Array/String| *Optional* | Array of feature string bullet points |`
-      }
-    },
-    {
-      name: "Update Subscription Plan (Super Admin)",
-      request: {
-        method: "PUT",
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            price: 19999,
-            discountPercent: 15,
-            badge: "TOP PICK 2026",
-            features: [
-              "Up to 150 Luxury Rooms Inventory",
-              "Multi-Channel OTA Two-Way Sync",
-              "Full POS & Restaurant Matrix",
-              "24/7 Dedicated Account Manager"
-            ]
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/subscription-plans/:id", [], [
-          { key: "id", value: "{{planId}}", description: "Plan ID to update" }
-        ]),
-        description: `### Update Subscription Plan
-Modifies an existing plan and replaces its feature bullet points atomically.
-- **Access:** Protected (\`SUPER_ADMIN\`)`
-      }
-    },
-    {
-      name: "Soft-Delete Subscription Plan (Super Admin)",
-      request: {
-        method: "DELETE",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/subscription-plans/:id", [], [
-          { key: "id", value: "{{planId}}", description: "Plan ID to soft-delete" }
-        ]),
-        description: `### Soft-Delete Subscription Plan
-Archives plan by setting \`deleted_at\`. Excluded from future queries.
-- **Access:** Protected (\`SUPER_ADMIN\`)`
-      }
-    },
-    {
-      name: "Reset Default Enterprise Plans (Super Admin)",
-      request: {
-        method: "POST",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/subscription-plans/reset-defaults"),
-        description: `### Reset Standard 6 Enterprise Plans
-Restores the default suite of 6 subscription plans:
-1. Starter Boutique (Monthly)
-2. Professional Resort (Monthly)
-3. Enterprise Multi-Property (Monthly)
-4. Starter Boutique (Annual)
-5. Professional Resort (Annual)
-6. Enterprise Multi-Property (Annual)
-- **Access:** Protected (\`SUPER_ADMIN\`)`
-      }
-    }
-  ]
+**Query keys** are on the Params tab. Disabled params are documented and are not sent until you enable them.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`plans\` | array | Plan objects. Keys are listed on Create plan. |
+| \`pagination.total\` | number | Matching plans. |
+| \`pagination.page\` | number | Current page. |
+| \`pagination.limit\` | number | Page size. |
+| \`pagination.totalPages\` | number | Page count. |
+| \`pagination.hasNextPage\` | boolean | Another page exists. |
+| \`pagination.hasPrevPage\` | boolean | A previous page exists. |`,
+    }),
+    item({
+      name: 'Get plan',
+      method: 'GET',
+      auth: NO_AUTH,
+      raw: '{{baseUrl}}/api/v1/subscription-plans/{{planId}}',
+      pathSegments: ['api', 'v1', 'subscription-plans', ':id'],
+      variable: [idVar('id', '{{planId}}', 'Required. Plan id, positive integer.')],
+      description: `### GET /api/v1/subscription-plans/:id
+Public.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Plan id. |
+
+**Response \`data\`:** one plan object. Same keys as Create plan, plus \`id\`, \`createdAt\`, \`updatedAt\`, and \`deletedAt\`.`,
+    }),
+    item({
+      name: 'Create plan',
+      method: 'POST',
+      events: testScript(saveId('id', 'planId')),
+      raw: '{{baseUrl}}/api/v1/subscription-plans',
+      pathSegments: ['api', 'v1', 'subscription-plans'],
+      body: jsonBody({
+        name: 'Growth Monthly',
+        billingCycle: 'MONTHLY',
+        price: 1999,
+        code: 'GROWTH_MONTHLY',
+        discountPercent: 0,
+        maxRooms: 40,
+        description: 'For a mid-size property.',
+        badge: 'Popular',
+        isPopular: true,
+        isActive: true,
+        displayOrder: 2,
+        features: ['Front desk', 'GST invoices', 'Up to 40 rooms'],
+      }),
+      description: `### POST /api/v1/subscription-plans
+${authNote('SUPER_ADMIN only.')}
+
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`name\` | string | Yes | Plan name. Max 150 characters. |
+| \`billingCycle\` | string | Yes | \`MONTHLY\` or \`ANNUAL\`. Stored uppercase. |
+| \`price\` | number | Yes | Price, 0 or more. |
+| \`code\` | string | No | Unique-looking code. Letters, numbers, hyphen, underscore. Stored uppercase. Max 100. Server can generate one when omitted. |
+| \`discountPercent\` | number | No | 0 to 100. |
+| \`maxRooms\` | number | No | Positive integer room cap. |
+| \`description\` | string | No | Marketing description. |
+| \`badge\` | string | No | Short label. Max 100. Example: Popular. |
+| \`isPopular\` | boolean | No | Highlight flag. |
+| \`isActive\` | boolean | No | Whether the public list should treat it as active. |
+| \`displayOrder\` | number | No | Sort position, 0 or more. |
+| \`features\` | string array, or one string | No | Feature lines. A string may be comma-separated or newline-separated. |
+
+**Response \`data\`** adds:
+| Key | Meaning |
+| --- | --- |
+| \`id\` | New plan id. Saved to \`{{planId}}\`. |
+| \`createdAt\`, \`updatedAt\` | Timestamps. |
+| \`deletedAt\` | Null until archived. |`,
+    }),
+    item({
+      name: 'Update plan',
+      method: 'PUT',
+      raw: '{{baseUrl}}/api/v1/subscription-plans/{{planId}}',
+      pathSegments: ['api', 'v1', 'subscription-plans', ':id'],
+      variable: [idVar('id', '{{planId}}', 'Required. Plan id to update.')],
+      body: jsonBody({
+        name: 'Growth Monthly',
+        billingCycle: 'MONTHLY',
+        price: 2499,
+        code: 'GROWTH_MONTHLY',
+        discountPercent: 10,
+        maxRooms: 50,
+        description: 'For a mid-size property.',
+        badge: 'Popular',
+        isPopular: true,
+        isActive: true,
+        displayOrder: 2,
+        features: ['Front desk', 'GST invoices', 'Up to 50 rooms'],
+      }),
+      description: `### PUT /api/v1/subscription-plans/:id
+${authNote('SUPER_ADMIN only.')}
+
+Send only the keys you want to change. When \`features\` is sent, it replaces the whole feature list.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Plan id. |
+
+**Body keys:** same as Create plan, and every body key is optional on update. An empty \`name\` is rejected.
+
+**Response \`data\`:** the updated plan object.`,
+    }),
+    item({
+      name: 'Archive plan',
+      method: 'DELETE',
+      raw: '{{baseUrl}}/api/v1/subscription-plans/{{planId}}',
+      pathSegments: ['api', 'v1', 'subscription-plans', ':id'],
+      variable: [idVar('id', '{{planId}}', 'Required. Plan id to archive.')],
+      description: `### DELETE /api/v1/subscription-plans/:id
+${authNote('SUPER_ADMIN only.')}
+
+Soft-delete. The plan leaves the public list.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Plan id. |
+
+No body.
+
+**Response \`data\`** includes the archived plan fields and \`deletedAt\` set to the archive time.`,
+    }),
+    item({
+      name: 'Reset default plans',
+      method: 'POST',
+      raw: '{{baseUrl}}/api/v1/subscription-plans/reset-defaults',
+      pathSegments: ['api', 'v1', 'subscription-plans', 'reset-defaults'],
+      description: `### POST /api/v1/subscription-plans/reset-defaults
+${authNote('SUPER_ADMIN only.')}
+
+Restores the standard default plans. No body. No query keys.
+
+Call this only from an admin tool. It rewrites the default catalog.`,
+    }),
+  ],
 };
 
-// =========================================================================
-// 5. ROOM TYPES FOLDER
-// =========================================================================
 const roomTypeFolder = {
-  name: "5. Room Types (Categories)",
-  description: "Room Category (Room Type) management. Supports hotel-scoped category creation, S3 image uploads, name uniqueness per hotel, and safe-deletion constraints that prevent category removal if physical rooms are linked.",
+  name: '05 Room categories',
+  description: `Room types for one hotel. Names are unique per hotel among categories that are not deleted. Two hotels may use the same name.
+
+${authNote('HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.')}
+
+Category names must be unique inside that hotel. Soft-deleted names can be reused.
+
+Send JSON when there are no images. Send multipart when uploading images. Field names for files: \`images\`, \`images[]\`, or \`image\`.
+
+${envelope}`,
   item: [
-    {
-      name: "List Room Categories",
-      request: {
-        method: "GET",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/room-types?hotel_id={{hotelId}}", [
-          { key: "hotel_id", value: "{{hotelId}}", description: "Filter categories by Hotel ID" }
-        ]),
-        description: `### List Room Categories
-Fetches all active room types / categories, optionally filtered by hotel ID.
+    item({
+      name: 'List room categories',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/room-types',
+      pathSegments: ['api', 'v1', 'room-types'],
+      description: `### GET /api/v1/room-types
+Returns every active category for the logged-in hotel. There is no pagination and no filter query. \`hotel_id\` in the query is ignored.
 
-#### Query Parameters
-| Parameter | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`hotel_id\` | Integer | *Optional* | Filter categories belonging to a specific hotel |`
-      }
-    },
-    {
-      name: "Get Room Category by ID",
-      request: {
-        method: "GET",
-        auth: { type: "noauth" },
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/room-types/:id", [], [
-          { key: "id", value: "{{roomTypeId}}", description: "Room Category ID" }
-        ]),
-        description: `### Get Room Category by ID
-Retrieves details of a single room category along with all associated S3 photo records.`
-      }
-    },
-    {
-      name: "Create Room Category (JSON Mode)",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 201) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.id) {",
-              "        pm.collectionVariables.set('roomTypeId', String(res.data.id));",
-              "        console.log('✅ Created roomTypeId set to: ' + res.data.id);",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
-      ],
-      request: {
-        method: "POST",
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            hotel_id: 1,
-            name: "Presidential Royal Suite " + Math.floor(Math.random() * 1000),
-            description: "Opulent 1,200 sq ft suite featuring master king bedroom, private terrace, dining area, jacuzzi, and dedicated butler service."
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/room-types"),
-        description: `### Create Room Category (JSON Body)
-Creates a room category using JSON.
+**Response \`data\`:** an array. Each item:
 
-#### Request Fields
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`hotel_id\` | Integer | **Required** | Valid hotel ID where category belongs |
-| \`name\` | String | **Required** | Category name (unique within hotel, max 150 chars) |
-| \`description\` | String | *Optional* | Detailed textual category description |`
-      }
-    },
-    {
-      name: "Create Room Category (Multipart Form-Data with Images)",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 201) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.id) {",
-              "        pm.collectionVariables.set('roomTypeId', String(res.data.id));",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
-      ],
-      request: {
-        method: "POST",
-        header: multipartHeaders(),
-        body: {
-          mode: "formdata",
-          formdata: [
-            { key: "hotel_id", value: "{{hotelId}}", type: "text", description: "Hotel ID (Required)" },
-            { key: "name", value: "Executive Lakeview Suite " + Math.floor(Math.random() * 1000), type: "text", description: "Category Name (Required)" },
-            { key: "description", value: "Spacious corner room with lake view and king size bed.", type: "text", description: "Category description (Optional)" },
-            { key: "images", type: "file", src: [], description: "Image file upload (JPEG, PNG, WebP up to 10MB, Optional)" }
-          ]
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/room-types"),
-        description: `### Create Room Category with Image Uploads (Multipart Form-Data)
-Uploads up to 10 photos directly to AWS S3 storage while saving category record in MySQL.`
-      }
-    },
-    {
-      name: "Update Room Category",
-      request: {
-        method: "PUT",
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            name: "Updated Executive Lakeview Suite",
-            description: "Updated description with upgraded interior furnishings and espresso machine."
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/room-types/:id", [], [
-          { key: "id", value: "{{roomTypeId}}", description: "Category ID" }
-        ]),
-        description: `### Update Room Category
-Modifies room category details.`
-      }
-    },
-    {
-      name: "Delete Room Category",
-      request: {
-        method: "DELETE",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/room-types/:id", [], [
-          { key: "id", value: "{{roomTypeId}}", description: "Category ID" }
-        ]),
-        description: `### Delete Room Category (Safe Guarded)
-Safely deletes a category.
-- **Data Integrity Guard:** Will return \`400 Bad Request\` if any physical rooms in the hotel are currently assigned to this category.`
-      }
-    }
-  ]
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Category id. |
+| \`hotel_id\` | number | Hotel that owns it. |
+| \`name\` | string | Category name. |
+| \`description\` | string | Description, or empty. |
+| \`images\` | string array | Full image URLs. |
+| \`deleted_at\` | null | Always null in this list. |
+| \`created_at\`, \`updated_at\` | string | Timestamps. |`,
+    }),
+    item({
+      name: 'Get room category',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/room-types/{{roomTypeId}}',
+      pathSegments: ['api', 'v1', 'room-types', ':id'],
+      variable: [idVar('id', '{{roomTypeId}}', 'Required. Room category id.')],
+      description: `### GET /api/v1/room-types/:id
+A category from another hotel returns 403. Missing id returns 404.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Category id. |
+
+**Response \`data\`:** one category. Same keys as the list item.`,
+    }),
+    item({
+      name: 'Create room category',
+      method: 'POST',
+      events: testScript(saveId('id', 'roomTypeId')),
+      headers: acceptHeader(),
+      raw: '{{baseUrl}}/api/v1/room-types',
+      pathSegments: ['api', 'v1', 'room-types'],
+      body: {
+        mode: 'formdata',
+        formdata: [
+          textField('name', 'Deluxe', 'Required. Category name. Max 150 characters. Unique among active categories in this hotel. Comparison ignores case.'),
+          textField('description', 'King bed, city view, free Wi-Fi.', 'Optional. Plain text description.'),
+          fileField('images', 'Optional. Repeat this field for more files, or use images[] / image. Max 10 images, 10 MB each.'),
+        ],
+      },
+      description: `### POST /api/v1/room-types
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+Do not send \`hotel_id\`. The server uses the hotel on the token.
+
+**Body keys** are described on each form row.
+
+A duplicate active name in the same hotel returns 409.
+
+**Response \`data\`:** the created category. \`id\` is saved to \`{{roomTypeId}}\`.`,
+    }),
+    item({
+      name: 'Update room category',
+      method: 'PUT',
+      headers: acceptHeader(),
+      raw: '{{baseUrl}}/api/v1/room-types/{{roomTypeId}}',
+      pathSegments: ['api', 'v1', 'room-types', ':id'],
+      variable: [idVar('id', '{{roomTypeId}}', 'Required. Category id to update.')],
+      body: {
+        mode: 'formdata',
+        formdata: [
+          textField('name', 'Deluxe Sea View', 'Optional. New name. Cannot be empty. Still unique per hotel, excluding this category.'),
+          textField('description', 'King bed and a sea view.', 'Optional. Replaces the description.'),
+          fileField('images', 'Optional. New images are added. Existing images stay unless your screen removes them through a later API. This request only uploads new files.'),
+        ],
+      },
+      description: `### PUT /api/v1/room-types/:id
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Category id. |
+
+**Body keys** are on the form rows. Send only what changes.
+
+Another hotel's category returns 403.`,
+    }),
+    item({
+      name: 'Delete room category',
+      method: 'DELETE',
+      raw: '{{baseUrl}}/api/v1/room-types/{{roomTypeId}}',
+      pathSegments: ['api', 'v1', 'room-types', ':id'],
+      variable: [idVar('id', '{{roomTypeId}}', 'Required. Category id to delete.')],
+      description: `### DELETE /api/v1/room-types/:id
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+Soft-delete. Fails when any physical room still uses this category. Move or delete those rooms first.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Category id. |
+
+No body.`,
+    }),
+  ],
 };
 
-// =========================================================================
-// 6. PHYSICAL ROOMS FOLDER
-// =========================================================================
 const roomFolder = {
-  name: "6. Physical Rooms",
-  description: "Inventory of physical rooms (e.g. Room 101, 102, 201). Enforces composite floor uniqueness (room number unique per hotel and floor), room status workflows (AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, BLOCKED), and S3 photo galleries.",
+  name: '06 Physical rooms',
+  description: `${authNote('HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.')}
+
+Room number is unique per hotel and floor. Room 101 on floor 1 and room 101 on floor 2 are both allowed. The same number on the same floor is not.
+
+Room status values: \`AVAILABLE\`, \`RESERVED\`, \`OCCUPIED\`, \`CLEANING\`, \`MAINTENANCE\`, \`BLOCKED\`. Send any case. The server stores uppercase.
+
+Use JSON when you are not uploading images. Use multipart when you are. File field names: \`images\`, \`images[]\`, or \`image\`.
+
+On create, a multipart string \`"false"\` for \`is_active\` is treated as true because the server uses JavaScript Boolean(). Send room create and update as JSON when you need \`is_active: false\` and you have no new image.
+
+${envelope}`,
   item: [
-    {
-      name: "Create Physical Room (Full Payload)",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 201) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.id) {",
-              "        pm.collectionVariables.set('roomId', String(res.data.id));",
-              "        console.log('✅ Created roomId set to: ' + res.data.id);",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
+    item({
+      name: 'Create room',
+      method: 'POST',
+      events: testScript(saveId('id', 'roomId')),
+      headers: acceptHeader(),
+      raw: '{{baseUrl}}/api/v1/rooms',
+      pathSegments: ['api', 'v1', 'rooms'],
+      body: {
+        mode: 'formdata',
+        formdata: [
+          textField('room_number', '101', 'Required. Room number or label. Max 50 characters. Unique with floor inside this hotel.'),
+          textField('room_type_id', '{{roomTypeId}}', 'Required. Category id from Room categories. Must belong to this hotel.'),
+          textField('floor', '1', 'Optional. Integer floor. Default 1. Negative floors are allowed, for example -1 for basement.'),
+          textField('status', 'AVAILABLE', 'Optional. AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, or BLOCKED. Default AVAILABLE.'),
+          textField('seating_capacity', '2', 'Optional. Positive integer. Default 2. Guest capacity, not bed count.'),
+          textField('bed_count', '1', 'Optional. Positive integer. Default 1.'),
+          textField('bed_type', '1 King Bed', 'Optional. Free text, max 100 characters. Default "1 King Bed".'),
+          textField('custom_price_per_night', '3500', 'Optional. Number, 0 or more. Nightly rate for this room. Empty means no custom price.'),
+          textField('notes', 'Corner room', 'Optional. Internal note.'),
+          textField('amenities', '["Wi-Fi","AC","TV"]', 'Optional. JSON array, or a comma-separated string such as Wi-Fi, AC, TV.'),
+          textField('cleaning_started_at', '', 'Optional. ISO datetime when housekeeping started. Leave empty unless status is CLEANING.', true),
+          textField('cleaning_duration_minutes', '15', 'Optional. Positive integer. Default 15. How long cleaning is expected to take.'),
+          textField('is_active', 'true', 'Optional. true or false. Default true. Inactive rooms can be hidden by the list filter. Prefer JSON for false. See the folder note.'),
+          fileField('images', 'Optional room photos. Repeat the field for more files.'),
+        ],
+      },
+      description: `### POST /api/v1/rooms
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+Do not send \`hotel_id\`. The category must already exist in this hotel.
+
+A duplicate \`room_number\` on the same floor returns 409.
+
+**Body keys** are described on each form row.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Room id. Saved to \`{{roomId}}\`. |
+| \`hotel_id\` | number | Hotel from the token. |
+| \`hotel_name\` | string or null | Hotel name when joined. |
+| \`room_number\` | string | Room number. |
+| \`room_type_id\` | number | Category id. |
+| \`room_type_name\` | string or null | Category name. |
+| \`floor\` | number | Floor. |
+| \`status\` | string | One of the six room statuses. |
+| \`seating_capacity\` | number | Guest capacity. |
+| \`bed_count\` | number | Beds. |
+| \`bed_type\` | string | Bed description. |
+| \`custom_price_per_night\` | number or null | Custom nightly rate. |
+| \`notes\` | string | Internal note. |
+| \`amenities\` | string array | Parsed amenity list. |
+| \`cleaning_started_at\` | string or null | Cleaning start. |
+| \`cleaning_duration_minutes\` | number | Expected cleaning minutes. |
+| \`is_active\` | boolean | Whether the room is active. |
+| \`images\` | string array | Full image URLs. |
+| \`deleted_at\` | null | Null until deleted. |
+| \`created_at\`, \`updated_at\` | string | Timestamps. |`,
+    }),
+    item({
+      name: 'List rooms',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/rooms?page=1&limit=10&sort_by=floor&sort_order=asc',
+      pathSegments: ['api', 'v1', 'rooms'],
+      query: [
+        queryParam('page', '1', 'Optional. Page number, starting at 1. Default 1.'),
+        queryParam('limit', '10', 'Optional. Page size, 1 to 100. Default 10.'),
+        queryParam('sort_by', 'floor', 'Optional. Sort field. Only floor. Default floor.'),
+        queryParam('sort_order', 'asc', 'Optional. asc lists the lowest floor first. desc lists the highest floor first. Rooms on the same floor follow the same direction. Default asc.'),
+        queryParam('floor', '1', 'Optional. Exact floor number.', true),
+        queryParam('room_type_id', '{{roomTypeId}}', 'Optional. Only rooms in this category.', true),
+        queryParam('status', 'AVAILABLE', 'Optional. AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, or BLOCKED.', true),
+        queryParam('is_active', 'true', 'Optional. true or false.', true),
+        queryParam('search', '101', 'Optional. Matches room number. Same search as room_number.', true),
+        queryParam('room_number', '101', 'Optional. Alias of search. Matches room number.', true),
       ],
-      request: {
-        method: "POST",
-        header: multipartHeaders(),
-        body: {
-          mode: "formdata",
-          formdata: [
-            { key: "hotel_id", value: "{{hotelId}}", type: "text", description: "Hotel property ID (Required)" },
-            { key: "room_number", value: "Suite-" + Math.floor(Math.random() * 800 + 100), type: "text", description: "Room identifier (Required, unique per hotel + floor)" },
-            { key: "room_type_id", value: "{{roomTypeId}}", type: "text", description: "Category ID (Required)" },
-            { key: "floor", value: "2", type: "text", description: "Floor number (Optional, default: 1)" },
-            { key: "status", value: "AVAILABLE", type: "text", description: "Status: AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, BLOCKED (Optional, default: AVAILABLE)" },
-            { key: "seating_capacity", value: "3", type: "text", description: "Max guest capacity (Optional, default: 2)" },
-            { key: "bed_count", value: "1", type: "text", description: "Number of beds (Optional, default: 1)" },
-            { key: "bed_type", value: "1 Super King Bed", type: "text", description: "Bed description (Optional)" },
-            { key: "custom_price_per_night", value: "4500.00", type: "text", description: "Custom price per night in INR (Optional)" },
-            { key: "notes", value: "Spacious corner room with private balcony and valley view.", type: "text", description: "Internal staff notes (Optional)" },
-            { key: "amenities", value: "High-Speed Wi-Fi, Smart TV 55 inch, Mini Bar, Air Conditioning", type: "text", description: "List of amenities (Optional)" },
-            { key: "cleaning_duration_minutes", value: "20", type: "text", description: "Turnaround duration min (Optional, default: 15)" },
-            { key: "is_active", value: "true", type: "text", description: "Active availability flag (Optional, default: true)" },
-            { key: "images", type: "file", src: [], description: "Room photo uploads directly stored in S3 (Optional)" }
-          ]
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/rooms"),
-        description: `### Create Physical Room (Multipart Form-Data)
-Creates a physical inventory room in the hotel and uploads room photos directly to AWS S3.
+      description: `### GET /api/v1/rooms
+Rooms for the logged-in hotel only. Soft-deleted rooms are omitted.
 
-#### Request Fields
-| Field | Type | Required | Description | Defaults & Rules |
-| :--- | :--- | :--- | :--- | :--- |
-| \`hotel_id\` | Integer | **Required** | Hotel property ID | Positive integer |
-| \`room_number\` | String | **Required** | Room identifier (e.g. \`"101"\`, \`"201B"\`) | Max 50 chars, unique per hotel + floor |
-| \`room_type_id\` | Integer | **Required** | Category ID | Must belong to specified hotel |
-| \`floor\` | Integer | *Optional* | Floor number | Default: \`1\` |
-| \`status\` | String | *Optional* | Current status | One of: \`AVAILABLE\`, \`RESERVED\`, \`OCCUPIED\`, \`CLEANING\`, \`MAINTENANCE\`, \`BLOCKED\` (Default: \`AVAILABLE\`) |
-| \`seating_capacity\`| Integer | *Optional* | Max guest capacity | Min 1 (Default: \`2\`) |
-| \`bed_count\` | Integer | *Optional* | Number of beds | Min 1 (Default: \`1\`) |
-| \`bed_type\` | String | *Optional* | Bed description | Default: \`"1 King Bed"\` |
-| \`custom_price_per_night\` | Number | *Optional* | Custom price per night in INR | Positive number (e.g. 4500.00) |
-| \`notes\` | String | *Optional* | Internal staff notes | Any text |
-| \`amenities\` | String | *Optional* | List of amenities | Comma-separated or JSON array |
-| \`cleaning_duration_minutes\` | Integer | *Optional* | Housekeeping turnaround min | Default: \`15\` |
-| \`is_active\` | Boolean | *Optional* | Active availability flag | Default: \`true\` |
-| \`images\` | File | *Optional* | Room photos | Uploaded directly to AWS S3 |`
-      }
-    },
-    {
-      name: "List Physical Rooms (Filters & Pagination)",
-      request: {
-        method: "GET",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/rooms?hotel_id={{hotelId}}&status=AVAILABLE&floor=2&page=1&limit=10", [
-          { key: "hotel_id", value: "{{hotelId}}", description: "Filter by Hotel ID" },
-          { key: "status", value: "AVAILABLE", description: "Filter by status (AVAILABLE, OCCUPIED, etc.)" },
-          { key: "floor", value: "2", description: "Filter by floor number", disabled: true },
-          { key: "room_type_id", value: "{{roomTypeId}}", description: "Filter by room category ID", disabled: true },
-          { key: "is_active", value: "true", description: "Filter active rooms (true/false)", disabled: true },
-          { key: "search", value: "Suite", description: "Search room number or notes", disabled: true },
-          { key: "page", value: "1", description: "Page number" },
-          { key: "limit", value: "10", description: "Page limit (1-100)" }
-        ]),
-        description: `### List Physical Rooms
-Queries rooms with multi-criteria filtering, search, and pagination.
+Default order is floor ascending, then room number ascending. Send \`sort_order=desc\` to reverse that. \`sort_by\` only accepts \`floor\`.
 
-#### Query Filters
-| Query Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`hotel_id\` | Integer | *Optional* | Filter by hotel ID |
-| \`floor\` | Integer | *Optional* | Filter by floor |
-| \`room_type_id\` | Integer | *Optional* | Filter by category ID |
-| \`status\` | String | *Optional* | Status: \`AVAILABLE\`, \`RESERVED\`, \`OCCUPIED\`, \`CLEANING\`, \`MAINTENANCE\`, \`BLOCKED\` |
-| \`is_active\` | Boolean | *Optional* | \`true\` or \`false\` |
-| \`search\` | String | *Optional* | Substring match on room number or notes |
-| \`page\` | Integer | *Optional* | Page index (default: 1) |
-| \`limit\` | Integer | *Optional* | Results limit (default: 10, max: 100) |`
-      }
-    },
-    {
-      name: "Get Physical Room by ID",
-      request: {
-        method: "GET",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/rooms/:id", [], [
-          { key: "id", value: "{{roomId}}", description: "Room ID" }
-        ]),
-        description: `### Get Physical Room by ID
-Retrieves room specifications, current status, category details, and photos.`
-      }
-    },
-    {
-      name: "Update Physical Room",
-      request: {
-        method: "PUT",
-        header: multipartHeaders(),
-        body: {
-          mode: "formdata",
-          formdata: [
-            { key: "status", value: "MAINTENANCE", type: "text", description: "Room status update (Optional)" },
-            { key: "notes", value: "AC maintenance scheduled with technician.", type: "text", description: "Room notes (Optional)" },
-            { key: "custom_price_per_night", value: "4800.00", type: "text", description: "Custom nightly rate in INR (Optional)" },
-            { key: "images", type: "file", src: [], description: "Additional room photos uploaded to S3 (Optional)" }
-          ]
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/rooms/:id", [], [
-          { key: "id", value: "{{roomId}}", description: "Room ID to update" }
-        ]),
-        description: `### Update Physical Room (Multipart Form-Data)
-Updates room attributes (e.g. status transition from AVAILABLE to OCCUPIED or MAINTENANCE) and supports attaching additional photos to S3.`
-      }
-    },
-    {
-      name: "Soft-Delete Physical Room",
-      request: {
-        method: "DELETE",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/rooms/:id", [], [
-          { key: "id", value: "{{roomId}}", description: "Room ID to delete" }
-        ]),
-        description: `### Soft-Delete Physical Room
-Soft-deletes physical room by populating \`deleted_at\`. Preserves booking history.`
-      }
-    }
-  ]
+**Query keys** are on the Params tab.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`rooms\` | array | Room objects. Same keys as Create room. |
+| \`total\` | number | Matching rooms. |
+| \`page\` | number | Current page. |
+| \`limit\` | number | Page size. |
+| \`totalPages\` | number | Page count. Camel case, not \`total_pages\`. |`,
+    }),
+    item({
+      name: 'Get room',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/rooms/{{roomId}}',
+      pathSegments: ['api', 'v1', 'rooms', ':id'],
+      variable: [idVar('id', '{{roomId}}', 'Required. Physical room id.')],
+      description: `### GET /api/v1/rooms/:id
+Another hotel's room returns 403.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Room id. |
+
+**Response \`data\`:** one room object. Same keys as Create room.`,
+    }),
+    item({
+      name: 'Update room',
+      method: 'PUT',
+      headers: acceptHeader(),
+      raw: '{{baseUrl}}/api/v1/rooms/{{roomId}}',
+      pathSegments: ['api', 'v1', 'rooms', ':id'],
+      variable: [idVar('id', '{{roomId}}', 'Required. Room id to update.')],
+      body: {
+        mode: 'formdata',
+        formdata: [
+          textField('room_number', '101', 'Optional. New room number. Still unique per hotel and floor.', true),
+          textField('room_type_id', '{{roomTypeId}}', 'Optional. Move the room to another category in this hotel.', true),
+          textField('floor', '1', 'Optional. New floor. Uniqueness is checked with the room number.', true),
+          textField('status', 'MAINTENANCE', 'Optional. One of the six room statuses. Prefer Update room status when only the status changes.', true),
+          textField('seating_capacity', '3', 'Optional. Positive integer.', true),
+          textField('bed_count', '2', 'Optional. Positive integer.', true),
+          textField('bed_type', '2 Twin Beds', 'Optional. Max 100 characters.', true),
+          textField('custom_price_per_night', '4000', 'Optional. 0 or more. Send an empty value to clear the custom price.', true),
+          textField('notes', 'Under maintenance until Friday', 'Optional. Replaces the note.', true),
+          textField('amenities', '["Wi-Fi","AC"]', 'Optional. Replaces the amenity list. JSON array or comma-separated text.', true),
+          textField('cleaning_started_at', '', 'Optional. ISO datetime, or empty to clear.', true),
+          textField('cleaning_duration_minutes', '20', 'Optional. Positive integer.', true),
+          textField('is_active', 'true', 'Optional. true, false, 1, or 0.', true),
+          fileField('images', 'Optional. New photos are uploaded and added.'),
+        ],
+      },
+      description: `### PUT /api/v1/rooms/:id
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+Send only the keys that change. Disabled form rows are not sent until you enable them.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Room id. |
+
+**Response \`data\`:** the updated room object.`,
+    }),
+    item({
+      name: 'Update room status',
+      method: 'PATCH',
+      raw: '{{baseUrl}}/api/v1/rooms/{{roomId}}/status',
+      pathSegments: ['api', 'v1', 'rooms', ':id', 'status'],
+      variable: [idVar('id', '{{roomId}}', 'Required. Room id.')],
+      body: jsonBody({
+        status: 'CLEANING',
+      }),
+      description: `### PATCH /api/v1/rooms/:id/status
+Changes only \`status\`. Price, number, floor, and other fields stay as they are.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Room id. |
+
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`status\` | string | Yes | \`AVAILABLE\`, \`RESERVED\`, \`OCCUPIED\`, \`CLEANING\`, \`MAINTENANCE\`, or \`BLOCKED\`. |
+
+Unknown status returns 400.
+
+**Response \`data\`:** the room object with the new status.`,
+    }),
+    item({
+      name: 'Delete room',
+      method: 'DELETE',
+      raw: '{{baseUrl}}/api/v1/rooms/{{roomId}}',
+      pathSegments: ['api', 'v1', 'rooms', ':id'],
+      variable: [idVar('id', '{{roomId}}', 'Required. Room id to soft-delete.')],
+      description: `### DELETE /api/v1/rooms/:id
+Soft-delete. The room leaves the list. Its room number can be used again on that floor.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Room id. |
+
+No body.`,
+    }),
+  ],
 };
 
-// =========================================================================
-// 7. BOOKINGS FOLDER
-// =========================================================================
 const bookingFolder = {
-  name: "7. Bookings Management",
-  description: "Complete reservation lifecycle management. Features automatic chronological date validation, room availability & overlap conflict prevention (409 Conflict), automated financial & GST tax computation (CGST, SGST, taxable base, discounts), payment status derivation (PENDING, PARTIALLY_PAID, PAID), and S3 guest ID & signature captures.",
+  name: '07 Bookings',
+  description: `${authNote('HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.')}
+
+Two different statuses:
+| Key | Values | Meaning |
+| --- | --- | --- |
+| \`booking_status\` | \`PENDING\`, \`CONFIRMED\`, \`CHECKED_IN\`, \`CHECKED_OUT\`, \`CANCELLED\`, \`NO_SHOW\` | The stay |
+| \`payment_status\` | \`PENDING\`, \`PARTIALLY_PAID\`, \`PAID\` | The bill. Calculated from amounts. Do not send it. |
+
+Create stores \`CHECKED_IN\` when \`booking_status\` is omitted. That also sets \`actual_check_in\` and marks the room \`OCCUPIED\`.
+
+What each stay status does to the room:
+| booking_status | Room |
+| --- | --- |
+| \`CHECKED_IN\` | Every room becomes \`OCCUPIED\`. Sets \`actual_check_in\` if it was empty. |
+| \`CHECKED_OUT\` | Every room becomes \`CLEANING\`. Sets \`actual_check_out\` if it was empty. |
+| \`CONFIRMED\` | \`RESERVED\` only when the room is \`AVAILABLE\` and nobody else is checked in. |
+| \`PENDING\` | Room stays as it is on create. |
+| \`CANCELLED\`, \`NO_SHOW\` | Releases the room when this stay was holding it. Another checked-in stay keeps it \`OCCUPIED\`. Another confirmed stay keeps it \`RESERVED\`. Otherwise \`AVAILABLE\`. \`MAINTENANCE\`, \`BLOCKED\`, and \`CLEANING\` are not cleared. |
+
+\`CHECKED_OUT\`, \`CANCELLED\`, and \`NO_SHOW\` no longer block the dates, so the room can be booked again.
+
+Use multipart when uploading ID photos or a signature. A file field whose name contains \`sign\` or \`signature\` is stored as a signature. Any other image field is a guest document photo. You can also send existing URLs in \`images\` and \`signatures\` as a JSON array string.
+
+${envelope}`,
   item: [
-    {
-      name: "Create New Booking (Full Payload)",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 201) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.id) {",
-              "        pm.collectionVariables.set('bookingId', String(res.data.id));",
-              "        console.log('✅ Created bookingId set to: ' + res.data.id);",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
+    item({
+      name: 'Create booking',
+      method: 'POST',
+      events: testScript(saveId('id', 'bookingId')),
+      headers: acceptHeader(),
+      raw: '{{baseUrl}}/api/v1/bookings',
+      pathSegments: ['api', 'v1', 'bookings'],
+      body: {
+        mode: 'formdata',
+        formdata: [
+          textField('primary_guest_name', 'Ravi Shah', 'Required. Guest on the booking. 2 to 255 characters.'),
+          textField('secondary_guest_name', 'Meera Shah', 'Optional. Second guest name. Max 255 characters.', true),
+          textField('mobile_number', '9876543210', 'Required. 7 to 20 characters. Digits, spaces, plus, and hyphen.'),
+          textField('email', 'guest@example.com', 'Optional. Guest email. A user or hotel owner login email is rejected.', true),
+          textField('address', '12 Lake Road, Pune', 'Optional. Guest address.', true),
+          textField('room_id', '[{{roomId}}]', 'Required. Array of room ids in this hotel. Send JSON: [12, 15]. Every room is held for the same dates and receives the same stay status at the same time. One room is still an array: [12].'),
+          textField('created_by', '', 'Optional. User id of the staff member. Defaults to the logged-in user. The user must exist.', true),
+          textField('check_in_date', '2026-10-14T14:00:00.000Z', 'Required. Scheduled check-in. ISO date or datetime. Must be before check_out_date.'),
+          textField('check_out_date', '2026-10-16T12:00:00.000Z', 'Required. Scheduled check-out. ISO date or datetime. Nights are calculated from these two dates.'),
+          textField('actual_check_in', '', 'Optional. Real check-in time. For CHECKED_IN the server sets this when it is empty.', true),
+          textField('actual_check_out', '', 'Optional. Real check-out time. Leave empty on create unless the stay is already finished.', true),
+          textField('adults', '2', 'Optional. Integer, minimum 1. Default 1.'),
+          textField('children', '0', 'Optional. Integer, 0 or more. Default 0.'),
+          textField('base_amount', '7000', 'Optional. Room charge before tax and extras. 0 or more. When omitted, the server adds each room custom price and multiplies by nights.'),
+          textField('discount_amount', '0', 'Optional. Discount. 0 or more. Default 0.'),
+          textField('extra_charges_total', '0', 'Optional. Extra charges before tax. 0 or more. Default 0.'),
+          textField('late_checkout_charge', '0', 'Optional. Late fee amount. 0 or more. Usually left 0 until checkout.', true),
+          textField('late_checkout_hours', '0', 'Optional. Late hours. 0 or more.', true),
+          textField('gst_rate', '18', 'Optional. GST percent, 0 to 100. Default 18. Split into equal CGST and SGST.'),
+          textField('paid_amount', '2000', 'Optional. Amount already collected. 0 or more. Default 0. This sets payment_status.'),
+          textField('notes', 'Late arrival after 10 pm', 'Optional. Front desk note.'),
+          textField('booking_status', 'CHECKED_IN', 'Optional. PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, or NO_SHOW. When omitted, the server stores CHECKED_IN.'),
+          textField('images', '[]', 'Optional. JSON array of existing image URLs. Example: ["https://cdn.example/id.jpg"]. Uploaded files are added as well.', true),
+          textField('signatures', '[]', 'Optional. JSON array of existing signature URLs.', true),
+          fileField('images', 'Optional ID or document photos. Any file field that is not a signature.'),
+          fileField('signatures', 'Optional signature image. The field name must contain "sign" or "signature".'),
+        ],
+      },
+      description: `### POST /api/v1/bookings
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+Do not send \`hotel_id\`, \`booking_number\`, \`number_of_nights\`, \`payment_status\`, tax amounts, \`total_amount\`, or \`due_amount\`. The server calculates those.
+
+The room must be free for the scheduled dates. A stay still blocks those dates while \`booking_status\` is \`PENDING\`, \`CONFIRMED\`, or \`CHECKED_IN\` and \`actual_check_out\` is empty. Overlap returns 400.
+
+**Body keys** are described on each form row.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Booking id. Saved to \`{{bookingId}}\`. |
+| \`hotel_id\` | number | Hotel from the token. |
+| \`booking_number\` | string | Generated, format \`BK-YYYYMMDD-XXXXXX\`. |
+| \`primary_guest_name\` | string | Main guest. |
+| \`secondary_guest_name\` | string or null | Second guest. |
+| \`mobile_number\` | string | Guest mobile. |
+| \`email\` | string or null | Guest email. Not a login email. Null when omitted. |
+| \`address\` | string | Guest address. |
+| \`room_id\` | number array | Every room on this stay. Example: \`[12, 15]\`. |
+| \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`status\`, \`room_type_name\`. |
+| \`room\` | object or null | The first room only. Same shape as one item in \`rooms\`. |
+| \`created_by\` | number | Staff user id. |
+| \`check_in_date\`, \`check_out_date\` | string | Scheduled stay. Not changed by checkout. |
+| \`actual_check_in\`, \`actual_check_out\` | string or null | Real in and out times. |
+| \`number_of_nights\` | number | Calculated from the scheduled dates. Minimum handling is server-side. |
+| \`adults\`, \`children\` | number | Guest counts. |
+| \`base_amount\` | number | Room charge before tax. |
+| \`discount_amount\` | number | Discount. |
+| \`extra_charges_total\` | number | Extras. |
+| \`late_checkout_charge\`, \`late_checkout_hours\` | number | Late checkout. |
+| \`gst_rate\` | number | GST percent. |
+| \`cgst_rate\`, \`sgst_rate\` | number | Each is half of \`gst_rate\`. |
+| \`taxable_amount\` | number | Amount GST is applied to. |
+| \`gst_amount\`, \`cgst_amount\`, \`sgst_amount\` | number | Tax amounts. |
+| \`tax_amount\` | number | Tax total. |
+| \`total_amount\` | number | Amount due before payments. |
+| \`paid_amount\` | number | Collected so far. |
+| \`due_amount\` | number | \`total_amount - paid_amount\`. |
+| \`payment_status\` | string | \`PENDING\`, \`PARTIALLY_PAID\`, or \`PAID\`. |
+| \`booking_status\` | string | Stay status. |
+| \`images\`, \`signatures\` | string arrays | Full URLs. |
+| \`notes\` | string | Front desk note. |
+| \`hotel\` | object | \`id\`, \`name\`, \`slug\` when joined. |
+| \`room\` | object | \`id\`, \`room_number\`, \`floor\`, \`status\`, \`room_type_name\`. |
+| \`creator\` | object | \`id\`, \`name\`, \`email\`, \`role\` of the staff user. |
+| \`deleted_at\` | null | Null until deleted. |
+| \`created_at\`, \`updated_at\` | string | Timestamps. |`,
+    }),
+    item({
+      name: 'List bookings',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/bookings?page=1&limit=10',
+      pathSegments: ['api', 'v1', 'bookings'],
+      query: [
+        queryParam('page', '1', 'Optional. Page number, starting at 1. Default 1.'),
+        queryParam('limit', '10', 'Optional. Page size, 1 to 100. Default 10.'),
+        queryParam('booking_status', 'CHECKED_IN', 'Optional stay filter. PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, or NO_SHOW. Case-insensitive.', true),
+        queryParam('payment_status', 'PENDING', 'Optional bill filter. PENDING, PARTIALLY_PAID, or PAID. This is not the stay status.', true),
+        queryParam('room_id', '{{roomId}}', 'Optional. One room id. Returns bookings whose room_id array contains this room.', true),
+        queryParam('booking_number', 'BK-', 'Optional. Partial match on the booking number.', true),
+        queryParam('primary_guest_name', 'Ravi', 'Optional. Partial match on the primary guest name.', true),
+        queryParam('guest_name', 'Shah', 'Optional. Partial match on primary or secondary guest name.', true),
+        queryParam('mobile_number', '98765', 'Optional. Partial match on mobile.', true),
+        queryParam('search', 'Ravi', 'Optional. Matches guest name, mobile, or booking number.', true),
+        queryParam('check_in_from', '2026-10-01', 'Optional. Scheduled check-in on or after this ISO date.', true),
+        queryParam('check_in_to', '2026-10-31', 'Optional. Scheduled check-in on or before this ISO date.', true),
+        queryParam('check_out_from', '2026-10-01', 'Optional. Scheduled check-out on or after this ISO date.', true),
+        queryParam('check_out_to', '2026-10-31', 'Optional. Scheduled check-out on or before this ISO date.', true),
       ],
-      request: {
-        method: "POST",
-        header: multipartHeaders(),
-        body: {
-          mode: "formdata",
-          formdata: [
-            { key: "hotel_id", value: "{{hotelId}}", type: "text", description: "Hotel ID (Optional, defaults to authenticated user's hotel)" },
-            { key: "room_id", value: "{{roomId}}", type: "text", description: "Physical room ID to reserve (Required)" },
-            { key: "primary_guest_name", value: "Aaditya Vikramaditya", type: "text", description: "Primary guest full name (Required)" },
-            { key: "secondary_guest_name", value: "Sneha Vikramaditya", type: "text", description: "Accompanying guest name (Optional)" },
-            { key: "mobile_number", value: "+919876543210", type: "text", description: "Guest contact mobile (Required)" },
-            { key: "address", value: "42 Park Avenue, South Extension Part 2, New Delhi", type: "text", description: "Guest residential address (Optional)" },
-            { key: "check_in_date", value: "2026-11-01T14:00:00.000Z", type: "text", description: "Scheduled arrival timestamp (Required)" },
-            { key: "check_out_date", value: "2026-11-04T11:00:00.000Z", type: "text", description: "Scheduled departure timestamp (Required)" },
-            { key: "adults", value: "2", type: "text", description: "Number of adults (Optional, default: 1)" },
-            { key: "children", value: "1", type: "text", description: "Number of children (Optional, default: 0)" },
-            { key: "base_amount", value: "10500.00", type: "text", description: "Base charge before discount & taxes (Optional)" },
-            { key: "discount_amount", value: "500.00", type: "text", description: "Discount deduction (Optional, default: 0)" },
-            { key: "extra_charges_total", value: "200.00", type: "text", description: "Extra incidentals total (Optional, default: 0)" },
-            { key: "gst_rate", value: "18.00", type: "text", description: "GST percentage rate (Optional, default: 18.00)" },
-            { key: "paid_amount", value: "5000.00", type: "text", description: "Advance payment paid at desk (Optional, default: 0)" },
-            { key: "notes", value: "Early check-in requested; anniversary celebration complimentary cake.", type: "text", description: "Special requests or front desk remarks (Optional)" },
-            { key: "images", type: "file", src: [], description: "Guest Government ID proof document photo uploaded directly to S3 (Optional)" },
-            { key: "signatures", type: "file", src: [], description: "Guest digital signature image uploaded directly to S3 with is_signature=true (Optional)" }
-          ]
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/bookings"),
-        description: `### Create New Booking (Multipart Form-Data)
-Creates a reservation with overlap validation, automated tax/payment computation, and S3 ID photo & signature uploads.
+      description: `### GET /api/v1/bookings
+Bookings for the logged-in hotel. Soft-deleted rows are omitted. Newest first.
 
-#### Automated Calculations Done by Server
-- **Nights:** Calculated from \`check_in_date\` and \`check_out_date\`.
-- **Taxable Amount:** \`(base_amount - discount_amount) + extra_charges_total + late_checkout_charge\`.
-- **GST Taxes:** CGST = \`gst_rate / 2\` (9%), SGST = \`gst_rate / 2\` (9%).
-- **Total Amount:** \`taxable_amount + gst_amount\`.
-- **Due Amount:** \`total_amount - paid_amount\`.
-- **Payment Status:** Auto-derived as \`PAID\`, \`PARTIALLY_PAID\`, or \`PENDING\`.
-- **Overlap Prevention:** Checks if room is booked during overlapping dates; returns \`409 Conflict\` if conflict detected.
+\`booking_status\` filters the stay. \`payment_status\` filters the bill. They can be used together.
 
-#### Request Fields
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`primary_guest_name\` | String | **Required** | Primary guest full name (2 - 255 chars) |
-| \`mobile_number\` | String | **Required** | Primary guest contact phone (7 - 20 chars) |
-| \`room_id\` | Integer | **Required** | Physical room ID to reserve |
-| \`check_in_date\` | ISO Date | **Required** | Scheduled arrival timestamp |
-| \`check_out_date\` | ISO Date | **Required** | Scheduled departure timestamp (must be > check-in) |
-| \`hotel_id\` | Integer | *Optional* | Hotel ID (auto-scoped from auth user if omitted) |
-| \`secondary_guest_name\`| String | *Optional* | Name of accompanying guest |
-| \`address\` | String | *Optional* | Guest address |
-| \`adults\` | Integer | *Optional* | Number of adults (min 1, default: 1) |
-| \`children\` | Integer | *Optional* | Number of children (min 0, default: 0) |
-| \`base_amount\` | Number | *Optional* | Base charge (auto-calculated from room rate if omitted) |
-| \`discount_amount\` | Number | *Optional* | Discount deducted before tax (default: 0) |
-| \`extra_charges_total\`| Number | *Optional* | Incidental / extra services total (default: 0) |
-| \`late_checkout_charge\`| Number | *Optional* | Late departure surcharge (default: 0) |
-| \`late_checkout_hours\` | Number | *Optional* | Late checkout hours approved (default: 0) |
-| \`gst_rate\` | Number | *Optional* | GST percentage (default: 18.00) |
-| \`paid_amount\` | Number | *Optional* | Advance payment made (default: 0) |
-| \`booking_status\` | String | *Optional* | Stay status. Defaults to \`CHECKED_IN\`. Also \`PENDING\`, \`CONFIRMED\`, \`CHECKED_OUT\`, \`CANCELLED\`, \`NO_SHOW\` |
-| \`notes\` | String | *Optional* | Special requests or front desk remarks |
-| \`images\` | File | *Optional* | Guest ID document photo uploaded directly to S3 |
-| \`signatures\` | File | *Optional* | Digital signature image uploaded directly to S3 |`
-      }
-    },
-    {
-      name: "List Bookings (Filters & Search)",
-      request: {
-        method: "GET",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/bookings?hotel_id={{hotelId}}&payment_status=PARTIALLY_PAID&page=1&limit=10", [
-          { key: "hotel_id", value: "{{hotelId}}", description: "Filter by Hotel ID" },
-          { key: "payment_status", value: "PARTIALLY_PAID", description: "Filter by payment status: PENDING, PARTIALLY_PAID, PAID" },
-          { key: "booking_status", value: "CONFIRMED", description: "Filter by stay status: PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, NO_SHOW", disabled: true },
-          { key: "room_id", value: "{{roomId}}", description: "Filter by Room ID", disabled: true },
-          { key: "booking_number", value: "BK-", description: "Filter by booking code (e.g. BK-17918-999)", disabled: true },
-          { key: "primary_guest_name", value: "Aaditya", description: "Filter by primary guest name", disabled: true },
-          { key: "mobile_number", value: "9876543210", description: "Filter by guest mobile number", disabled: true },
-          { key: "search", value: "Aaditya", description: "Search guest name or booking number", disabled: true },
-          { key: "page", value: "1", description: "Page number" },
-          { key: "limit", value: "10", description: "Page limit (1-100)" }
-        ]),
-        description: `### List Bookings
-Retrieves paginated bookings with flexible filtering and search criteria.
+**Query keys** are on the Params tab. Only page and limit are sent until you enable the others.
 
-#### Query Filters
-| Query Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| \`hotel_id\` | Integer | *Optional* | Hotel property ID |
-| \`room_id\` | Integer | *Optional* | Assigned room ID |
-| \`booking_number\` | String | *Optional* | Exact booking reference code |
-| \`primary_guest_name\` | String | *Optional* | Guest name |
-| \`payment_status\` | String | *Optional* | \`PENDING\`, \`PARTIALLY_PAID\`, or \`PAID\` |
-| \`booking_status\` | String | *Optional* | \`PENDING\`, \`CONFIRMED\`, \`CHECKED_IN\`, \`CHECKED_OUT\`, \`CANCELLED\`, or \`NO_SHOW\` |
-| \`check_in_from\` | ISO Date | *Optional* | Start date of check-in window |
-| \`check_in_to\` | ISO Date | *Optional* | End date of check-in window |
-| \`check_out_from\` | ISO Date | *Optional* | Start date of check-out window |
-| \`check_out_to\` | ISO Date | *Optional* | End date of check-out window |
-| \`search\` | String | *Optional* | Search query across guest name or booking number |
-| \`page\` | Integer | *Optional* | Page number (default: 1) |
-| \`limit\` | Integer | *Optional* | Results per page (default: 10, max: 100) |`
-      }
-    },
-    {
-      name: "Get Booking Details by ID",
-      request: {
-        method: "GET",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/bookings/:id", [], [
-          { key: "id", value: "{{bookingId}}", description: "Booking ID" }
-        ]),
-        description: `### Get Booking by ID
-Returns complete booking record joined with hotel property information, assigned room number, financial breakdown, tax amounts, guest ID photos, and signature records.`
-      }
-    },
-    {
-      name: "Update Booking (Dates, Financials, Status)",
-      request: {
-        method: "PUT",
-        header: multipartHeaders(),
-        body: {
-          mode: "formdata",
-          formdata: [
-            { key: "paid_amount", value: "12036.00", type: "text", description: "Updated paid amount (recalculates due balance to 0 and transitions status to PAID)" },
-            { key: "notes", value: "Payment cleared in full via UPI at front desk.", type: "text", description: "Updated front desk notes (Optional)" },
-            { key: "actual_check_in", value: "2026-11-01T14:15:00.000Z", type: "text", description: "Actual check-in time recorded at front desk (Optional)" },
-            { key: "images", type: "file", src: [], description: "Additional guest ID photo uploaded to S3 (Optional)" },
-            { key: "signatures", type: "file", src: [], description: "Updated digital signature image uploaded to S3 (Optional)" }
-          ]
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/bookings/:id", [], [
-          { key: "id", value: "{{bookingId}}", description: "Booking ID to update" }
-        ]),
-        description: `### Update Booking (Multipart Form-Data)
-Updates booking fields and automatically recalculates tax balances.
-- Supports uploading additional ID proof photos or signature files to AWS S3.
-- If \`paid_amount\` is increased to meet total balance, \`payment_status\` transitions to \`PAID\`.
-- If dates or room are updated, validates that new dates do not collide with another booking.`
-      }
-    },
-    {
-      name: "Update Booking Status",
-      request: {
-        method: "PATCH",
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            booking_status: "CHECKED_IN"
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/bookings/:id/status", [], [
-          { key: "id", value: "{{bookingId}}", description: "Booking ID" }
-        ]),
-        description: `### Update Booking Stay Status
-Updates only \`booking_status\`. Allowed values: \`PENDING\`, \`CONFIRMED\`, \`CHECKED_IN\`, \`CHECKED_OUT\`, \`CANCELLED\`, \`NO_SHOW\`.
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`bookings\` | array | Booking objects. Same keys as Create booking. |
+| \`total\` | number | Matching bookings. |
+| \`page\` | number | Current page. |
+| \`limit\` | number | Page size. |
+| \`totalPages\` | number | Page count. |`,
+    }),
+    item({
+      name: 'Get booking',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/bookings/{{bookingId}}',
+      pathSegments: ['api', 'v1', 'bookings', ':id'],
+      variable: [idVar('id', '{{bookingId}}', 'Required. Booking id.')],
+      description: `### GET /api/v1/bookings/:id
+Another hotel's booking returns 403.
 
-- \`CONFIRMED\` marks an available room \`RESERVED\`.
-- \`CHECKED_IN\` records \`actual_check_in\` and marks the room \`OCCUPIED\`.
-- \`CHECKED_OUT\` records \`actual_check_out\` and marks the room \`CLEANING\`.
-- \`CANCELLED\` and \`NO_SHOW\` release the room and no longer block those dates.
-- \`payment_status\` and billed amounts are left unchanged. Checkout settlement still uses \`POST /bookings/:id/check-out\`.`
-      }
-    },
-    {
-      name: "Soft-Delete Booking (Releases Room)",
-      request: {
-        method: "DELETE",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/bookings/:id", [], [
-          { key: "id", value: "{{bookingId}}", description: "Booking ID to delete" }
-        ]),
-        description: `### Soft-Delete Booking
-Marks booking as deleted by setting \`deleted_at\`.
-- Immediately frees the room so the dates can be booked by new guests.`
-      }
-    }
-  ]
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Booking id. |
+
+**Response \`data\`:** one booking. Same keys as Create booking.`,
+    }),
+    item({
+      name: 'Update booking',
+      method: 'PUT',
+      headers: acceptHeader(),
+      raw: '{{baseUrl}}/api/v1/bookings/{{bookingId}}',
+      pathSegments: ['api', 'v1', 'bookings', ':id'],
+      variable: [idVar('id', '{{bookingId}}', 'Required. Booking id to update.')],
+      body: {
+        mode: 'formdata',
+        formdata: [
+          textField('primary_guest_name', 'Ravi Shah', 'Optional. 2 to 255 characters.', true),
+          textField('secondary_guest_name', 'Meera Shah', 'Optional. Send empty to clear.', true),
+          textField('mobile_number', '9876543210', 'Optional. 7 to 20 characters.', true),
+          textField('email', 'guest@example.com', 'Optional. Guest email. A user or hotel owner login email is rejected. Send empty to clear.', true),
+          textField('address', '12 Lake Road, Pune', 'Optional. Send empty to clear.', true),
+          textField('room_id', '[{{roomId}}]', 'Optional. Replace the whole room list. JSON array, for example [12, 15]. Rooms removed from the list are released. Rooms added get the current booking status.', true),
+          textField('check_in_date', '2026-10-14T14:00:00.000Z', 'Optional. New scheduled check-in. Nights are recalculated.', true),
+          textField('check_out_date', '2026-10-16T12:00:00.000Z', 'Optional. New scheduled check-out.', true),
+          textField('actual_check_in', '', 'Optional. ISO datetime, or empty to clear.', true),
+          textField('actual_check_out', '', 'Optional. ISO datetime, or empty to clear. Checkout API is the normal way to set this.', true),
+          textField('adults', '2', 'Optional. Integer, minimum 1.', true),
+          textField('children', '1', 'Optional. Integer, 0 or more.', true),
+          textField('base_amount', '7000', 'Optional. Recalculates tax, total, due, and payment_status.', true),
+          textField('discount_amount', '500', 'Optional. Recalculates pricing.', true),
+          textField('extra_charges_total', '300', 'Optional. Recalculates pricing.', true),
+          textField('late_checkout_charge', '0', 'Optional. Recalculates pricing.', true),
+          textField('late_checkout_hours', '0', 'Optional.', true),
+          textField('gst_rate', '18', 'Optional. 0 to 100.', true),
+          textField('paid_amount', '2000', 'Optional. On this update API, this replaces the stored paid amount. On checkout, paid_amount is added instead.', true),
+          textField('notes', 'Guest requested an extra bed', 'Optional. Replaces the note.', true),
+          textField('images', '[]', 'Optional. JSON array of image URLs. Replaces the stored URL list. New files are uploaded in addition.', true),
+          textField('signatures', '[]', 'Optional. JSON array of signature URLs.', true),
+          fileField('images', 'Optional new document photos.'),
+          fileField('signatures', 'Optional new signature image. Field name must contain sign or signature.'),
+        ],
+      },
+      description: `### PUT /api/v1/bookings/:id
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+This does not change \`booking_status\`. Use **Update booking status** or **Check out** for the stay.
+
+On this API, \`paid_amount\` replaces the stored paid amount. On checkout, \`paid_amount\` is added to what was already paid.
+
+Changing room or dates checks overlap again, ignoring this booking.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Booking id. |
+
+**Body keys** are on the form rows. Disabled rows are not sent.
+
+**Response \`data\`:** the updated booking.`,
+    }),
+    item({
+      name: 'Check out',
+      method: 'POST',
+      raw: '{{baseUrl}}/api/v1/bookings/{{bookingId}}/check-out',
+      pathSegments: ['api', 'v1', 'bookings', ':id', 'check-out'],
+      variable: [idVar('id', '{{bookingId}}', 'Required. Booking id to check out.')],
+      body: jsonBody({
+        paid_amount: 1500,
+        late_checkout_charge: 500,
+        late_checkout_hours: 2,
+        notes: 'Collected remaining balance at the desk',
+      }),
+      description: `### POST /api/v1/bookings/:id/check-out
+Sets \`booking_status\` to \`CHECKED_OUT\`, sets \`actual_check_out\`, and marks every room in \`room_id\` as \`CLEANING\`.
+
+Scheduled \`check_in_date\`, \`check_out_date\`, and \`number_of_nights\` stay as booked.
+
+A second checkout, when \`actual_check_out\` is already set, returns 400.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Booking id. |
+
+**Body keys** — all optional. Send \`{}\` for a checkout with no extra payment.
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`paid_amount\` | number | No | Collected now. Added to the existing \`paid_amount\`. It does not replace it. 0 or more. |
+| \`late_checkout_charge\` | number | No | Late fee. Runs through GST and updates total and due. 0 or more. |
+| \`late_checkout_hours\` | number | No | Hours late. 0 or more. |
+| \`notes\` | string | No | Appended to the existing note. It does not wipe the old note. |
+
+**Response \`data\`:** the booking after checkout. \`booking_status\` is \`CHECKED_OUT\`. Each item in \`rooms\` has \`status\` \`CLEANING\`.`,
+    }),
+    item({
+      name: 'Update booking status',
+      method: 'PATCH',
+      raw: '{{baseUrl}}/api/v1/bookings/{{bookingId}}/status',
+      pathSegments: ['api', 'v1', 'bookings', ':id', 'status'],
+      variable: [idVar('id', '{{bookingId}}', 'Required. Booking id.')],
+      body: jsonBody({
+        booking_status: 'CONFIRMED',
+      }),
+      description: `### PATCH /api/v1/bookings/:id/status
+Changes only the stay status, then updates every room in \`room_id\` as described in the folder notes.
+
+Guest, dates, and payment are not changed by this API. \`CHECKED_IN\` fills \`actual_check_in\` when it is empty. \`CHECKED_OUT\` fills \`actual_check_out\` when it is empty.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Booking id. |
+
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`booking_status\` | string | Yes | \`PENDING\`, \`CONFIRMED\`, \`CHECKED_IN\`, \`CHECKED_OUT\`, \`CANCELLED\`, or \`NO_SHOW\`. |
+
+**Response \`data\`:** the booking, including the room status after the change.`,
+    }),
+    item({
+      name: 'Delete booking',
+      method: 'DELETE',
+      raw: '{{baseUrl}}/api/v1/bookings/{{bookingId}}',
+      pathSegments: ['api', 'v1', 'bookings', ':id'],
+      variable: [idVar('id', '{{bookingId}}', 'Required. Booking id to soft-delete.')],
+      description: `### DELETE /api/v1/bookings/:id
+Soft-delete. The booking leaves the list. Rooms this stay was holding are released, and the dates are no longer blocked.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Booking id. |
+
+No body.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Deleted booking id. |
+| \`is_deleted\` | boolean | \`true\`. |
+| \`deleted_at\` | string | Delete time. |`,
+    }),
+  ],
 };
 
-// =========================================================================
-// 8. USERS FOLDER
-// =========================================================================
 const userFolder = {
-  name: "8. User & Staff Management",
-  description: "Internal staff governance and role-based access control. Hotel Admins can manage their property's staff accounts (RECEPTIONIST, MANAGER, HOUSEKEEPING, ACCOUNTANT). Super Admins have universal platform access. Includes password hashing with Bcrypt, hotel isolation, and self-deletion protection.",
-  item: [
-    {
-      name: "Create Staff Member",
-      event: [
-        {
-          listen: "test",
-          script: {
-            exec: [
-              "if (pm.response.code === 201) {",
-              "    var res = pm.response.json();",
-              "    if (res.data && res.data.id) {",
-              "        pm.collectionVariables.set('userId', String(res.data.id));",
-              "        console.log('✅ Created userId set to: ' + res.data.id);",
-              "    }",
-              "}"
-            ],
-            type: "text/javascript"
-          }
-        }
-      ],
-      request: {
-        method: "POST",
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            name: "Rohit Deshmukh",
-            email: "rohit" + Math.floor(Math.random() * 90000 + 10000) + "@frontdesk.com",
-            password: "StaffPassword@123",
-            phone: "+919876543210",
-            role: "RECEPTIONIST",
-            hotel_id: 1,
-            is_active: true,
-            must_change_password: true
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/users"),
-        description: `### Create Staff User
-Creates a staff user account.
-- **Access:** Protected (Requires \`HOTEL_ADMIN\` or \`SUPER_ADMIN\`)
-- **Hotel Admin Restriction:** Hotel Admins can create staff roles (\`RECEPTIONIST\`, \`MANAGER\`, \`HOUSEKEEPING\`, \`ACCOUNTANT\`) for their own hotel only.
-- **Temporary Password & Setup Link Flow:** If \`password\` is omitted, the system generates a secure temporary password (e.g. \`Temp#a8f12b0e\`).
-- **Welcome Email:** Dispatches an onboarding email to the staff user containing both their initial login password and an expiring 48-hour password reset link so they can easily set/reset their permanent password.
+  name: '08 Staff users',
+  description: `${authNote('HOTEL_ADMIN for their own hotel. SUPER_ADMIN can manage any hotel and may send hotel_id.')}
 
-#### Request Fields
-| Field | Type | Required | Description | Validation |
-| :--- | :--- | :--- | :--- | :--- |
-| \`name\` | String | **Required** | Staff full name | 2 - 100 chars |
-| \`email\` | String | **Required** | Unique login email | Valid email format |
-| \`phone\` | String | **Required** | Contact mobile | 5 - 20 chars |
-| \`role\` | String | **Required** | Role code | One of: \`HOTEL_ADMIN\`, \`RECEPTIONIST\`, \`MANAGER\`, \`HOUSEKEEPING\`, \`ACCOUNTANT\` |
-| \`password\` | String | *Optional* | Initial login password (auto-generated if omitted) | Min 6 chars (hashed with bcrypt) |
-| \`hotel_id\` | Integer | *Optional* | Hotel ID | Hotel Admin automatically forced to their own hotel |
-| \`is_active\` | Boolean | *Optional* | Active status | Default: \`true\` |
-| \`must_change_password\` | Boolean | *Optional* | Require password change on first login | Default: \`true\` when auto-generated |`
-      }
-    },
-    {
-      name: "List Staff Members (Filter, Sort, Search)",
-      request: {
-        method: "GET",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/users?role=RECEPTIONIST&is_active=true&sort_by=created_at&sort_order=desc&page=1&limit=10", [
-          { key: "role", value: "RECEPTIONIST", description: "Filter by role code" },
-          { key: "is_active", value: "true", description: "Filter by active status (true/false)" },
-          { key: "hotel_id", value: "{{hotelId}}", description: "Filter by Hotel ID", disabled: true },
-          { key: "sort_by", value: "created_at", description: "Sort column: id, name, email, role, is_active, created_at, updated_at, last_login_at" },
-          { key: "sort_order", value: "desc", description: "Sort order: asc or desc" },
-          { key: "search", value: "Rohit", description: "Search query across name, email, or phone", disabled: true },
-          { key: "page", value: "1", description: "Page number" },
-          { key: "limit", value: "10", description: "Results per page (1-100)" }
-        ]),
-        description: `### List Staff Members
-Returns paginated list of staff members with sorting and filtering.
-- **Access:** Protected (\`HOTEL_ADMIN\` or \`SUPER_ADMIN\`)`
-      }
-    },
-    {
-      name: "Get Staff Member by ID",
-      request: {
-        method: "GET",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/users/:id", [], [
-          { key: "id", value: "{{userId}}", description: "User ID" }
-        ]),
-        description: `### Get Staff Member by ID
-Retrieves details of a staff user without exposing password hashes.`
-      }
-    },
-    {
-      name: "Update Staff Member Details",
-      request: {
-        method: "PUT",
-        header: jsonHeaders(),
-        body: {
-          mode: "raw",
-          raw: JSON.stringify({
-            name: "Rohit Deshmukh (Senior Front Desk)",
-            phone: "+919876543299",
-            is_active: true
-          }, null, 2)
-        },
-        url: buildUrl("{{baseUrl}}/api/v1/users/:id", [], [
-          { key: "id", value: "{{userId}}", description: "User ID to update" }
-        ]),
-        description: `### Update Staff Member
-Modifies staff attributes.
-- **Access:** Protected (\`HOTEL_ADMIN\` or \`SUPER_ADMIN\`)`
-      }
-    },
-    {
-      name: "Soft-Delete Staff Member",
-      request: {
-        method: "DELETE",
-        header: jsonHeaders(),
-        url: buildUrl("{{baseUrl}}/api/v1/users/:id", [], [
-          { key: "id", value: "{{userId}}", description: "User ID to delete" }
-        ]),
-        description: `### Soft-Delete Staff Member
-Soft-deletes a user account by setting \`deleted_at\`.
-- **Self-Deletion Guard:** Prevents an administrator from deleting their own account.`
-      }
-    }
-  ]
+A hotel admin can create only \`RECEPTIONIST\`, \`MANAGER\`, \`HOUSEKEEPING\`, and \`ACCOUNTANT\`. A hotel admin cannot create \`SUPER_ADMIN\` or another \`HOTEL_ADMIN\`.
+
+Staff names are not unique. Login emails are unique among active users.
+
+The password is never returned.
+
+${envelope}`,
+  item: [
+    item({
+      name: 'Create staff user',
+      method: 'POST',
+      events: testScript(saveId('id', 'userId')),
+      raw: '{{baseUrl}}/api/v1/users',
+      pathSegments: ['api', 'v1', 'users'],
+      body: jsonBody({
+        name: 'Neha Kulkarni',
+        email: 'neha.desk@seaside.example',
+        password: 'Desk@123',
+        phone: '9876543211',
+        role: 'RECEPTIONIST',
+        hotel_id: null,
+        is_active: true,
+        is_disabled: false,
+        must_change_password: false,
+      }),
+      description: `### POST /api/v1/users
+${authNote('HOTEL_ADMIN or SUPER_ADMIN.')}
+
+If \`password\` is omitted, the server generates a temporary password, emails a 48-hour setup link, and sets \`must_change_password\` to true.
+
+A hotel admin's \`hotel_id\` in the body is ignored. The new user is attached to the admin's hotel. A super admin should send \`hotel_id\` when the staff member belongs to a property.
+
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`name\` | string | Yes | Display name. 2 to 100 characters. Not unique. |
+| \`email\` | string | Yes | Login email. Stored lowercase. Unique among active users. An email already stored on a booking is rejected. |
+| \`password\` | string | No | Minimum 6 characters. Omit to generate a temporary password and email it. |
+| \`phone\` | string | Yes | 5 to 20 characters. |
+| \`role\` | string | Yes | \`RECEPTIONIST\`, \`MANAGER\`, \`HOUSEKEEPING\`, or \`ACCOUNTANT\` for a hotel admin. A super admin may also send \`HOTEL_ADMIN\` or \`SUPER_ADMIN\`. |
+| \`hotel_id\` | number or null | Super admin only | Hotel to assign. Ignored for a hotel admin. |
+| \`is_active\` | boolean | No | Default true. \`false\` blocks login. |
+| \`is_disabled\` | boolean | No | Default \`false\`. \`true\` blocks login and every protected API. Use Update account status to change it later. |
+| \`must_change_password\` | boolean | No | Default false when a password is sent, true when the server generates one. |
+
+Duplicate email returns 409.
+
+**Response \`data\`:** the user without \`password\`.
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | User id. Saved to \`{{userId}}\`. |
+| \`name\`, \`email\`, \`phone\` | string | Profile. |
+| \`role\` | string | Role code. |
+| \`hotel_id\` | number or null | Assigned hotel. |
+| \`is_active\` | boolean | Can sign in when true. |
+| \`is_disabled\` | boolean | \`false\` by default. \`true\` blocks login and every API. |
+| \`must_change_password\` | boolean | Force a password change in the UI. |
+| \`failed_login_attempts\` | number | Starts at 0. |
+| \`last_login_at\` | string or null | Last login. |
+| \`deleted_at\` | null | Null until deleted. |
+| \`is_deleted\` | boolean | False until deleted. |
+| \`created_at\`, \`updated_at\` | string | Timestamps. |`,
+    }),
+    item({
+      name: 'List staff users',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/users?page=1&limit=10',
+      pathSegments: ['api', 'v1', 'users'],
+      query: [
+        queryParam('page', '1', 'Optional. Page number, starting at 1.'),
+        queryParam('limit', '10', 'Optional. Page size, 1 to 100.'),
+        queryParam('search', 'neha', 'Optional. Partial match on name, email, or phone.', true),
+        queryParam('role', 'RECEPTIONIST', 'Optional. SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or ACCOUNTANT.', true),
+        queryParam('is_active', 'true', 'Optional. true or false.', true),
+        queryParam('is_disabled', 'false', 'Optional. true returns only disabled users. false returns users who are not disabled.', true),
+        queryParam('hotel_id', '{{hotelId}}', 'Optional for SUPER_ADMIN. Filters one hotel. Ignored for HOTEL_ADMIN, who always see their own hotel.', true),
+        queryParam('sort_by', 'created_at', 'Optional. id, name, email, role, is_active, created_at, updated_at, or last_login_at. Default created_at.', true),
+        queryParam('sort_order', 'desc', 'Optional. asc or desc. Default desc.', true),
+      ],
+      description: `### GET /api/v1/users
+Hotel admin sees only their hotel. Super admin sees all hotels unless \`hotel_id\` is set. Soft-deleted users are omitted.
+
+**Query keys** are on the Params tab.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`users\` | array | User objects without password. Same keys as Create staff user. |
+| \`total\` | number | Matching users. |
+| \`page\` | number | Current page. |
+| \`limit\` | number | Page size. |
+| \`total_pages\` | number | Page count. Snake case on this API. Rooms and bookings use \`totalPages\`. |`,
+    }),
+    item({
+      name: 'Get staff user',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/users/{{userId}}',
+      pathSegments: ['api', 'v1', 'users', ':id'],
+      variable: [idVar('id', '{{userId}}', 'Required. User id.')],
+      description: `### GET /api/v1/users/:id
+A hotel admin cannot read a user from another hotel.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | User id. |
+
+**Response \`data\`:** one user object. Password is not included.`,
+    }),
+    item({
+      name: 'Update staff user',
+      method: 'PUT',
+      raw: '{{baseUrl}}/api/v1/users/{{userId}}',
+      pathSegments: ['api', 'v1', 'users', ':id'],
+      variable: [idVar('id', '{{userId}}', 'Required. User id to update.')],
+      body: jsonBody({
+        name: 'Neha Kulkarni',
+        email: 'neha.desk@seaside.example',
+        phone: '9876543211',
+        role: 'RECEPTIONIST',
+        hotel_id: null,
+        is_active: true,
+        must_change_password: false,
+      }),
+      description: `### PUT /api/v1/users/:id
+${authNote('HOTEL_ADMIN or SUPER_ADMIN.')}
+
+Send only the keys that change. This API does not set a new password. Password changes go through Forgot password and Reset password.
+
+A hotel admin cannot change \`hotel_id\` to another property, and cannot promote a user to \`HOTEL_ADMIN\` or \`SUPER_ADMIN\`.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | User id. |
+
+**Body keys** — all optional
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`name\` | string | 2 to 100 characters. |
+| \`email\` | string | New login email. Must stay unique. |
+| \`phone\` | string | 5 to 20 characters. |
+| \`role\` | string | Same role list as create. |
+| \`hotel_id\` | number or null | Used by super admin. Ignored as a hotel switch for a hotel admin. |
+| \`is_active\` | boolean | false blocks the next login. |
+| \`must_change_password\` | boolean | Tell the client to force a password change. |
+
+**Response \`data\`:** the updated user without password.`,
+    }),
+    item({
+      name: 'Update account status',
+      method: 'PATCH',
+      raw: '{{baseUrl}}/api/v1/users/{{userId}}/account-status',
+      pathSegments: ['api', 'v1', 'users', ':id', 'account-status'],
+      variable: [idVar('id', '{{userId}}', 'Required. User id. You cannot change your own account.')],
+      body: jsonBody({
+        is_active: true,
+        is_disabled: false,
+      }),
+      description: `### PATCH /api/v1/users/:id/account-status
+${authNote('HOTEL_ADMIN for staff in their hotel. SUPER_ADMIN for any user except their own account.')}
+
+This is the API that turns \`is_active\` and \`is_disabled\` on or off. Send one key or both. At least one is required.
+
+| Flag | true | false |
+| --- | --- | --- |
+| \`is_active\` | The user can sign in, unless \`is_disabled\` is also true. | Login is rejected. The account is deactivated. |
+| \`is_disabled\` | Login is rejected. A token that was already issued is rejected on every protected API. Forgot password and reset password are also rejected. | The user is not disabled. Default for new users. |
+
+A hotel admin cannot change a hotel admin or a super admin. You cannot change your own flags. The last active super admin cannot be disabled or deactivated.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | User id. |
+
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`is_active\` | boolean | One of the two | \`true\` or \`false\`. |
+| \`is_disabled\` | boolean | One of the two | \`true\` or \`false\`. Default on create is \`false\`. |
+
+**Response \`data\`:** the user object, including \`is_active\` and \`is_disabled\`. Password is not included.`,
+    }),
+    item({
+      name: 'Delete staff user',
+      method: 'DELETE',
+      raw: '{{baseUrl}}/api/v1/users/{{userId}}',
+      pathSegments: ['api', 'v1', 'users', ':id'],
+      variable: [idVar('id', '{{userId}}', 'Required. User id to soft-delete.')],
+      description: `### DELETE /api/v1/users/:id
+Soft-delete. The email can be registered again. A user cannot delete their own account.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | User id. |
+
+No body.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Deleted user id. |
+| \`is_deleted\` | boolean | \`true\`. |
+| \`isDeleted\` | boolean | Same flag in camelCase. Both are returned. |`,
+    }),
+  ],
 };
 
-// Assemble collection
 collection.item = [
   healthFolder,
   authFolder,
@@ -1237,17 +1535,16 @@ collection.item = [
   roomTypeFolder,
   roomFolder,
   bookingFolder,
-  userFolder
+  userFolder,
 ];
 
 const outputPath = path.join(__dirname, '..', 'postman_collection.json');
 fs.writeFileSync(outputPath, JSON.stringify(collection, null, 2), 'utf8');
 
-console.log('🎉 Postman Collection generated successfully at: ' + outputPath);
-console.log('Total folders: ' + collection.item.length);
-let totalRequests = 0;
-collection.item.forEach(f => {
-  totalRequests += f.item.length;
-  console.log(`  📂 ${f.name}: ${f.item.length} requests`);
+const requestCount = collection.item.reduce((sum, folder) => sum + folder.item.length, 0);
+console.log(`Wrote ${outputPath}`);
+console.log(`Folders: ${collection.item.length}`);
+console.log(`Requests: ${requestCount}`);
+collection.item.forEach((folder) => {
+  console.log(`  ${folder.name}: ${folder.item.length}`);
 });
-console.log(`Total API Requests covered: ${totalRequests}`);

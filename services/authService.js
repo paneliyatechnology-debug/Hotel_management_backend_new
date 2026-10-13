@@ -33,6 +33,13 @@ const login = async (email, password, res) => {
     throw new AppError('Invalid email or password.', HTTP_STATUS.UNAUTHORIZED);
   }
 
+  if (userModel.isUserDisabled(user)) {
+    throw new AppError(
+      'Your account has been disabled. Please contact your hotel administrator.',
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
   // Check account status
   if (
     user.is_active === false ||
@@ -105,6 +112,7 @@ const login = async (email, password, res) => {
       phone: user.phone || '',
       hotel_id: user.hotel_id || null,
       is_active: Boolean(user.is_active),
+      is_disabled: Boolean(user.is_disabled),
     },
   };
 };
@@ -133,6 +141,13 @@ const refreshToken = async (token, res) => {
     throw new AppError('User account not found.', HTTP_STATUS.UNAUTHORIZED);
   }
 
+  if (userModel.isUserDisabled(user)) {
+    throw new AppError(
+      'Your account has been disabled. Please contact your hotel administrator.',
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
   if (
     user.is_active === false ||
     user.is_active === 0 ||
@@ -156,6 +171,7 @@ const refreshToken = async (token, res) => {
       role: user.role,
       hotel_id: user.hotel_id || null,
       is_active: Boolean(user.is_active),
+      is_disabled: Boolean(user.is_disabled),
     },
   };
 };
@@ -181,6 +197,13 @@ const forgotPassword = async (email) => {
     throw new AppError(
       `This email "${email}" is not registered in our system. Please check your email or contact your administrator.`,
       HTTP_STATUS.NOT_FOUND
+    );
+  }
+
+  if (userModel.isUserDisabled(user)) {
+    throw new AppError(
+      'Your account has been disabled. Please contact your hotel administrator.',
+      HTTP_STATUS.FORBIDDEN
     );
   }
 
@@ -251,6 +274,13 @@ const resetPassword = async ({ token, password }) => {
     throw new AppError('User account not found.', HTTP_STATUS.NOT_FOUND);
   }
 
+  if (userModel.isUserDisabled(user)) {
+    throw new AppError(
+      'Your account has been disabled. Please contact your hotel administrator.',
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
   // Hash new password and update in database
   const hashedPassword = await bcrypt.hash(password, 10);
   await userModel.updatePassword(user.id, hashedPassword);
@@ -306,6 +336,7 @@ const getProfile = async (userId) => {
     role: user.role,
     hotel_id: user.hotel_id || null,
     is_active: Boolean(user.is_active),
+    is_disabled: Boolean(user.is_disabled),
     must_change_password: Boolean(user.must_change_password),
     last_login_at: user.last_login_at,
     created_at: user.created_at,

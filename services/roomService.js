@@ -153,7 +153,12 @@ const getRooms = async (query = {}, reqUser = null) => {
     limit: Number(query.limit) || 10,
   };
 
-  return roomModel.findRooms(filters, pagination);
+  const sorting = {
+    sort_by: query.sort_by,
+    sort_order: query.sort_order,
+  };
+
+  return roomModel.findRooms(filters, pagination, sorting);
 };
 
 /**

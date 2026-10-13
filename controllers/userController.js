@@ -81,6 +81,24 @@ const updateUser = async (req, res, next) => {
 };
 
 /**
+ * PATCH /api/v1/users/:id/account-status
+ * Set is_active and is_disabled
+ */
+const updateAccountStatus = async (req, res, next) => {
+  try {
+    const data = await userService.updateAccountStatus(req.params.id, req.body, req.user);
+    return success(
+      res,
+      MESSAGES.USER_ACCOUNT_STATUS_UPDATED_SUCCESS,
+      data,
+      HTTP_STATUS.OK
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * DELETE /api/v1/users/:id
  * Soft-delete a user by ID
  */
@@ -103,5 +121,6 @@ module.exports = {
   getUsers,
   getUserById,
   updateUser,
+  updateAccountStatus,
   deleteUser,
 };
