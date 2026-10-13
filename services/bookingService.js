@@ -237,7 +237,8 @@ const validateBookingPreconditions = async ({
  * @returns {Promise<Object>} Created booking
  */
 const createBooking = async (body, files = [], reqUser = null) => {
-  const hotelId = Number(body.hotel_id || reqUser?.hotel_id);
+  // Extract hotel_id from authenticated user's token; do not accept hotel_id from request body
+  const hotelId = reqUser?.hotel_id ? Number(reqUser.hotel_id) : Number(body.hotel_id);
   if (!hotelId || isNaN(hotelId) || hotelId <= 0) {
     throw new AppError('A valid hotel_id is required.', HTTP_STATUS.BAD_REQUEST, [
       { field: 'hotel_id', message: 'hotel_id must be a positive integer.' },

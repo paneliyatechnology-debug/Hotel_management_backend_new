@@ -11,29 +11,29 @@ const getRefreshSecret = () =>
   (process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET || 'super_hotel_jwt_secret_key_2026_modern_secure') + '_refresh';
 
 /**
- * Generate Access Token (Short-lived)
+ * Generate Access Token (Short-lived) with hotel_id
  */
-const generateAccessToken = (id, role) => {
-  return jwt.sign(
-    { id: String(id), role, tokenType: 'ACCESS' },
-    getAccessSecret(),
-    {
-      expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '1h',
-    }
-  );
+const generateAccessToken = (id, role, hotel_id = null) => {
+  const payload = { id: String(id), role, token_type: 'ACCESS' };
+  if (hotel_id !== undefined && hotel_id !== null && hotel_id !== '') {
+    payload.hotel_id = Number(hotel_id);
+  }
+  return jwt.sign(payload, getAccessSecret(), {
+    expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '1h',
+  });
 };
 
 /**
- * Generate Refresh Token (Long-lived)
+ * Generate Refresh Token (Long-lived) with hotel_id
  */
-const generateRefreshToken = (id) => {
-  return jwt.sign(
-    { id: String(id), tokenType: 'REFRESH' },
-    getRefreshSecret(),
-    {
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
-    }
-  );
+const generateRefreshToken = (id, hotel_id = null) => {
+  const payload = { id: String(id), token_type: 'REFRESH' };
+  if (hotel_id !== undefined && hotel_id !== null && hotel_id !== '') {
+    payload.hotel_id = Number(hotel_id);
+  }
+  return jwt.sign(payload, getRefreshSecret(), {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
+  });
 };
 
 /**

@@ -90,9 +90,9 @@ const runTests = async () => {
 
     const fieldsWithErrors = data1.errors.map((e) => e.field);
     assert(fieldsWithErrors.includes('name'), 'Reports missing hotel name error');
-    assert(fieldsWithErrors.includes('ownerName'), 'Reports missing ownerName error');
-    assert(fieldsWithErrors.includes('ownerEmail'), 'Reports missing ownerEmail error');
-    assert(fieldsWithErrors.includes('ownerPhone'), 'Reports missing ownerPhone error');
+    assert(fieldsWithErrors.includes('owner_name'), 'Reports missing owner_name error');
+    assert(fieldsWithErrors.includes('owner_email'), 'Reports missing owner_email error');
+    assert(fieldsWithErrors.includes('owner_phone'), 'Reports missing owner_phone error');
     assert(fieldsWithErrors.includes('address'), 'Reports missing address error');
     assert(fieldsWithErrors.includes('city'), 'Reports missing city error');
     assert(fieldsWithErrors.includes('state'), 'Reports missing state error');
@@ -107,9 +107,9 @@ const runTests = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'Grand Test Palace',
-        ownerName: 'Vikram Mehta',
-        ownerEmail: 'not-an-email',
-        ownerPhone: '12345',
+        owner_name: 'Vikram Mehta',
+        owner_email: 'not-an-email',
+        owner_phone: '12345',
         address: '100 Heritage Road',
         city: 'Jaipur',
         state: 'Rajasthan',
@@ -120,8 +120,8 @@ const runTests = async () => {
 
     assert(res2.status === 400, 'Rejects invalid format fields with 400 Bad Request');
     const errFields2 = data2.errors.map((e) => e.field);
-    assert(errFields2.includes('ownerEmail'), 'Rejects malformed email');
-    assert(errFields2.includes('ownerPhone'), 'Rejects invalid mobile number');
+    assert(errFields2.includes('owner_email'), 'Rejects malformed email');
+    assert(errFields2.includes('owner_phone'), 'Rejects invalid mobile number');
     assert(errFields2.includes('pincode'), 'Rejects invalid pincode');
 
     // =========================================================================
@@ -133,25 +133,25 @@ const runTests = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'Grand Test Palace',
-        ownerName: 'Vikram Mehta',
-        ownerEmail: 'valid_test@example.com',
-        ownerPhone: '9876543210',
+        owner_name: 'Vikram Mehta',
+        owner_email: 'valid_test@example.com',
+        owner_phone: '9876543210',
         address: '100 Heritage Road',
         city: 'Jaipur',
         state: 'Rajasthan',
         pincode: '302001',
-        gstNumber: 'INVALID_GSTIN_123',
-        panNumber: 'INVALID_PAN',
-        totalRooms: -5,
+        gst_number: 'INVALID_GSTIN_123',
+        pan_number: 'INVALID_PAN',
+        total_rooms: -5,
       }),
     });
     const data3 = await res3.json();
 
     assert(res3.status === 400, 'Rejects invalid optional formats with 400 Bad Request');
     const errFields3 = data3.errors.map((e) => e.field);
-    assert(errFields3.includes('gstNumber'), 'Catches invalid GSTIN format');
-    assert(errFields3.includes('panNumber'), 'Catches invalid PAN format');
-    assert(errFields3.includes('totalRooms'), 'Catches negative totalRooms');
+    assert(errFields3.includes('gst_number'), 'Catches invalid GSTIN format');
+    assert(errFields3.includes('pan_number'), 'Catches invalid PAN format');
+    assert(errFields3.includes('total_rooms'), 'Catches negative total_rooms');
 
     // =========================================================================
     // 4️⃣ Testing Global Email Uniqueness Guard
@@ -163,9 +163,9 @@ const runTests = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'Conflict Hotel',
-        ownerName: 'Conflict Owner',
-        ownerEmail: 'admin@hotel.com',
-        ownerPhone: '9876543210',
+        owner_name: 'Conflict Owner',
+        owner_email: 'admin@hotel.com',
+        owner_phone: '9876543210',
         address: '100 Conflict Way',
         city: 'Mumbai',
         state: 'Maharashtra',
@@ -191,18 +191,18 @@ const runTests = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'The Royal Oasis',
-        ownerName: 'Rajesh Sharma',
-        ownerEmail: uniqueEmail1,
-        ownerPhone: '+91 9825123456', // Valid Indian mobile with +91 prefix
+        owner_name: 'Rajesh Sharma',
+        owner_email: uniqueEmail1,
+        owner_phone: '+91 9825123456', // Valid Indian mobile with +91 prefix
         address: '42 Lake View Boulevard',
         city: 'Udaipur',
         state: 'Rajasthan',
         country: 'India',
         pincode: '313001',
-        gstNumber: '24AAAAA0000A1Z5',
-        panNumber: 'ABCDE1234F',
-        totalRooms: 35,
-        hotelType: 'Heritage Resort',
+        gst_number: '24AAAAA0000A1Z5',
+        pan_number: 'ABCDE1234F',
+        total_rooms: 35,
+        hotel_type: 'Heritage Resort',
       }),
     });
     const data5 = await res5.json();
@@ -218,20 +218,20 @@ const runTests = async () => {
     assert(Boolean(data5.data.hotel.subscription_plan_start_date), 'subscription_plan_start_date is populated');
     assert(Boolean(data5.data.hotel.subscription_plan_end_date), 'subscription_plan_end_date is populated');
     assert(data5.data.hotel.subscription?.active === true, 'subscription.active is true');
-    assert(data5.data.hotel.subscription?.autoRenew === false, 'autoRenew is false');
+    assert(data5.data.hotel.subscription?.auto_renew === false, 'auto_renew is false');
 
     // Default settings
-    assert(data5.data.hotel.settings?.checkInTime === '14:00', 'Default check-in time is 14:00');
-    assert(data5.data.hotel.settings?.checkOutTime === '12:00', 'Default check-out time is 12:00');
+    assert(data5.data.hotel.settings?.check_in_time === '14:00', 'Default check-in time is 14:00');
+    assert(data5.data.hotel.settings?.check_out_time === '12:00', 'Default check-out time is 12:00');
     assert(data5.data.hotel.settings?.timezone === 'Asia/Kolkata', 'Timezone is Asia/Kolkata');
     assert(data5.data.hotel.settings?.defaultGstRate === undefined, 'Deprecated defaultGstRate removed');
-    assert(data5.data.hotel.settings?.upiId === '', 'No hardcoded default UPI ID');
+    assert(data5.data.hotel.settings?.upi_id === '', 'No hardcoded default UPI ID');
 
     // Admin details
     assert(Boolean(data5.data?.admin?.id), 'Admin user created with ID');
     assert(data5.data.admin.role === 'HOTEL_ADMIN', 'Admin role is HOTEL_ADMIN');
-    assert(data5.data.admin.hotelId === data5.data.hotel.id, 'Admin user links to hotel.id');
-    assert(data5.data.hotel.ownerId === data5.data.admin.id, 'Hotel ownerId stores the admin user ID');
+    assert(data5.data.admin.hotel_id === data5.data.hotel.id, 'Admin user links to hotel.id');
+    assert(data5.data.hotel.owner_id === data5.data.admin.id, 'Hotel owner_id stores the admin user ID');
     assert(data5.data.hotel.ownerName === undefined, 'Duplicate ownerName removed from hotel object');
     assert(data5.data.hotel.ownerEmail === undefined, 'Duplicate ownerEmail removed from hotel object');
     assert(data5.data.hotel.ownerPhone === undefined, 'Duplicate ownerPhone removed from hotel object');
@@ -251,7 +251,7 @@ const runTests = async () => {
     // Security check: No password or password hash exposed
     assert(data5.data.admin.password === undefined, 'Does not expose plaintext password in admin data');
     assert(data5.data.hotel.password === undefined, 'Does not expose password in hotel data');
-    assert(data5.data.auth?.accessToken !== undefined, 'Issues Bearer access token');
+    assert(data5.data.auth?.access_token !== undefined, 'Issues Bearer access token');
 
     // Cookies check
     const cookiesHeader = res5.headers.get('set-cookie');
@@ -272,9 +272,9 @@ const runTests = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'The Grand View Hotel',
-        ownerName: 'Pooja Patel',
-        ownerEmail: uniqueEmail2,
-        ownerPhone: '09876543210', // Valid with leading 0
+        owner_name: 'Pooja Patel',
+        owner_email: uniqueEmail2,
+        owner_phone: '09876543210', // Valid with leading 0
         address: '55 Hill View Lane',
         city: 'Shimla',
         state: 'Himachal Pradesh',
@@ -315,9 +315,9 @@ const runTests = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'The Royal Oasis', // Same name as test 5!
-        ownerName: 'Amit Verma',
-        ownerEmail: uniqueEmail3,
-        ownerPhone: '9123456789',
+        owner_name: 'Amit Verma',
+        owner_email: uniqueEmail3,
+        owner_phone: '9123456789',
         address: '77 Heritage Boulevard',
         city: 'Jaipur',
         state: 'Rajasthan',
@@ -347,9 +347,9 @@ const runTests = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'The Grand Heritage',
-        ownerName: 'Vikramaditya Rao',
-        ownerEmail: uniqueEmail4,
-        ownerPhone: '9876501234',
+        owner_name: 'Vikramaditya Rao',
+        owner_email: uniqueEmail4,
+        owner_phone: '9876501234',
         address: '100 Royal Crescent',
         city: 'Udaipur',
         state: 'Rajasthan',
@@ -381,14 +381,14 @@ const runTests = async () => {
     const uniqueEmail5 = `test_hotel_formdata_${Date.now()}@example.com`;
     const formData = new FormData();
     formData.append('name', 'Seaside Coral Resort');
-    formData.append('ownerName', 'Karan Singhania');
-    formData.append('ownerEmail', uniqueEmail5);
-    formData.append('ownerPhone', '9812345678');
+    formData.append('owner_name', 'Karan Singhania');
+    formData.append('owner_email', uniqueEmail5);
+    formData.append('owner_phone', '9812345678');
     formData.append('address', '12 Ocean Drive');
     formData.append('city', 'Goa');
     formData.append('state', 'Goa');
     formData.append('pincode', '403001');
-    formData.append('totalRooms', '40');
+    formData.append('total_rooms', '40');
     formData.append('upi_id', 'customupi@bank');
     const dummyLogo = new Blob(['fake-image-bytes-for-hotel-logo'], { type: 'image/png' });
     formData.append('logo', dummyLogo, 'hotel_logo.png');
@@ -403,7 +403,7 @@ const runTests = async () => {
     assert(Boolean(data9.data?.hotel?.id), 'Hotel created via form-data');
     assert(data9.data.hotel.name === 'Seaside Coral Resort', 'Hotel name matches form-data');
     assert(Boolean(data9.data.hotel.logo), 'Logo URL stored from S3 upload');
-    assert(data9.data.hotel.settings?.upiId === 'customupi@bank', 'Custom upi_id preserved from form-data');
+    assert(data9.data.hotel.settings?.upi_id === 'customupi@bank', 'Custom upi_id preserved from form-data');
 
     if (data9.data?.hotel?.id) createdHotelIds.push(data9.data.hotel.id);
     if (data9.data?.admin?.id) createdUserIds.push(data9.data.admin.id);

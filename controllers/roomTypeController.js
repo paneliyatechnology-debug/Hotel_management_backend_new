@@ -14,7 +14,7 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const getAllRoomTypes = async (req, res, next) => {
   try {
-    const data = await roomTypeService.getAllRoomTypes(req.query);
+    const data = await roomTypeService.getAllRoomTypes(req.query, req.user);
     return success(
       res,
       MESSAGES.ROOM_TYPES_RETRIEVED_SUCCESS,
@@ -32,7 +32,7 @@ const getAllRoomTypes = async (req, res, next) => {
  */
 const getRoomTypeById = async (req, res, next) => {
   try {
-    const data = await roomTypeService.getRoomTypeById(req.params.id);
+    const data = await roomTypeService.getRoomTypeById(req.params.id, req.user);
     return success(
       res,
       MESSAGES.ROOM_TYPE_RETRIEVED_SUCCESS,
@@ -50,7 +50,7 @@ const getRoomTypeById = async (req, res, next) => {
  */
 const createRoomType = async (req, res, next) => {
   try {
-    const data = await roomTypeService.createRoomType(req.body, req.files);
+    const data = await roomTypeService.createRoomType(req.body, req.files, req.user);
     return success(
       res,
       MESSAGES.ROOM_TYPE_CREATED_SUCCESS,
@@ -68,7 +68,7 @@ const createRoomType = async (req, res, next) => {
  */
 const updateRoomType = async (req, res, next) => {
   try {
-    const data = await roomTypeService.updateRoomType(req.params.id, req.body, req.files);
+    const data = await roomTypeService.updateRoomType(req.params.id, req.body, req.files, req.user);
     return success(
       res,
       MESSAGES.ROOM_TYPE_UPDATED_SUCCESS,
@@ -86,7 +86,7 @@ const updateRoomType = async (req, res, next) => {
  */
 const deleteRoomType = async (req, res, next) => {
   try {
-    const data = await roomTypeService.deleteRoomType(req.params.id);
+    const data = await roomTypeService.deleteRoomType(req.params.id, req.user);
     return success(
       res,
       MESSAGES.ROOM_TYPE_DELETED_SUCCESS,

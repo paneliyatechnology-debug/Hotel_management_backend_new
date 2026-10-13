@@ -29,7 +29,11 @@ const login = async (req, res, next) => {
  */
 const refreshToken = async (req, res, next) => {
   try {
-    const token = req.cookies?.refreshToken || req.body?.refreshToken;
+    const token =
+      req.cookies?.refresh_token ||
+      req.cookies?.refreshToken ||
+      req.body?.refresh_token ||
+      req.body?.refreshToken;
     const data = await authService.refreshToken(token, res);
     return success(res, MESSAGES.TOKEN_REFRESHED, data);
   } catch (err) {

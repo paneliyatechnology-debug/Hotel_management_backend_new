@@ -90,13 +90,13 @@ const login = async (email, password, res) => {
   await userModel.clearLockoutAndSetLogin(user.id);
 
   // Generate tokens & set cookies
-  const accessToken = generateAccessToken(user.id, user.role);
-  const refreshToken = generateRefreshToken(user.id);
+  const accessToken = generateAccessToken(user.id, user.role, user.hotel_id);
+  const refreshToken = generateRefreshToken(user.id, user.hotel_id);
   setAuthCookies(res, accessToken, refreshToken);
 
   return {
-    accessToken,
-    refreshToken,
+    access_token: accessToken,
+    refresh_token: refreshToken,
     user: {
       id: user.id,
       name: user.name,
@@ -142,13 +142,21 @@ const refreshToken = async (token, res) => {
     throw new AppError('Account is deactivated or disabled.', HTTP_STATUS.FORBIDDEN);
   }
 
-  const newAccessToken = generateAccessToken(user.id, user.role);
-  const newRefreshToken = generateRefreshToken(user.id);
+  const newAccessToken = generateAccessToken(user.id, user.role, user.hotel_id);
+  const newRefreshToken = generateRefreshToken(user.id, user.hotel_id);
   setAuthCookies(res, newAccessToken, newRefreshToken);
 
   return {
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken,
+    access_token: newAccessToken,
+    refresh_token: newRefreshToken,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      hotel_id: user.hotel_id || null,
+      is_active: Boolean(user.is_active),
+    },
   };
 };
 
@@ -318,6 +326,7 @@ const getProfile = async (userId) => {
     email: user.email,
     phone: user.phone || '',
     role: user.role,
+    hotel_id: user.hotel_id || null,
     is_active: Boolean(user.is_active),
     must_change_password: Boolean(user.must_change_password),
     last_login_at: user.last_login_at,

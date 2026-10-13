@@ -1,6 +1,7 @@
 /**
  * Hotel Request Validation Middleware.
  * Validates hotel registration payload using express-validator.
+ * Standardized on snake_case.
  */
 const { body } = require('express-validator');
 
@@ -11,10 +12,10 @@ const validateIndianMobile = (value) => {
   return /^[6-9]\d{9}$/.test(cleaned);
 };
 
-// GSTIN Regex Pattern
+// GSTIN Regex Pattern (15 characters)
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i;
 
-// PAN Regex Pattern
+// PAN Regex Pattern (10 characters)
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i;
 
 // Pincode Regex Pattern (6 digits)
@@ -29,14 +30,14 @@ const registerHotelValidator = [
     .isLength({ max: 150 })
     .withMessage('Hotel name cannot exceed 150 characters'),
 
-  body('ownerName')
+  body('owner_name')
     .trim()
     .notEmpty()
     .withMessage('Owner / General Manager name is required')
     .isLength({ max: 150 })
     .withMessage('Owner name cannot exceed 150 characters'),
 
-  body('ownerEmail')
+  body('owner_email')
     .trim()
     .notEmpty()
     .withMessage('Owner email address is required')
@@ -44,7 +45,7 @@ const registerHotelValidator = [
     .withMessage('Please provide a valid email address format (e.g. owner@example.com)')
     .normalizeEmail(),
 
-  body('ownerPhone')
+  body('owner_phone')
     .trim()
     .notEmpty()
     .withMessage('Owner mobile number is required')
@@ -90,7 +91,7 @@ const registerHotelValidator = [
     }),
 
   // Optional: Tax & Registration Details
-  body('gstNumber')
+  body('gst_number')
     .optional({ checkFalsy: true })
     .trim()
     .custom((val) => {
@@ -100,7 +101,7 @@ const registerHotelValidator = [
       return true;
     }),
 
-  body('panNumber')
+  body('pan_number')
     .optional({ checkFalsy: true })
     .trim()
     .custom((val) => {
@@ -110,7 +111,7 @@ const registerHotelValidator = [
       return true;
     }),
 
-  body('totalRooms')
+  body('total_rooms')
     .optional()
     .custom((val) => {
       if (val !== undefined && val !== null && val !== '') {
@@ -122,10 +123,14 @@ const registerHotelValidator = [
       return true;
     }),
 
-  body('hotelType')
+  body('hotel_type')
     .optional()
     .trim()
     .isLength({ max: 100 }),
+
+  body('upi_id')
+    .optional()
+    .trim(),
 
   body('website')
     .optional({ checkFalsy: true })

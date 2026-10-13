@@ -10,12 +10,6 @@ const VALID_STATUSES = ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING', 'RES
  * Validation schema for POST /api/v1/rooms
  */
 const createRoomValidator = [
-  body('hotel_id')
-    .notEmpty()
-    .withMessage('Hotel ID (hotel_id) is required.')
-    .isInt({ min: 1 })
-    .withMessage('Hotel ID (hotel_id) must be a positive integer.'),
-
   body('room_number')
     .trim()
     .notEmpty()
@@ -90,11 +84,6 @@ const updateRoomValidator = [
   param('id')
     .isInt({ min: 1 })
     .withMessage('Invalid room ID. Must be a positive integer.'),
-
-  body('hotel_id')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Hotel ID must be a positive integer.'),
 
   body('room_number')
     .optional()
@@ -185,11 +174,6 @@ const deleteRoomValidator = [
  * Validation schema for GET /api/v1/rooms query parameters
  */
 const getRoomsQueryValidator = [
-  query('hotel_id')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('hotel_id filter must be a positive integer.'),
-
   query('floor')
     .optional()
     .isInt()

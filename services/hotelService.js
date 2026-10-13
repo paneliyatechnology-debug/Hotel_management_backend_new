@@ -97,24 +97,22 @@ const calculateTrialDates = (settings) => {
  * @returns {Promise<Object>} Safe response data
  */
 const registerHotel = async (payload, res = null, files = []) => {
-  const {
-    name,
-    ownerName,
-    ownerEmail,
-    ownerPhone,
-    address,
-    city,
-    state,
-    country,
-    pincode,
-    gstNumber,
-    panNumber,
-    totalRooms,
-    hotelType,
-    website,
-    logo,
-    password,
-  } = payload;
+  const name = (payload.name || '').trim();
+  const ownerName = (payload.owner_name || payload.ownerName || '').trim();
+  const ownerEmail = (payload.owner_email || payload.ownerEmail || '').trim();
+  const ownerPhone = (payload.owner_phone || payload.ownerPhone || '').trim();
+  const address = payload.address;
+  const city = payload.city;
+  const state = payload.state;
+  const country = payload.country;
+  const pincode = payload.pincode;
+  const gstNumber = (payload.gst_number || payload.gstNumber || '').trim();
+  const panNumber = (payload.pan_number || payload.panNumber || '').trim();
+  const totalRooms = payload.total_rooms !== undefined ? payload.total_rooms : payload.totalRooms;
+  const hotelType = payload.hotel_type || payload.hotelType;
+  const website = payload.website;
+  const logo = payload.logo;
+  const password = payload.password;
 
   // Handle logo upload to S3 if provided via multipart files
   let uploadedLogoUrl = logo ? String(logo).trim() : null;
@@ -356,8 +354,8 @@ const registerHotel = async (payload, res = null, files = []) => {
   }
 
   // 7. Generate Authentication Tokens & Set HttpOnly Cookies
-  const accessToken = generateAccessToken(createdAdminUser.id, createdAdminUser.role);
-  const refreshToken = generateRefreshToken(createdAdminUser.id);
+  const accessToken = generateAccessToken(createdAdminUser.id, createdAdminUser.role, createdHotel.id);
+  const refreshToken = generateRefreshToken(createdAdminUser.id, createdHotel.id);
 
   if (res) {
     setAuthCookies(res, accessToken, refreshToken);
@@ -372,18 +370,18 @@ const registerHotel = async (payload, res = null, files = []) => {
       email: createdAdminUser.email,
       role: createdAdminUser.role,
       is_active: Boolean(createdAdminUser.is_active),
-      hotelId: createdHotel.id,
+      hotel_id: createdHotel.id,
     },
     trial: {
-      startDate: trialStartDate,
-      endDate: trialEndDate,
+      start_date: trialStartDate,
+      end_date: trialEndDate,
       duration,
       unit,
     },
     auth: {
-      tokenType: 'Bearer',
-      accessToken,
-      expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '1h',
+      token_type: 'Bearer',
+      access_token: accessToken,
+      expires_in: process.env.JWT_ACCESS_EXPIRES_IN || '1h',
     },
   };
 };

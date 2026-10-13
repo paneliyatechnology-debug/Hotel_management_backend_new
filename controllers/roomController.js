@@ -14,7 +14,7 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const createRoom = async (req, res, next) => {
   try {
-    const data = await roomService.createRoom(req.body, req.files);
+    const data = await roomService.createRoom(req.body, req.files, req.user);
     return success(
       res,
       MESSAGES.ROOM_CREATED_SUCCESS,
@@ -32,7 +32,7 @@ const createRoom = async (req, res, next) => {
  */
 const getRooms = async (req, res, next) => {
   try {
-    const data = await roomService.getRooms(req.query);
+    const data = await roomService.getRooms(req.query, req.user);
     return success(
       res,
       MESSAGES.ROOMS_RETRIEVED_SUCCESS,
@@ -50,7 +50,7 @@ const getRooms = async (req, res, next) => {
  */
 const getRoomById = async (req, res, next) => {
   try {
-    const data = await roomService.getRoomById(req.params.id);
+    const data = await roomService.getRoomById(req.params.id, req.user);
     return success(
       res,
       MESSAGES.ROOM_RETRIEVED_SUCCESS,
@@ -68,7 +68,7 @@ const getRoomById = async (req, res, next) => {
  */
 const updateRoom = async (req, res, next) => {
   try {
-    const data = await roomService.updateRoom(req.params.id, req.body, req.files);
+    const data = await roomService.updateRoom(req.params.id, req.body, req.files, req.user);
     return success(
       res,
       MESSAGES.ROOM_UPDATED_SUCCESS,
@@ -86,7 +86,7 @@ const updateRoom = async (req, res, next) => {
  */
 const deleteRoom = async (req, res, next) => {
   try {
-    const data = await roomService.deleteRoom(req.params.id);
+    const data = await roomService.deleteRoom(req.params.id, req.user);
     return success(
       res,
       MESSAGES.ROOM_DELETED_SUCCESS,

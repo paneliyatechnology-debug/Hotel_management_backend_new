@@ -39,7 +39,7 @@ const extractTargetHotelId = (req) => {
  */
 const authenticateUser = async (req, res, next) => {
   try {
-    let accessToken = req.cookies?.accessToken;
+    let accessToken = req.cookies?.access_token || req.cookies?.accessToken;
 
     if (!accessToken && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       accessToken = req.headers.authorization.split(' ')[1];
@@ -88,7 +88,20 @@ const authenticateUser = async (req, res, next) => {
     }
 
     req.user = user;
-    req.hotel_id = user.hotel_id || null;
+    req.hotel_id = user.hotel_id || decoded.hotel_id || null;
+
+    // Do not accept hotel_id directly from client parameters or body; enforce token hotel_id
+    if (user.role !== ROLE_CODES.SUPER_ADMIN && req.hotel_id) {
+      if (req.query) {
+        req.query.hotel_id = String(req.hotel_id);
+        delete req.query.hotelId;
+      }
+      if (req.body && typeof req.body === 'object') {
+        req.body.hotel_id = req.hotel_id;
+        delete req.body.hotelId;
+      }
+    }
+
     next();
   } catch (err) {
     next(err);
@@ -144,8 +157,16 @@ const requireRole = (...roles) => {
       }
     }
 
-    // Bind authenticated hotel ID to the request
+    // Bind authenticated hotel ID to the request from token
     req.hotel_id = req.user.hotel_id;
+    if (req.query) {
+      req.query.hotel_id = String(req.user.hotel_id);
+      delete req.query.hotelId;
+    }
+    if (req.body && typeof req.body === 'object') {
+      req.body.hotel_id = req.user.hotel_id;
+      delete req.body.hotelId;
+    }
     next();
   };
 };
@@ -196,7 +217,7 @@ const validateHotelAccess = (req, res, next) => {
  */
 const optionalAuthenticate = async (req, res, next) => {
   try {
-    let accessToken = req.cookies?.accessToken;
+    let accessToken = req.cookies?.access_token || req.cookies?.accessToken;
     if (!accessToken && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       accessToken = req.headers.authorization.split(' ')[1];
     }
@@ -216,18 +237,17 @@ const optionalAuthenticate = async (req, res, next) => {
 
         if (isActive) {
           req.user = user;
-          req.hotel_id = user.hotel_id || null;
+          req.hotel_id = user.hotel_id || decoded.hotel_id || null;
 
-          // Tenant check: if user is not SUPER_ADMIN and specifies a foreign hotel ID, reject
-          if (user.role !== ROLE_CODES.SUPER_ADMIN && user.hotel_id) {
-            const targetHotelId = extractTargetHotelId(req);
-            if (targetHotelId !== null && Number(targetHotelId) !== Number(user.hotel_id)) {
-              return next(
-                new AppError(
-                  'Access denied. You do not have permission to access another hotel.',
-                  HTTP_STATUS.FORBIDDEN
-                )
-              );
+          // Do not accept hotel_id directly from client parameters or body; enforce token hotel_id
+          if (user.role !== ROLE_CODES.SUPER_ADMIN && req.hotel_id) {
+            if (req.query) {
+              req.query.hotel_id = String(req.hotel_id);
+              delete req.query.hotelId;
+            }
+            if (req.body && typeof req.body === 'object') {
+              req.body.hotel_id = req.hotel_id;
+              delete req.body.hotelId;
             }
           }
         }

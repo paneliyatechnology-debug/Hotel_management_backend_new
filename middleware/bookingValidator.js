@@ -8,11 +8,6 @@ const { body, param, query } = require('express-validator');
  * Validation schema for POST /api/v1/bookings
  */
 const createBookingValidator = [
-  body('hotel_id')
-    .optional({ checkFalsy: true })
-    .isInt({ min: 1 })
-    .withMessage('hotel_id must be a positive integer.'),
-
   body('primary_guest_name')
     .trim()
     .notEmpty()
@@ -161,11 +156,6 @@ const getBookingsQueryValidator = [
     .optional()
     .isInt({ min: 1, max: 100 })
     .withMessage('Limit must be an integer between 1 and 100.'),
-
-  query('hotel_id')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('hotel_id must be a positive integer.'),
 
   query('room_id')
     .optional()

@@ -29,10 +29,13 @@ const extractImageFiles = (files) => {
  * Create a new physical room
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
+ * @param {Object} [reqUser=null]
  * @returns {Promise<Object>}
  */
-const createRoom = async (body, files = []) => {
-  const hotelId = Number(body.hotel_id);
+const createRoom = async (body, files = [], reqUser = null) => {
+  // Extract hotel_id from authenticated user's token; do not accept hotel_id from request body
+  let hotelId = reqUser?.hotel_id ? Number(reqUser.hotel_id) : Number(body.hotel_id);
+
   if (!hotelId || isNaN(hotelId) || hotelId <= 0) {
     throw new AppError('A valid hotel_id is required.', HTTP_STATUS.BAD_REQUEST, [
       { field: 'hotel_id', message: 'hotel_id must be a positive integer.' },
@@ -134,12 +137,17 @@ const createRoom = async (body, files = []) => {
 /**
  * List physical rooms with pagination and filters
  * @param {Object} query
+ * @param {Object} [reqUser=null]
  * @returns {Promise<{ rooms: Object[], total: number, page: number, limit: number, totalPages: number }>}
  */
-const getRooms = async (query = {}) => {
+const getRooms = async (query = {}, reqUser = null) => {
   const filters = {};
 
-  if (query.hotel_id) filters.hotel_id = Number(query.hotel_id);
+  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
+    filters.hotel_id = Number(reqUser.hotel_id);
+  } else if (query.hotel_id) {
+    filters.hotel_id = Number(query.hotel_id);
+  }
   if (query.floor !== undefined && query.floor !== '') filters.floor = Number(query.floor);
   if (query.room_type_id) filters.room_type_id = Number(query.room_type_id);
   if (query.status) filters.status = String(query.status).trim();
@@ -157,12 +165,21 @@ const getRooms = async (query = {}) => {
 /**
  * Get a single physical room by ID
  * @param {number|string} id
+ * @param {Object} [reqUser=null]
  * @returns {Promise<Object>}
  */
-const getRoomById = async (id) => {
+const getRoomById = async (id, reqUser = null) => {
   const room = await roomModel.findRoomById(id);
   if (!room) {
     throw new AppError('Physical room not found.', HTTP_STATUS.NOT_FOUND);
+  }
+  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
+    if (Number(room.hotel_id) !== Number(reqUser.hotel_id)) {
+      throw new AppError(
+        'Access denied. You do not have permission to view rooms belonging to another hotel.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
   }
   return room;
 };
@@ -172,12 +189,28 @@ const getRoomById = async (id) => {
  * @param {number|string} id
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
+ * @param {Object} [reqUser=null]
  * @returns {Promise<Object>}
  */
-const updateRoom = async (id, body, files = []) => {
+const updateRoom = async (id, body, files = [], reqUser = null) => {
   const existing = await roomModel.findRoomById(id);
   if (!existing) {
     throw new AppError('Physical room not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
+    if (Number(existing.hotel_id) !== Number(reqUser.hotel_id)) {
+      throw new AppError(
+        'Access denied. You do not have permission to modify rooms belonging to another hotel.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+    if (body.hotel_id && Number(body.hotel_id) !== Number(reqUser.hotel_id)) {
+      throw new AppError(
+        'Access denied. You cannot reassign a room to another hotel.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
   }
 
   const targetHotelId = body.hotel_id !== undefined ? Number(body.hotel_id) : existing.hotel_id;
@@ -273,12 +306,22 @@ const updateRoom = async (id, body, files = []) => {
 /**
  * Soft delete a physical room
  * @param {number|string} id
+ * @param {Object} [reqUser=null]
  * @returns {Promise<Object>}
  */
-const deleteRoom = async (id) => {
+const deleteRoom = async (id, reqUser = null) => {
   const existing = await roomModel.findRoomById(id);
   if (!existing) {
     throw new AppError('Physical room not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
+    if (Number(existing.hotel_id) !== Number(reqUser.hotel_id)) {
+      throw new AppError(
+        'Access denied. You do not have permission to delete rooms belonging to another hotel.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
   }
 
   const deleted = await roomModel.softDeleteRoom(id);

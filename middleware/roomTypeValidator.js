@@ -2,17 +2,12 @@
  * Request validation schemas for Room Categories (Room Types).
  * Follows TradeNexa validation pattern using express-validator.
  */
-const { body, param, query } = require('express-validator');
+const { body, param } = require('express-validator');
 
 /**
  * Validation schema for GET /api/v1/room-types
  */
-const getRoomTypesQueryValidator = [
-  query('hotel_id')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('hotel_id filter must be a valid positive integer.'),
-];
+const getRoomTypesQueryValidator = [];
 
 /**
  * Validation schema for GET /api/v1/room-types/:id
@@ -27,12 +22,6 @@ const getRoomTypeByIdValidator = [
  * Validation schema for POST /api/v1/room-types
  */
 const createRoomTypeValidator = [
-  body('hotel_id')
-    .notEmpty()
-    .withMessage('Hotel ID (hotel_id) is required.')
-    .isInt({ min: 1 })
-    .withMessage('Hotel ID (hotel_id) must be a valid positive integer.'),
-
   body('name')
     .trim()
     .notEmpty()
@@ -53,11 +42,6 @@ const updateRoomTypeValidator = [
   param('id')
     .isInt({ min: 1 })
     .withMessage('Invalid room category ID. Must be a positive integer.'),
-
-  body('hotel_id')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('hotel_id must be a valid positive integer.'),
 
   body('name')
     .optional()
