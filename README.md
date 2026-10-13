@@ -31,7 +31,7 @@ d:/Hotal_Management_Backend/
 │   └── authRouter.js        # Authentication route definitions
 ├── services/
 │   ├── authService.js       # Core business logic (throws AppError)
-│   └── emailService.js      # Nodemailer service with connection pooling & privacy masking
+│   └── emailService.js      # Brevo (Sendinblue) REST API service with privacy masking
 ├── templates/
 │   └── emailTemplates.js    # Responsive HTML templates (VIP hero poster reset email)
 ├── utils/

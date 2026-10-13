@@ -1,8 +1,7 @@
 /**
- * Email Service using Nodemailer.
- * Connection pooling and template rendering for transactional emails.
+ * Email Service using Brevo (Sendinblue) Transactional REST API v3.
+ * Dispatches transactional emails over standard HTTPS (Port 443).
  */
-const nodemailer = require('nodemailer');
 const {
   passwordResetLinkTemplate,
   hotelRegisteredWelcomeTemplate,
@@ -21,61 +20,61 @@ const maskEmail = (email) => {
   return `${local[0]}***${local[local.length - 1]}@${domain}`;
 };
 
-let cachedTransporter = null;
-
-const getTransporter = () => {
-  if (cachedTransporter) return cachedTransporter;
-
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = Number(process.env.SMTP_PORT) || 587;
-  const user = (process.env.SMTP_USER || process.env.SMTP_EMAIL || '').trim();
-  const pass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '').replace(/\s+/g, '');
-  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-
-  cachedTransporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: {
-      user,
-      pass,
-    },
-    pool: true,
-    maxConnections: 5,
-    maxMessages: 100,
-  });
-
-  return cachedTransporter;
-};
-
 /**
- * Core Email Dispatcher
- * @param {Object} options - { to, subject, html, text, from }
+ * Core Email Dispatcher via Brevo REST API v3 (HTTPS port 443)
+ * @param {Object} options - { to, subject, html, text, toName }
  * @returns {Promise<Object>}
  */
-const sendEmail = async ({ to, subject, html, text, from }) => {
-  const senderName = process.env.FROM_NAME || process.env.APP_NAME || 'The Grand Royale Cloud';
-  const senderEmail = process.env.SMTP_USER || process.env.FROM_EMAIL || 'no-reply@hotelmanagement.com';
-  const defaultFrom = `"${senderName}" <${senderEmail}>`;
+const sendEmail = async ({ to, subject, html, text, toName }) => {
+  const apiKey = (process.env.BREVO_API_KEY || '').trim();
 
-  // Fallback simulation when SMTP credentials are not yet configured
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  // Fallback simulation when Brevo API key is not yet configured
+  if (!apiKey) {
     console.log(`[EmailService] Simulated dispatch to ${maskEmail(to)} | Subject: "${subject}"`);
     return { success: true, simulated: true };
   }
 
-  const transporter = getTransporter();
-  const mailOptions = {
-    from: from || defaultFrom,
-    to: to.trim(),
-    subject,
-    text: text || 'Please view this message in an HTML-compatible email client.',
-    html,
-  };
+  const senderName = process.env.FROM_NAME || process.env.APP_NAME || 'The Grand Royale Cloud';
+  const senderEmail = (
+    process.env.BREVO_SENDER_EMAIL ||
+    process.env.FROM_EMAIL ||
+    'no-reply@hotelmanagement.com'
+  ).trim();
 
-  const info = await transporter.sendMail(mailOptions);
-  console.log(`[EmailService] Email sent successfully to ${maskEmail(to)} (Message ID: ${info.messageId})`);
-  return { success: true, messageId: info.messageId };
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: {
+        name: senderName,
+        email: senderEmail,
+      },
+      to: [
+        {
+          email: to.trim(),
+          name: toName || undefined,
+        },
+      ],
+      subject,
+      htmlContent: html,
+      textContent: text || 'Please view this message in an HTML-compatible email client.',
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errorMsg = data.message || JSON.stringify(data);
+    console.error(`[EmailService] Brevo dispatch failed for ${maskEmail(to)}:`, errorMsg);
+    throw new Error(`Brevo Email Error (${response.status}): ${errorMsg}`);
+  }
+
+  console.log(`[EmailService] Email sent successfully via Brevo to ${maskEmail(to)} (Message ID: ${data.messageId})`);
+  return { success: true, messageId: data.messageId };
 };
 
 /**
@@ -95,6 +94,7 @@ const sendPasswordResetLinkEmail = async (to, userName, resetUrl, expiryMinutes 
 
   return sendEmail({
     to,
+    toName: userName,
     subject: 'Reset Your Password - The Grand Royale Cloud',
     html: htmlContent,
     text: `Hello ${userName},\n\nPlease use the following link to reset your password:\n${resetUrl}\n\nThis link is valid for ${expiryMinutes} minutes. If you did not request this, please ignore this email.`,
@@ -120,6 +120,7 @@ const sendHotelRegisteredEmail = async (data) => {
 
   return sendEmail({
     to: data.adminEmail,
+    toName: data.ownerName,
     subject: `🎉 Congratulations! ${data.hotelName} Registered - Your Admin Temporary Password & Password Setup Link`,
     html: htmlContent,
     text: `Congratulations ${data.ownerName}!\n\nYour property ${data.hotelName} has been successfully registered on The Grand Royale Cloud.\n\nAdmin Email: ${data.adminEmail}\nTemporary Password: ${data.temporaryPassword}\nPassword Reset Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\nTrial Period: ${data.trialStartDate} to ${data.trialEndDate}\n\nPlease use your temporary password to log in or click the password reset link above to set your permanent password.`,
@@ -144,6 +145,7 @@ const sendStaffUserCreatedEmail = async (data) => {
 
   return sendEmail({
     to: data.email,
+    toName: data.userName,
     subject: `🎉 Welcome to ${data.hotelName} - Your Staff Login Password & Account Setup Link`,
     html: htmlContent,
     text: `Hello ${data.userName},\n\nYour staff account (${data.role}) has been created for ${data.hotelName}.\n\nLogin Email: ${data.email}\nTemporary Password: ${data.temporaryPassword}\nPassword Reset Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\n\nPlease use your temporary password to log in or click the password reset link above to set your permanent password.`,
