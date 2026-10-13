@@ -7,6 +7,7 @@
  * 4. PUT /api/v1/room-types/:id – Update an existing category with proper validation.
  * 5. DELETE /api/v1/room-types/:id – Safely delete a category only if no physical rooms are assigned to it.
  *
+ * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
  * Follows TradeNexa router architecture.
  */
 const express = require('express');
@@ -20,11 +21,16 @@ const {
 } = require('../middleware/roomTypeValidator');
 const { validate } = require('../middleware/validation');
 const { uploadRoomImages } = require('../middleware/upload');
-const { optionalAuthenticate } = require('../middleware/auth');
+const { authenticateUser, requireRole } = require('../middleware/auth');
+const { ROLE_CODES } = require('../constants');
 
 const router = express.Router();
 
-router.use(optionalAuthenticate);
+// ==========================================
+// Authentication and role guard
+// ==========================================
+router.use(authenticateUser);
+router.use(requireRole(ROLE_CODES.HOTEL_ADMIN, ROLE_CODES.RECEPTIONIST));
 
 // ==========================================
 // Room Category Endpoints

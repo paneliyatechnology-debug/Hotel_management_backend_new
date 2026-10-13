@@ -8,6 +8,7 @@
  * 5. PATCH /api/v1/rooms/:id/status – Update only the room status.
  * 6. DELETE /api/v1/rooms/:id – Soft-delete a room.
  *
+ * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
  * Follows TradeNexa router architecture.
  */
 const express = require('express');
@@ -22,11 +23,16 @@ const {
 } = require('../middleware/roomValidator');
 const { validate } = require('../middleware/validation');
 const { uploadRoomImages } = require('../middleware/upload');
-const { optionalAuthenticate } = require('../middleware/auth');
+const { authenticateUser, requireRole } = require('../middleware/auth');
+const { ROLE_CODES } = require('../constants');
 
 const router = express.Router();
 
-router.use(optionalAuthenticate);
+// ==========================================
+// Authentication and role guard
+// ==========================================
+router.use(authenticateUser);
+router.use(requireRole(ROLE_CODES.HOTEL_ADMIN, ROLE_CODES.RECEPTIONIST));
 
 // ==========================================
 // Physical Room Endpoints

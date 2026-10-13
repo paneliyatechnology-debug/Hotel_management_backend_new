@@ -283,13 +283,16 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 1. Testing POST Validation Failures ---');
 
-    const emptyRes = await sendRequest('POST', '/api/v1/room-types', {});
+    const emptyRes = await sendRequest('POST', '/api/v1/room-types', {}, auth(hotel1Token));
     assert(emptyRes.status === 400, 'POST without fields returns 400 Bad Request');
     assert(emptyRes.body.success === false, 'POST without fields returns success: false');
 
-    const missingNameRes = await sendRequest('POST', '/api/v1/room-types', {
-      hotel_id: testHotelId,
-    });
+    const missingNameRes = await sendRequest(
+      'POST',
+      '/api/v1/room-types',
+      { hotel_id: testHotelId },
+      auth(hotel1Token)
+    );
     assert(missingNameRes.status === 400, 'POST with missing name returns 400 Bad Request');
 
     const invalidHotelRes = await sendRequest('POST', '/api/v1/room-types', {
@@ -399,7 +402,7 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 4. Testing GET /api/v1/room-types ---');
 
-    const getAllRes = await sendRequest('GET', '/api/v1/room-types');
+    const getAllRes = await sendRequest('GET', '/api/v1/room-types', null, auth(hotel1Token));
     assert(getAllRes.status === 200, 'GET /api/v1/room-types returns 200 OK');
     assert(Array.isArray(getAllRes.body.data), 'GET returns array of room categories');
     const foundDeluxe = getAllRes.body.data.find((item) => item.id === deluxeId);
@@ -424,16 +427,16 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 5. Testing GET /api/v1/room-types/:id ---');
 
-    const getSingleRes = await sendRequest('GET', `/api/v1/room-types/${deluxeId}`);
+    const getSingleRes = await sendRequest('GET', `/api/v1/room-types/${deluxeId}`, null, auth(hotel1Token));
     assert(getSingleRes.status === 200, 'GET /api/v1/room-types/:id returns 200 OK');
     assert(getSingleRes.body.data.id === deluxeId, 'GET returns exact room category requested');
     assert(Array.isArray(getSingleRes.body.data.images), 'GET returns images as array');
     assert(getSingleRes.body.data.images.length === 2, 'GET returns 2 image URLs');
 
-    const notFoundRes = await sendRequest('GET', '/api/v1/room-types/9999999');
+    const notFoundRes = await sendRequest('GET', '/api/v1/room-types/9999999', null, auth(hotel1Token));
     assert(notFoundRes.status === 404, 'GET with non-existent ID returns 404 Not Found');
 
-    const invalidIdRes = await sendRequest('GET', '/api/v1/room-types/abc');
+    const invalidIdRes = await sendRequest('GET', '/api/v1/room-types/abc', null, auth(hotel1Token));
     assert(invalidIdRes.status === 400, 'GET with invalid non-numeric ID returns 400 Bad Request');
 
     // -------------------------------------------------------------
@@ -546,10 +549,10 @@ const runTests = async () => {
     if (reuseRes.body.data?.id) createdRoomTypeIds.push(reuseRes.body.data.id);
 
     // Verify it is excluded from active GET queries
-    const getAfterDelete = await sendRequest('GET', `/api/v1/room-types/${deluxeId}`);
+    const getAfterDelete = await sendRequest('GET', `/api/v1/room-types/${deluxeId}`, null, auth(hotel1Token));
     assert(getAfterDelete.status === 404, 'Deleted category is no longer returned by GET /api/v1/room-types/:id');
 
-    const getAllAfterDelete = await sendRequest('GET', '/api/v1/room-types');
+    const getAllAfterDelete = await sendRequest('GET', '/api/v1/room-types', null, auth(hotel1Token));
     const stillPresent = getAllAfterDelete.body.data.some((r) => r.id === deluxeId);
     assert(!stillPresent, 'Deleted category is omitted from GET all active room types');
 
@@ -558,7 +561,7 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 8. Testing Route Prefix Aliases ---');
 
-    const aliasRes = await sendRequest('GET', '/api/room-types');
+    const aliasRes = await sendRequest('GET', '/api/room-types', null, auth(hotel1Token));
     assert(aliasRes.status === 200, 'GET /api/room-types alias returns 200 OK');
 
     console.log(`\n========================================`);

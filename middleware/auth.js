@@ -203,56 +203,8 @@ const validateHotelAccess = (req, res, next) => {
   next();
 };
 
-/**
- * Optional Authenticator:
- * Populates req.user if a valid token is provided and user is active in the database.
- * Also performs hotel ID isolation when authenticated. Continues without error otherwise.
- */
-const optionalAuthenticate = async (req, res, next) => {
-  try {
-    let accessToken = req.cookies?.access_token || req.cookies?.accessToken;
-    if (!accessToken && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-      accessToken = req.headers.authorization.split(' ')[1];
-    }
-
-    if (accessToken) {
-      try {
-        const decoded = verifyAccessToken(accessToken);
-        const user = await userModel.findUserById(decoded.id);
-
-        // Validate user based on is_active and soft delete flags (status column dropped)
-        const isActive =
-          user &&
-          user.is_active !== false &&
-          user.is_active !== 0 &&
-          !user.is_deleted &&
-          !user.deleted_at;
-
-        if (isActive) {
-          req.user = user;
-          req.hotel_id = user.hotel_id || decoded.hotel_id || null;
-
-          // Do not accept hotel_id directly from client parameters or body; enforce token hotel_id
-          if (user.role !== ROLE_CODES.SUPER_ADMIN && req.hotel_id) {
-            if (req.query) {
-              req.query.hotel_id = String(req.hotel_id);
-            }
-            if (req.body && typeof req.body === 'object') {
-              req.body.hotel_id = req.hotel_id;
-            }
-          }
-        }
-      } catch (_) {}
-    }
-    next();
-  } catch (err) {
-    next(err);
-  }
-};
-
 module.exports = {
   authenticateUser,
-  optionalAuthenticate,
   requireRole,
   validateHotelAccess,
   requireHotelAccess: validateHotelAccess,

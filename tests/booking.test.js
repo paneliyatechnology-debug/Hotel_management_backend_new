@@ -148,6 +148,7 @@ let hotel2RoomId;
 let staffUserId;
 let staffToken;
 let hotel2Token;
+let managerToken;
 
 const createdBookingIds = [];
 const createdHotelIds = [];
@@ -247,6 +248,30 @@ const setupTestData = async () => {
     is_active: true,
   });
   hotel2Token = generateAccessToken(hotel2UserId, 'RECEPTIONIST', hotel2Id);
+
+  let managerUser = await db('users').where({ email: 'booking_manager@hotel.com' }).first();
+  let managerUserId;
+  if (!managerUser) {
+    const [uidManager] = await db('users').insert({
+      name: 'Booking Manager',
+      email: 'booking_manager@hotel.com',
+      password: 'hashed_password_123',
+      role: 'MANAGER',
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+    managerUserId = uidManager;
+    createdUserIds.push(uidManager);
+  } else {
+    managerUserId = managerUser.id;
+  }
+  await db('users').where({ id: managerUserId }).update({
+    hotel_id: hotel1Id,
+    role: 'MANAGER',
+    is_active: true,
+  });
+  managerToken = generateAccessToken(managerUserId, 'MANAGER', hotel1Id);
 
   // 3. Setup Room Type
   let rt = await db('room_types').where({ hotel_id: hotel1Id, name: 'Deluxe Sea View' }).whereNull('deleted_at').first();
@@ -381,7 +406,11 @@ const runTests = async () => {
     console.log('--- 1. Testing POST Validation Failures & Business Guards ---');
 
     // Missing payload
-    const resEmpty = await makeRequest('/api/v1/bookings', { method: 'POST', body: {} });
+    const resEmpty = await makeRequest('/api/v1/bookings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: {},
+    });
     assert(resEmpty.status === 400, 'Rejects empty payload with 400 Bad Request');
     assert(resEmpty.body.success === false, 'Returns success: false for invalid payload');
 
@@ -416,6 +445,19 @@ const runTests = async () => {
       },
     });
     assert(resNoAuth.status === 401, 'POST without a token returns 401 Unauthorized');
+
+    const resManager = await makeRequest('/api/v1/bookings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${managerToken}` },
+      body: {
+        primary_guest_name: 'Manager Guest',
+        mobile_number: '9000000099',
+        room_id: room1Id,
+        check_in_date: '2026-12-01T14:00:00Z',
+        check_out_date: '2026-12-02T11:00:00Z',
+      },
+    });
+    assert(resManager.status === 403, 'MANAGER cannot create a booking');
 
     // Inactive room
     const resInactive = await makeRequest('/api/v1/bookings', {
@@ -590,14 +632,18 @@ const runTests = async () => {
     // =========================================================================
     console.log('\n--- 4. Testing GET /api/v1/bookings (Pagination, Filters, Search) ---');
 
-    const resList = await makeRequest(`/api/v1/bookings?hotel_id=${hotel1Id}`);
+    const resList = await makeRequest(`/api/v1/bookings?hotel_id=${hotel1Id}`, {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(resList.status === 200, 'GET /api/v1/bookings returns 200 OK');
     assert(Array.isArray(resList.body.data.bookings), 'Returns data.bookings array');
     assert(resList.body.data.total >= 2, 'Total bookings count reflects created bookings');
     assert(resList.body.data.page === 1, 'Default page is 1');
 
     // Filter by room_id
-    const resFilterRoom = await makeRequest(`/api/v1/bookings?room_id=${room1Id}`);
+    const resFilterRoom = await makeRequest(`/api/v1/bookings?room_id=${room1Id}`, {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(resFilterRoom.status === 200, 'Filter by room_id returns 200 OK');
     assert(
       resFilterRoom.body.data.bookings.some((b) => b.id === booking1.id),
@@ -605,7 +651,9 @@ const runTests = async () => {
     );
 
     // Filter by payment_status
-    const resFilterPaid = await makeRequest(`/api/v1/bookings?hotel_id=${hotel1Id}&payment_status=PAID`);
+    const resFilterPaid = await makeRequest(`/api/v1/bookings?hotel_id=${hotel1Id}&payment_status=PAID`, {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(resFilterPaid.status === 200, 'Filter by payment_status returns 200 OK');
     assert(
       resFilterPaid.body.data.bookings.every((b) => b.payment_status === 'PAID'),
@@ -613,7 +661,9 @@ const runTests = async () => {
     );
 
     // Filter by booking_number
-    const resFilterNumber = await makeRequest(`/api/v1/bookings?booking_number=${booking1.booking_number}`);
+    const resFilterNumber = await makeRequest(`/api/v1/bookings?booking_number=${booking1.booking_number}`, {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(resFilterNumber.status === 200, 'Filter by booking_number returns 200 OK');
     assert(resFilterNumber.body.data.bookings.length === 1, 'Returns single matching booking');
     assert(resFilterNumber.body.data.bookings[0].id === booking1.id, 'Returned booking ID matches');
@@ -637,7 +687,9 @@ const runTests = async () => {
     assert(resBadStay.status === 400, 'Unknown booking_status filter returns 400 Bad Request');
 
     // Search query
-    const resSearch = await makeRequest(`/api/v1/bookings?search=Rahul`);
+    const resSearch = await makeRequest(`/api/v1/bookings?search=Rahul`, {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(resSearch.status === 200, 'Search query returns 200 OK');
     assert(resSearch.body.data.bookings.some((b) => b.primary_guest_name.includes('Rahul')), 'Search finds matching guest name');
 
@@ -646,13 +698,17 @@ const runTests = async () => {
     // =========================================================================
     console.log('\n--- 5. Testing GET /api/v1/bookings/:id ---');
 
-    const resGetSingle = await makeRequest(`/api/v1/bookings/${booking1.id}`);
+    const resGetSingle = await makeRequest(`/api/v1/bookings/${booking1.id}`, {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(resGetSingle.status === 200, 'GET /api/v1/bookings/:id returns 200 OK');
     assert(resGetSingle.body.data.id === booking1.id, 'Returned booking ID matches');
     assert(resGetSingle.body.data.hotel.name === 'Booking Test Hotel 1', 'Joined hotel name returned');
     assert(resGetSingle.body.data.room.room_number === '101', 'Joined room number returned');
 
-    const resGet404 = await makeRequest('/api/v1/bookings/999999');
+    const resGet404 = await makeRequest('/api/v1/bookings/999999', {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(resGet404.status === 404, 'Returns 404 Not Found for non-existent booking ID');
 
     // =========================================================================
@@ -708,11 +764,15 @@ const runTests = async () => {
     assert(Boolean(dbDeleted.deleted_at), 'deleted_at timestamp is populated in MySQL database');
 
     // GET by ID returns 404
-    const resGetDeleted = await makeRequest(`/api/v1/bookings/${bookingToDelete.id}`);
+    const resGetDeleted = await makeRequest(`/api/v1/bookings/${bookingToDelete.id}`, {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(resGetDeleted.status === 404, 'Soft-deleted booking returns 404 Not Found on GET /:id');
 
     // GET list excludes soft-deleted booking
-    const resListDeleted = await makeRequest(`/api/v1/bookings?hotel_id=${hotel1Id}`);
+    const resListDeleted = await makeRequest(`/api/v1/bookings?hotel_id=${hotel1Id}`, {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(
       !resListDeleted.body.data.bookings.some((b) => b.id === bookingToDelete.id),
       'Soft-deleted booking is excluded from GET all bookings list'
@@ -916,7 +976,9 @@ const runTests = async () => {
     // =========================================================================
     console.log('\n--- 8. Testing Route Prefix Aliases ---');
 
-    const resAlias = await makeRequest(`/api/booking?hotel_id=${hotel1Id}`);
+    const resAlias = await makeRequest(`/api/booking?hotel_id=${hotel1Id}`, {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
     assert(resAlias.status === 200, 'GET /api/booking singular alias returns 200 OK');
 
     // =========================================================================

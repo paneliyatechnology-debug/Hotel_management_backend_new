@@ -9,6 +9,7 @@
  * 6. PATCH /api/v1/bookings/:id/status – Update only the booking stay status.
  * 7. DELETE /api/v1/bookings/:id – Soft-delete a booking.
  *
+ * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
  * Follows TradeNexa router architecture.
  */
 const express = require('express');
@@ -23,10 +24,17 @@ const {
   updateBookingStatusValidator,
 } = require('../middleware/bookingValidator');
 const { validate } = require('../middleware/validation');
-const { optionalAuthenticate } = require('../middleware/auth');
+const { authenticateUser, requireRole } = require('../middleware/auth');
+const { ROLE_CODES } = require('../constants');
 const { uploadRoomImages } = require('../middleware/upload');
 
 const router = express.Router();
+
+// ==========================================
+// Authentication and role guard
+// ==========================================
+router.use(authenticateUser);
+router.use(requireRole(ROLE_CODES.HOTEL_ADMIN, ROLE_CODES.RECEPTIONIST));
 
 // ==========================================
 // Booking Endpoints
@@ -38,7 +46,6 @@ const router = express.Router();
  */
 router.post(
   '/',
-  optionalAuthenticate,
   uploadRoomImages,
   createBookingValidator,
   validate,
@@ -51,7 +58,6 @@ router.post(
  */
 router.get(
   '/',
-  optionalAuthenticate,
   getBookingsQueryValidator,
   validate,
   bookingController.getBookings
@@ -63,7 +69,6 @@ router.get(
  */
 router.get(
   '/:id',
-  optionalAuthenticate,
   getBookingByIdValidator,
   validate,
   bookingController.getBookingById
@@ -75,7 +80,6 @@ router.get(
  */
 router.put(
   '/:id',
-  optionalAuthenticate,
   uploadRoomImages,
   updateBookingValidator,
   validate,
@@ -88,7 +92,6 @@ router.put(
  */
 router.post(
   '/:id/check-out',
-  optionalAuthenticate,
   checkOutBookingValidator,
   validate,
   bookingController.checkOutBooking
@@ -100,7 +103,6 @@ router.post(
  */
 router.patch(
   '/:id/status',
-  optionalAuthenticate,
   updateBookingStatusValidator,
   validate,
   bookingController.updateBookingStatus
@@ -112,7 +114,6 @@ router.patch(
  */
 router.delete(
   '/:id',
-  optionalAuthenticate,
   deleteBookingValidator,
   validate,
   bookingController.deleteBooking

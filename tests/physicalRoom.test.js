@@ -308,14 +308,19 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 1. Testing POST Validation & Foreign Key Guards ---');
 
-    const emptyRes = await sendRequest('POST', '/api/v1/rooms', {});
+    const emptyRes = await sendRequest('POST', '/api/v1/rooms', {}, auth(hotel1Token));
     assert(emptyRes.status === 400, 'POST without payload returns 400 Bad Request');
     assert(emptyRes.body.success === false, 'POST without payload returns success: false');
 
-    const missingRoomNumRes = await sendRequest('POST', '/api/v1/rooms', {
-      hotel_id: hotel1Id,
-      room_type_id: roomTypeHotel1Id,
-    });
+    const missingRoomNumRes = await sendRequest(
+      'POST',
+      '/api/v1/rooms',
+      {
+        hotel_id: hotel1Id,
+        room_type_id: roomTypeHotel1Id,
+      },
+      auth(hotel1Token)
+    );
     assert(missingRoomNumRes.status === 400, 'POST without room_number returns 400 Bad Request');
 
     const unauthRes = await sendRequest('POST', '/api/v1/rooms', {
@@ -466,7 +471,7 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 4. Testing GET /api/v1/rooms List & Filters ---');
 
-    const getAllRes = await sendRequest('GET', '/api/v1/rooms');
+    const getAllRes = await sendRequest('GET', '/api/v1/rooms', null, auth(hotel1Token));
     assert(getAllRes.status === 200, 'GET /api/v1/rooms returns 200 OK');
     assert(Array.isArray(getAllRes.body.data.rooms), 'GET returns data.rooms array');
     assert(typeof getAllRes.body.data.total === 'number', 'GET returns data.total count');
@@ -486,7 +491,12 @@ const runTests = async () => {
     );
 
     // Filter by floor
-    const filterFloorRes = await sendRequest('GET', `/api/v1/rooms?hotel_id=${hotel1Id}&floor=2`);
+    const filterFloorRes = await sendRequest(
+      'GET',
+      `/api/v1/rooms?hotel_id=${hotel1Id}&floor=2`,
+      null,
+      auth(hotel1Token)
+    );
     assert(filterFloorRes.status === 200, 'GET with floor filter returns 200 OK');
     assert(
       filterFloorRes.body.data.rooms.every((r) => r.floor === 2),
@@ -494,7 +504,7 @@ const runTests = async () => {
     );
 
     // Filter by status
-    const filterStatusRes = await sendRequest('GET', '/api/v1/rooms?status=AVAILABLE');
+    const filterStatusRes = await sendRequest('GET', '/api/v1/rooms?status=AVAILABLE', null, auth(hotel1Token));
     assert(filterStatusRes.status === 200, 'GET with status filter returns 200 OK');
     assert(
       filterStatusRes.body.data.rooms.every((r) => r.status === 'AVAILABLE'),
@@ -502,7 +512,7 @@ const runTests = async () => {
     );
 
     // Pagination limit
-    const pageLimitRes = await sendRequest('GET', '/api/v1/rooms?page=1&limit=2');
+    const pageLimitRes = await sendRequest('GET', '/api/v1/rooms?page=1&limit=2', null, auth(hotel1Token));
     assert(pageLimitRes.status === 200, 'GET with pagination returns 200 OK');
     assert(pageLimitRes.body.data.rooms.length <= 2, 'Page limit correctly restricts room results');
     assert(pageLimitRes.body.data.limit === 2, 'Response confirms limit 2');
@@ -512,7 +522,7 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 5. Testing GET /api/v1/rooms/:id ---');
 
-    const getSingleRes = await sendRequest('GET', `/api/v1/rooms/${room101Id}`);
+    const getSingleRes = await sendRequest('GET', `/api/v1/rooms/${room101Id}`, null, auth(hotel1Token));
     assert(getSingleRes.status === 200, 'GET /api/v1/rooms/:id returns 200 OK');
     assert(getSingleRes.body.data.id === room101Id, 'Returned room ID matches');
     assert(getSingleRes.body.data.room_number === '101', 'Room number matches');
@@ -520,7 +530,7 @@ const runTests = async () => {
     assert(getSingleRes.body.data.hotel_name === 'Physical Room Hotel 1', 'Joined hotel name returned');
     assert(Boolean(getSingleRes.body.data.room_type_name), 'Joined room category name returned');
 
-    const notFoundRes = await sendRequest('GET', '/api/v1/rooms/999999');
+    const notFoundRes = await sendRequest('GET', '/api/v1/rooms/999999', null, auth(hotel1Token));
     assert(notFoundRes.status === 404, 'GET non-existent ID returns 404 Not Found');
 
     // -------------------------------------------------------------
@@ -650,11 +660,16 @@ const runTests = async () => {
     assert(dbRow.is_deleted === undefined, 'is_deleted column removed from rooms table');
 
     // Excluded from single get
-    const getDeletedRes = await sendRequest('GET', `/api/v1/rooms/${room102Id}`);
+    const getDeletedRes = await sendRequest('GET', `/api/v1/rooms/${room102Id}`, null, auth(hotel1Token));
     assert(getDeletedRes.status === 404, 'Soft-deleted room returns 404 on GET /:id');
 
     // Excluded from list query
-    const listAfterDelete = await sendRequest('GET', `/api/v1/rooms?hotel_id=${hotel1Id}`);
+    const listAfterDelete = await sendRequest(
+      'GET',
+      `/api/v1/rooms?hotel_id=${hotel1Id}`,
+      null,
+      auth(hotel1Token)
+    );
     const stillPresent = listAfterDelete.body.data.rooms.some((r) => r.id === room102Id);
     assert(!stillPresent, 'Soft-deleted room is excluded from GET /api/v1/rooms list query');
 
