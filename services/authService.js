@@ -35,13 +35,13 @@ const login = async (email, password, res) => {
 
   // Check account status
   if (
-    user.status === 'INACTIVE' ||
-    user.status === 'BLOCKED' ||
-    user.status === 'DELETED' ||
+    user.is_active === false ||
+    user.is_active === 0 ||
+    Boolean(user.is_deleted) ||
     Boolean(user.deleted_at)
   ) {
     throw new AppError(
-      user.status === 'INACTIVE'
+      user.is_active === false || user.is_active === 0
         ? 'Your staff account has been deactivated by Hotel Administration.'
         : 'Your account has been disabled. Please contact your Hotel Administrator.',
       HTTP_STATUS.FORBIDDEN
@@ -103,7 +103,8 @@ const login = async (email, password, res) => {
       email: user.email,
       role: user.role,
       phone: user.phone || '',
-      status: user.status,
+      hotel_id: user.hotel_id || null,
+      is_active: Boolean(user.is_active),
     },
   };
 };
@@ -133,9 +134,9 @@ const refreshToken = async (token, res) => {
   }
 
   if (
-    user.status === 'INACTIVE' ||
-    user.status === 'BLOCKED' ||
-    user.status === 'DELETED' ||
+    user.is_active === false ||
+    user.is_active === 0 ||
+    Boolean(user.is_deleted) ||
     Boolean(user.deleted_at)
   ) {
     throw new AppError('Account is deactivated or disabled.', HTTP_STATUS.FORBIDDEN);
@@ -176,9 +177,9 @@ const forgotPassword = async (email) => {
   }
 
   if (
-    user.status === 'INACTIVE' ||
-    user.status === 'BLOCKED' ||
-    user.status === 'DELETED' ||
+    user.is_active === false ||
+    user.is_active === 0 ||
+    Boolean(user.is_deleted) ||
     Boolean(user.deleted_at)
   ) {
     throw new AppError('This account has been deactivated. Please contact your hotel administrator.', HTTP_STATUS.FORBIDDEN);

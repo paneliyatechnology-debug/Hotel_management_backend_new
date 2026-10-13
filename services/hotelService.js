@@ -371,7 +371,7 @@ const registerHotel = async (payload, res = null, files = []) => {
       name: createdAdminUser.name,
       email: createdAdminUser.email,
       role: createdAdminUser.role,
-      status: createdAdminUser.status,
+      is_active: Boolean(createdAdminUser.is_active),
       hotelId: createdHotel.id,
     },
     trial: {

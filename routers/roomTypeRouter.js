@@ -20,8 +20,11 @@ const {
 } = require('../middleware/roomTypeValidator');
 const { validate } = require('../middleware/validation');
 const { uploadRoomImages } = require('../middleware/upload');
+const { optionalAuthenticate } = require('../middleware/auth');
 
 const router = express.Router();
+
+router.use(optionalAuthenticate);
 
 // ==========================================
 // Room Category Endpoints

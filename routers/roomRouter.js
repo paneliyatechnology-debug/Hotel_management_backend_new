@@ -20,8 +20,11 @@ const {
 } = require('../middleware/roomValidator');
 const { validate } = require('../middleware/validation');
 const { uploadRoomImages } = require('../middleware/upload');
+const { optionalAuthenticate } = require('../middleware/auth');
 
 const router = express.Router();
+
+router.use(optionalAuthenticate);
 
 // ==========================================
 // Physical Room Endpoints
