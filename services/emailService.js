@@ -28,10 +28,10 @@ const maskEmail = (email) => {
 const sendEmail = async ({ to, subject, html, text, toName }) => {
   const apiKey = (process.env.BREVO_API_KEY || '').trim();
 
-  // Fallback simulation when Brevo API key is not yet configured
-  if (!apiKey) {
-    console.log(`[EmailService] Simulated dispatch to ${maskEmail(to)} | Subject: "${subject}"`);
-    return { success: true, simulated: true };
+  // In test mode or when Brevo API key is not configured, simulate email locally (no live API calls)
+  if (process.env.NODE_ENV === 'test' || !apiKey) {
+    console.log(`[EmailService] (Local Test Simulation) Simulated dispatch to ${maskEmail(to)} | Subject: "${subject}"`);
+    return { success: true, simulated: true, messageId: `<test-${Date.now()}@simulation>` };
   }
 
   const senderName = process.env.FROM_NAME || process.env.APP_NAME || 'MYOWNPMS';

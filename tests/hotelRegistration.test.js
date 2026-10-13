@@ -2,6 +2,7 @@
  * Automated Test Suite for Hotel Registration API
  * Tests POST /api/v1/hotel/register and POST /api/v1/hotels/register
  */
+process.env.NODE_ENV = 'test';
 const http = require('http');
 const bcrypt = require('bcryptjs');
 const app = require('../app');

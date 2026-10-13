@@ -2,6 +2,7 @@
  * Image Replacement & Deduplication Automated Test Suite
  * Validates that updating images removes old images from S3 and DB to prevent duplication.
  */
+process.env.NODE_ENV = 'test';
 require('dotenv').config();
 const http = require('http');
 const assert = require('assert');

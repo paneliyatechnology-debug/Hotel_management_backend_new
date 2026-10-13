@@ -7,6 +7,7 @@
  * 4. PUT /api/v1/users/:id (Partial updates, Sensitive field rejection, Self-deactivation guard, Last Super Admin guard, RBAC)
  * 5. DELETE /api/v1/users/:id (Soft-deletion, Self-deletion guard, Last Super Admin guard, RBAC)
  */
+process.env.NODE_ENV = 'test';
 const http = require('http');
 const bcrypt = require('bcryptjs');
 const app = require('../app');

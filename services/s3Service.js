@@ -95,6 +95,15 @@ const uploadFile = async (file, folder = 'room-types') => {
   const imageName = `${uniquePrefix}-${safeBaseName}${extension}`;
   const s3Key = folder ? `${folder.replace(/\/+$/, '')}/${imageName}` : imageName;
 
+  // In test mode, return generated image metadata without calling live S3 API
+  if (process.env.NODE_ENV === 'test') {
+    return {
+      imageName,
+      s3Key,
+      imageUrl: buildImageUrl(s3Key),
+    };
+  }
+
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: s3Key,
@@ -183,6 +192,7 @@ const extractS3Key = (keyOrUrl) => {
  * @returns {Promise<void>}
  */
 const deleteFile = async (s3KeyOrUrl) => {
+  if (process.env.NODE_ENV === 'test') return;
   const s3Key = extractS3Key(s3KeyOrUrl);
   if (!s3Key || !bucket) return;
   try {

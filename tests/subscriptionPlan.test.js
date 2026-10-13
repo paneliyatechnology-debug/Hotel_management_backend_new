@@ -9,6 +9,7 @@
  * 6. DELETE /api/v1/subscription-plans/:id (Soft Deletion, deletedAt timestamp, Excluded from Queries)
  * 7. Dual prefix alias testing (/api/v1/... and /api/...)
  */
+process.env.NODE_ENV = 'test';
 const http = require('http');
 const app = require('../app');
 const db = require('../database/knex');

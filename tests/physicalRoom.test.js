@@ -8,6 +8,7 @@
  * 5. DELETE /api/v1/rooms/:id (Soft-deletion setting deleted_at, excluded from queries)
  * 6. S3 Image Storage in unified images table with room_id
  */
+process.env.NODE_ENV = 'test';
 const http = require('http');
 const app = require('../app');
 const db = require('../database/knex');

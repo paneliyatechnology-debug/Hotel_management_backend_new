@@ -8,6 +8,7 @@
  * 5. DELETE /api/v1/room-types/:id (Physical room assignment check, safe deletion)
  * 6. S3 Image Storage & Array URL formatting verification
  */
+process.env.NODE_ENV = 'test';
 const http = require('http');
 const app = require('../app');
 const db = require('../database/knex');

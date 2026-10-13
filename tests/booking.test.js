@@ -4,6 +4,7 @@
  * Validates financial calculations, S3 media uploads with is_signature flag,
  * date overlap prevention, and soft deletion.
  */
+process.env.NODE_ENV = 'test';
 const http = require('http');
 const app = require('../app');
 const db = require('../database/knex');
