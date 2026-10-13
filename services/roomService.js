@@ -7,6 +7,7 @@
 const roomModel = require('../models/roomModel');
 const s3Service = require('./s3Service');
 const { AppError } = require('../utils/response');
+const { resolveHotelId } = require('../utils/hotelScope');
 const { HTTP_STATUS } = require('../constants');
 
 /**
@@ -33,14 +34,8 @@ const extractImageFiles = (files) => {
  * @returns {Promise<Object>}
  */
 const createRoom = async (body, files = [], reqUser = null) => {
-  // Extract hotel_id from authenticated user's token; do not accept hotel_id from request body
-  let hotelId = reqUser?.hotel_id ? Number(reqUser.hotel_id) : Number(body.hotel_id);
-
-  if (!hotelId || isNaN(hotelId) || hotelId <= 0) {
-    throw new AppError('A valid hotel_id is required.', HTTP_STATUS.BAD_REQUEST, [
-      { field: 'hotel_id', message: 'hotel_id must be a positive integer.' },
-    ]);
-  }
+  // hotel_id comes from the authenticated user token. Body hotel_id is ignored.
+  const hotelId = resolveHotelId(reqUser);
 
   const roomTypeId = Number(body.room_type_id);
   if (!roomTypeId || isNaN(roomTypeId) || roomTypeId <= 0) {
@@ -69,7 +64,8 @@ const createRoom = async (body, files = [], reqUser = null) => {
     throw new AppError(verifyResult.error, HTTP_STATUS.BAD_REQUEST);
   }
 
-  // 2. Validate composite uniqueness: room numbers are unique per hotel and floor
+  // 2. Room numbers are unique per hotel and floor. Soft-deleted rooms are ignored.
+  // The same room number is allowed in a different hotel.
   const duplicate = await roomModel.findRoomByHotelFloorAndNumber(hotelId, floor, roomNumber);
   if (duplicate) {
     throw new AppError(
@@ -143,10 +139,8 @@ const createRoom = async (body, files = [], reqUser = null) => {
 const getRooms = async (query = {}, reqUser = null) => {
   const filters = {};
 
-  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
+  if (reqUser && reqUser.hotel_id) {
     filters.hotel_id = Number(reqUser.hotel_id);
-  } else if (query.hotel_id) {
-    filters.hotel_id = Number(query.hotel_id);
   }
   if (query.floor !== undefined && query.floor !== '') filters.floor = Number(query.floor);
   if (query.room_type_id) filters.room_type_id = Number(query.room_type_id);
@@ -173,7 +167,7 @@ const getRoomById = async (id, reqUser = null) => {
   if (!room) {
     throw new AppError('Physical room not found.', HTTP_STATUS.NOT_FOUND);
   }
-  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
+  if (reqUser && reqUser.hotel_id) {
     if (Number(room.hotel_id) !== Number(reqUser.hotel_id)) {
       throw new AppError(
         'Access denied. You do not have permission to view rooms belonging to another hotel.',
@@ -198,53 +192,40 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
     throw new AppError('Physical room not found.', HTTP_STATUS.NOT_FOUND);
   }
 
-  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
-    if (Number(existing.hotel_id) !== Number(reqUser.hotel_id)) {
-      throw new AppError(
-        'Access denied. You do not have permission to modify rooms belonging to another hotel.',
-        HTTP_STATUS.FORBIDDEN
-      );
-    }
-    if (body.hotel_id && Number(body.hotel_id) !== Number(reqUser.hotel_id)) {
-      throw new AppError(
-        'Access denied. You cannot reassign a room to another hotel.',
-        HTTP_STATUS.FORBIDDEN
-      );
-    }
+  const hotelId = resolveHotelId(reqUser);
+  if (Number(existing.hotel_id) !== hotelId) {
+    throw new AppError(
+      'Access denied. You do not have permission to modify rooms belonging to another hotel.',
+      HTTP_STATUS.FORBIDDEN
+    );
   }
 
-  const targetHotelId = body.hotel_id !== undefined ? Number(body.hotel_id) : existing.hotel_id;
   const targetRoomTypeId = body.room_type_id !== undefined ? Number(body.room_type_id) : existing.room_type_id;
   const targetFloor = body.floor !== undefined ? Number(body.floor) : existing.floor;
   const targetRoomNumber =
     body.room_number !== undefined ? String(body.room_number).trim() : existing.room_number;
 
-  // 1. Verify hotel & room type if either changed
-  if (body.hotel_id !== undefined || body.room_type_id !== undefined) {
-    const verifyResult = await roomModel.verifyHotelAndRoomType(targetHotelId, targetRoomTypeId);
+  // 1. Room category must belong to the token hotel. Body hotel_id is ignored.
+  if (body.room_type_id !== undefined) {
+    const verifyResult = await roomModel.verifyHotelAndRoomType(hotelId, targetRoomTypeId);
     if (!verifyResult.valid) {
       throw new AppError(verifyResult.error, HTTP_STATUS.BAD_REQUEST);
     }
   }
 
-  // 2. Validate composite uniqueness if room_number or floor changed
-  if (
-    body.room_number !== undefined ||
-    body.floor !== undefined ||
-    body.hotel_id !== undefined
-  ) {
-    const duplicate = await roomModel.findRoomByHotelFloorAndNumber(
-      targetHotelId,
-      targetFloor,
-      targetRoomNumber,
-      { excludeId: id }
+  // 2. Unique per hotel and floor. Exclude this room so it can keep its number.
+  // Soft-deleted rooms do not count.
+  const duplicate = await roomModel.findRoomByHotelFloorAndNumber(
+    hotelId,
+    targetFloor,
+    targetRoomNumber,
+    { excludeId: id }
+  );
+  if (duplicate) {
+    throw new AppError(
+      `Room number '${targetRoomNumber}' already exists on floor ${targetFloor} for this hotel.`,
+      HTTP_STATUS.CONFLICT
     );
-    if (duplicate) {
-      throw new AppError(
-        `Room number '${targetRoomNumber}' already exists on floor ${targetFloor} for this hotel.`,
-        HTTP_STATUS.CONFLICT
-      );
-    }
   }
 
   // 3. Process new S3 image uploads if provided
@@ -263,7 +244,6 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
 
   // 4. Build updates payload
   const updates = {};
-  if (body.hotel_id !== undefined) updates.hotel_id = targetHotelId;
   if (body.room_type_id !== undefined) updates.room_type_id = targetRoomTypeId;
   if (body.room_number !== undefined) updates.room_number = targetRoomNumber;
   if (body.floor !== undefined) updates.floor = targetFloor;
@@ -315,13 +295,12 @@ const deleteRoom = async (id, reqUser = null) => {
     throw new AppError('Physical room not found.', HTTP_STATUS.NOT_FOUND);
   }
 
-  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
-    if (Number(existing.hotel_id) !== Number(reqUser.hotel_id)) {
-      throw new AppError(
-        'Access denied. You do not have permission to delete rooms belonging to another hotel.',
-        HTTP_STATUS.FORBIDDEN
-      );
-    }
+  const hotelId = resolveHotelId(reqUser);
+  if (Number(existing.hotel_id) !== hotelId) {
+    throw new AppError(
+      'Access denied. You do not have permission to delete rooms belonging to another hotel.',
+      HTTP_STATUS.FORBIDDEN
+    );
   }
 
   const deleted = await roomModel.softDeleteRoom(id);

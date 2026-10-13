@@ -12,6 +12,7 @@ process.env.NODE_ENV = 'test';
 const http = require('http');
 const app = require('../app');
 const db = require('../database/knex');
+const { generateAccessToken } = require('../utils/jwt');
 
 let server;
 let baseUrl;
@@ -144,6 +145,13 @@ const assert = (condition, testName) => {
 
 let hotel1Id;
 let hotel2Id;
+let hotel1Token;
+let hotel2Token;
+
+const auth = (token, extra = {}) => ({
+  Authorization: `Bearer ${token}`,
+  ...extra,
+});
 let roomTypeHotel1Id;
 let roomTypeHotel2Id;
 const createdRoomIds = [];
@@ -234,6 +242,37 @@ const setupTestData = async () => {
   });
   roomTypeHotel2Id = rt2Id;
   createdRoomTypeIds.push(rt2Id);
+
+  await db('users').where({ id: testUser.id }).update({
+    hotel_id: hotel1Id,
+    role: 'HOTEL_ADMIN',
+    is_active: true,
+  });
+  hotel1Token = generateAccessToken(testUser.id, 'HOTEL_ADMIN', hotel1Id);
+
+  let secondUser = await db('users').where({ email: 'physical_room_owner_2@test.com' }).first();
+  if (!secondUser) {
+    const [userId] = await db('users').insert({
+      name: 'Physical Room Owner 2',
+      email: 'physical_room_owner_2@test.com',
+      password: 'test_password_hash',
+      phone: '+919876543221',
+      role: 'HOTEL_ADMIN',
+      hotel_id: hotel2Id,
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+    createdUserIds.push(userId);
+    secondUser = { id: userId };
+  } else {
+    await db('users').where({ id: secondUser.id }).update({
+      hotel_id: hotel2Id,
+      role: 'HOTEL_ADMIN',
+      is_active: true,
+    });
+  }
+  hotel2Token = generateAccessToken(secondUser.id, 'HOTEL_ADMIN', hotel2Id);
 };
 
 const cleanupTestData = async () => {
@@ -279,28 +318,37 @@ const runTests = async () => {
     });
     assert(missingRoomNumRes.status === 400, 'POST without room_number returns 400 Bad Request');
 
-    // Non-existent hotel
-    const nonExistHotelRes = await sendRequest('POST', '/api/v1/rooms', {
+    const unauthRes = await sendRequest('POST', '/api/v1/rooms', {
       hotel_id: 999999,
       room_type_id: roomTypeHotel1Id,
       room_number: '101',
     });
-    assert(nonExistHotelRes.status === 400, 'POST with non-existent hotel returns 400 Bad Request');
+    assert(unauthRes.status === 401, 'POST without a token returns 401 Unauthorized');
 
     // Non-existent room type
-    const nonExistTypeRes = await sendRequest('POST', '/api/v1/rooms', {
-      hotel_id: hotel1Id,
-      room_type_id: 999999,
-      room_number: '101',
-    });
+    const nonExistTypeRes = await sendRequest(
+      'POST',
+      '/api/v1/rooms',
+      {
+        hotel_id: hotel1Id,
+        room_type_id: 999999,
+        room_number: '101',
+      },
+      auth(hotel1Token)
+    );
     assert(nonExistTypeRes.status === 400, 'POST with non-existent room_type returns 400 Bad Request');
 
     // Mismatched room type: roomTypeHotel2Id does NOT belong to hotel1Id!
-    const mismatchedRes = await sendRequest('POST', '/api/v1/rooms', {
-      hotel_id: hotel1Id,
-      room_type_id: roomTypeHotel2Id,
-      room_number: '101',
-    });
+    const mismatchedRes = await sendRequest(
+      'POST',
+      '/api/v1/rooms',
+      {
+        hotel_id: hotel1Id,
+        room_type_id: roomTypeHotel2Id,
+        room_number: '101',
+      },
+      auth(hotel1Token)
+    );
     assert(mismatchedRes.status === 400, 'POST with mismatched hotel and room_type returns 400 Bad Request');
     assert(mismatchedRes.body.message.includes('belongs to hotel ID'), 'Error explains category belongs to different hotel');
 
@@ -311,7 +359,7 @@ const runTests = async () => {
 
     const multipart = buildMultipartPayload(
       {
-        hotel_id: hotel1Id,
+        hotel_id: 999999,
         room_type_id: roomTypeHotel1Id,
         room_number: '101',
         floor: 1,
@@ -338,7 +386,7 @@ const runTests = async () => {
       'POST',
       '/api/v1/rooms',
       multipart.body,
-      multipart.headers
+      auth(hotel1Token, multipart.headers)
     );
 
     assert(createRes.status === 201, 'POST /api/v1/rooms returns 201 Created');
@@ -346,7 +394,7 @@ const runTests = async () => {
     assert(createRes.body.data && createRes.body.data.id, 'POST returns room with numeric ID');
     assert(createRes.body.data.room_number === '101', 'Room number is 101');
     assert(createRes.body.data.floor === 1, 'Floor is 1');
-    assert(createRes.body.data.hotel_id === hotel1Id, 'Hotel ID matches');
+    assert(createRes.body.data.hotel_id === hotel1Id, 'Hotel ID comes from the token, not the body');
     assert(createRes.body.data.room_type_id === roomTypeHotel1Id, 'Room type ID matches');
     assert(createRes.body.data.status === 'AVAILABLE', 'Status is AVAILABLE');
     assert(createRes.body.data.custom_price_per_night === 4500, 'Custom price is 4500');
@@ -370,32 +418,47 @@ const runTests = async () => {
     console.log('\n--- 3. Testing Composite Unique Index (hotel_id, floor, room_number) ---');
 
     // Attempt to create room 101 on floor 1 for hotel1Id again -> Should FAIL with 409!
-    const duplicateRes = await sendRequest('POST', '/api/v1/rooms', {
-      hotel_id: hotel1Id,
-      room_type_id: roomTypeHotel1Id,
-      room_number: '101',
-      floor: 1,
-    });
+    const duplicateRes = await sendRequest(
+      'POST',
+      '/api/v1/rooms',
+      {
+        hotel_id: hotel2Id,
+        room_type_id: roomTypeHotel1Id,
+        room_number: '101',
+        floor: 1,
+      },
+      auth(hotel1Token)
+    );
     assert(duplicateRes.status === 409, 'Duplicate room on same hotel and floor returns 409 Conflict');
 
     // Creating room 101 on DIFFERENT floor (e.g. floor 2) -> Should SUCCEED!
-    const floor2Res = await sendRequest('POST', '/api/v1/rooms', {
-      hotel_id: hotel1Id,
-      room_type_id: roomTypeHotel1Id,
-      room_number: '101',
-      floor: 2,
-    });
+    const floor2Res = await sendRequest(
+      'POST',
+      '/api/v1/rooms',
+      {
+        room_type_id: roomTypeHotel1Id,
+        room_number: '101',
+        floor: 2,
+      },
+      auth(hotel1Token)
+    );
     assert(floor2Res.status === 201, 'Same room number on different floor (floor 2) returns 201 Created');
     if (floor2Res.body.data?.id) createdRoomIds.push(floor2Res.body.data.id);
 
     // Creating room 101 on DIFFERENT hotel -> Should SUCCEED!
-    const hotel2RoomRes = await sendRequest('POST', '/api/v1/rooms', {
-      hotel_id: hotel2Id,
-      room_type_id: roomTypeHotel2Id,
-      room_number: '101',
-      floor: 1,
-    });
+    const hotel2RoomRes = await sendRequest(
+      'POST',
+      '/api/v1/rooms',
+      {
+        hotel_id: hotel1Id,
+        room_type_id: roomTypeHotel2Id,
+        room_number: '101',
+        floor: 1,
+      },
+      auth(hotel2Token)
+    );
     assert(hotel2RoomRes.status === 201, 'Same room number in different hotel returns 201 Created');
+    assert(hotel2RoomRes.body.data?.hotel_id === hotel2Id, 'Body hotel_id is ignored; room is created for the token hotel');
     if (hotel2RoomRes.body.data?.id) createdRoomIds.push(hotel2RoomRes.body.data.id);
 
     // -------------------------------------------------------------
@@ -409,12 +472,17 @@ const runTests = async () => {
     assert(typeof getAllRes.body.data.total === 'number', 'GET returns data.total count');
     assert(typeof getAllRes.body.data.totalPages === 'number', 'GET returns data.totalPages count');
 
-    // Filter by hotel_id
-    const filterHotelRes = await sendRequest('GET', `/api/v1/rooms?hotel_id=${hotel1Id}`);
-    assert(filterHotelRes.status === 200, 'GET with hotel_id filter returns 200 OK');
+    // Token hotel wins over a query hotel_id pointing at the other hotel
+    const filterHotelRes = await sendRequest(
+      'GET',
+      `/api/v1/rooms?hotel_id=${hotel2Id}`,
+      null,
+      auth(hotel1Token)
+    );
+    assert(filterHotelRes.status === 200, 'GET with a token returns 200 OK');
     assert(
       filterHotelRes.body.data.rooms.every((r) => r.hotel_id === hotel1Id),
-      'All filtered rooms belong to hotel1Id'
+      'Query hotel_id is ignored; rooms belong to the token hotel'
     );
 
     // Filter by floor
@@ -460,11 +528,21 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 6. Testing PUT /api/v1/rooms/:id ---');
 
-    const updateRes = await sendRequest('PUT', `/api/v1/rooms/${room101Id}`, {
-      status: 'OCCUPIED',
-      custom_price_per_night: 5200,
-      notes: 'Guest checked in today',
-    });
+    const keepNumberRes = await sendRequest(
+      'PUT',
+      `/api/v1/rooms/${room101Id}`,
+      {
+        room_number: '101',
+        floor: 1,
+        status: 'OCCUPIED',
+        custom_price_per_night: 5200,
+        notes: 'Guest checked in today',
+      },
+      auth(hotel1Token)
+    );
+    assert(keepNumberRes.status === 200, 'PUT keeping the current room number returns 200 OK');
+
+    const updateRes = keepNumberRes;
     assert(updateRes.status === 200, 'PUT /api/v1/rooms/:id returns 200 OK');
     assert(updateRes.body.data.status === 'OCCUPIED', 'Status updated to OCCUPIED');
     assert(updateRes.body.data.custom_price_per_night === 5200, 'Custom price updated to 5200');
@@ -487,7 +565,7 @@ const runTests = async () => {
       'PUT',
       `/api/v1/rooms/${room101Id}`,
       putMultipart.body,
-      putMultipart.headers
+      auth(hotel1Token, putMultipart.headers)
     );
     assert(putImageRes.status === 200, 'PUT with new image upload returns 200 OK');
     assert(putImageRes.body.data.images.length === 1, 'Room old images removed and replaced with new image without duplication');
@@ -495,19 +573,29 @@ const runTests = async () => {
     // Update with conflicting room number on same floor -> Should FAIL with 409!
     // Try to rename floor2 room to 101 when 101 already exists on floor 2?
     // Let's create room 102 on floor 1, then try to rename 102 to 101:
-    const room102Res = await sendRequest('POST', '/api/v1/rooms', {
-      hotel_id: hotel1Id,
-      room_type_id: roomTypeHotel1Id,
-      room_number: '102',
-      floor: 1,
-    });
+    const room102Res = await sendRequest(
+      'POST',
+      '/api/v1/rooms',
+      {
+        hotel_id: 999999,
+        room_type_id: roomTypeHotel1Id,
+        room_number: '102',
+        floor: 1,
+      },
+      auth(hotel1Token)
+    );
     const room102Id = room102Res.body.data?.id;
     if (room102Id) createdRoomIds.push(room102Id);
 
-    const renameConflictRes = await sendRequest('PUT', `/api/v1/rooms/${room102Id}`, {
-      room_number: '101',
-      floor: 1,
-    });
+    const renameConflictRes = await sendRequest(
+      'PUT',
+      `/api/v1/rooms/${room102Id}`,
+      {
+        room_number: '101',
+        floor: 1,
+      },
+      auth(hotel1Token)
+    );
     assert(renameConflictRes.status === 409, 'Renaming room to existing room on same floor returns 409 Conflict');
 
     // -------------------------------------------------------------
@@ -515,7 +603,7 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 7. Testing DELETE Soft-Deletion ---');
 
-    const deleteRes = await sendRequest('DELETE', `/api/v1/rooms/${room102Id}`);
+    const deleteRes = await sendRequest('DELETE', `/api/v1/rooms/${room102Id}`, null, auth(hotel1Token));
     assert(deleteRes.status === 200, 'DELETE /api/v1/rooms/:id returns 200 OK');
 
     // Check DB row directly
@@ -531,6 +619,19 @@ const runTests = async () => {
     const listAfterDelete = await sendRequest('GET', `/api/v1/rooms?hotel_id=${hotel1Id}`);
     const stillPresent = listAfterDelete.body.data.rooms.some((r) => r.id === room102Id);
     assert(!stillPresent, 'Soft-deleted room is excluded from GET /api/v1/rooms list query');
+
+    const reuseRes = await sendRequest(
+      'POST',
+      '/api/v1/rooms',
+      {
+        room_type_id: roomTypeHotel1Id,
+        room_number: '102',
+        floor: 1,
+      },
+      auth(hotel1Token)
+    );
+    assert(reuseRes.status === 201, 'Soft-deleted room number can be created again on the same floor and hotel');
+    if (reuseRes.body.data?.id) createdRoomIds.push(reuseRes.body.data.id);
 
     console.log(`\n========================================`);
     console.log(`Test Results: ${passCount} Passed, ${failCount} Failed`);

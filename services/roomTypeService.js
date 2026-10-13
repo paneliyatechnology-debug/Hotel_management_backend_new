@@ -7,6 +7,7 @@
 const roomTypeModel = require('../models/roomTypeModel');
 const s3Service = require('./s3Service');
 const { AppError } = require('../utils/response');
+const { resolveHotelId } = require('../utils/hotelScope');
 const { HTTP_STATUS } = require('../constants');
 
 /**
@@ -26,20 +27,16 @@ const extractImageFiles = (files) => {
 };
 
 /**
- * Get all active room categories with optional hotel_id filter
- * @param {Object} query - { hotel_id }
+ * Get all active room categories for the authenticated user's hotel.
+ * Query hotel_id is ignored. Unauthenticated callers receive every active category.
+ * @param {Object} [_query={}]
  * @param {Object} [reqUser=null]
  * @returns {Promise<Object[]>}
  */
-const getAllRoomTypes = async (query = {}, reqUser = null) => {
+const getAllRoomTypes = async (_query = {}, reqUser = null) => {
   const filters = {};
-  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
+  if (reqUser && reqUser.hotel_id) {
     filters.hotel_id = Number(reqUser.hotel_id);
-  } else if (query.hotel_id) {
-    const hotelIdNum = Number(query.hotel_id);
-    if (!isNaN(hotelIdNum) && hotelIdNum > 0) {
-      filters.hotel_id = hotelIdNum;
-    }
   }
 
   return roomTypeModel.findActiveRoomTypes(filters);
@@ -56,7 +53,7 @@ const getRoomTypeById = async (id, reqUser = null) => {
   if (!roomType) {
     throw new AppError('Room category not found.', HTTP_STATUS.NOT_FOUND);
   }
-  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
+  if (reqUser && reqUser.hotel_id) {
     if (Number(roomType.hotel_id) !== Number(reqUser.hotel_id)) {
       throw new AppError(
         'Access denied. You do not have permission to view room categories belonging to another hotel.',
@@ -68,21 +65,15 @@ const getRoomTypeById = async (id, reqUser = null) => {
 };
 
 /**
- * Create a new room category with S3 image upload and uniqueness check
- * @param {Object} body - { hotel_id, name, description }
+ * Create a new room category with S3 image upload and uniqueness check.
+ * hotel_id comes from the authenticated user token. Body hotel_id is ignored.
+ * @param {Object} body - { name, description }
  * @param {Array<Object>} [files=[]] - Uploaded image files
  * @param {Object} [reqUser=null]
  * @returns {Promise<Object>}
  */
 const createRoomType = async (body, files = [], reqUser = null) => {
-  // Extract hotel_id from authenticated user's token; do not accept hotel_id from request body
-  let hotelId = reqUser?.hotel_id ? Number(reqUser.hotel_id) : Number(body.hotel_id);
-
-  if (!hotelId || isNaN(hotelId) || hotelId <= 0) {
-    throw new AppError('A valid hotel_id is required.', HTTP_STATUS.BAD_REQUEST, [
-      { field: 'hotel_id', message: 'hotel_id must be a positive integer.' },
-    ]);
-  }
+  const hotelId = resolveHotelId(reqUser);
 
   const name = body.name ? body.name.trim() : '';
   if (!name) {
@@ -147,34 +138,15 @@ const updateRoomType = async (id, body, files = [], reqUser = null) => {
     throw new AppError('Room category not found.', HTTP_STATUS.NOT_FOUND);
   }
 
-  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
-    if (Number(existing.hotel_id) !== Number(reqUser.hotel_id)) {
-      throw new AppError(
-        'Access denied. You do not have permission to modify room categories belonging to another hotel.',
-        HTTP_STATUS.FORBIDDEN
-      );
-    }
-    if (body.hotel_id && Number(body.hotel_id) !== Number(reqUser.hotel_id)) {
-      throw new AppError(
-        'Access denied. You cannot reassign room categories to another hotel.',
-        HTTP_STATUS.FORBIDDEN
-      );
-    }
+  const hotelId = resolveHotelId(reqUser);
+  if (Number(existing.hotel_id) !== hotelId) {
+    throw new AppError(
+      'Access denied. You do not have permission to modify room categories belonging to another hotel.',
+      HTTP_STATUS.FORBIDDEN
+    );
   }
 
   const updates = {};
-  const targetHotelId = body.hotel_id ? Number(body.hotel_id) : existing.hotel_id;
-
-  if (body.hotel_id !== undefined) {
-    if (isNaN(targetHotelId) || targetHotelId <= 0) {
-      throw new AppError('hotel_id must be a valid positive integer.', HTTP_STATUS.BAD_REQUEST);
-    }
-    const hotelExists = await roomTypeModel.hotelExists(targetHotelId);
-    if (!hotelExists) {
-      throw new AppError(`Hotel with ID ${targetHotelId} does not exist.`, HTTP_STATUS.NOT_FOUND);
-    }
-    updates.hotel_id = targetHotelId;
-  }
 
   if (body.name !== undefined) {
     const newName = body.name.trim();
@@ -184,8 +156,8 @@ const updateRoomType = async (id, body, files = [], reqUser = null) => {
       ]);
     }
 
-    // Enforce uniqueness within the hotel
-    const duplicate = await roomTypeModel.findRoomTypeByNameAndHotel(newName, targetHotelId, {
+    // Same hotel only. Soft-deleted categories are ignored. This record is excluded.
+    const duplicate = await roomTypeModel.findRoomTypeByNameAndHotel(newName, hotelId, {
       excludeId: id,
     });
     if (duplicate) {
@@ -231,13 +203,12 @@ const deleteRoomType = async (id, reqUser = null) => {
     throw new AppError('Room category not found.', HTTP_STATUS.NOT_FOUND);
   }
 
-  if (reqUser && reqUser.role !== 'SUPER_ADMIN' && reqUser.hotel_id) {
-    if (Number(existing.hotel_id) !== Number(reqUser.hotel_id)) {
-      throw new AppError(
-        'Access denied. You do not have permission to delete room categories belonging to another hotel.',
-        HTTP_STATUS.FORBIDDEN
-      );
-    }
+  const hotelId = resolveHotelId(reqUser);
+  if (Number(existing.hotel_id) !== hotelId) {
+    throw new AppError(
+      'Access denied. You do not have permission to delete room categories belonging to another hotel.',
+      HTTP_STATUS.FORBIDDEN
+    );
   }
 
   // Safely check if physical rooms are assigned to it

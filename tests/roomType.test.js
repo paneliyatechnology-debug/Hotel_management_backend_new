@@ -12,6 +12,7 @@ process.env.NODE_ENV = 'test';
 const http = require('http');
 const app = require('../app');
 const db = require('../database/knex');
+const { generateAccessToken } = require('../utils/jwt');
 
 let server;
 let baseUrl;
@@ -147,6 +148,13 @@ const assert = (condition, testName) => {
 
 let testHotelId;
 let secondHotelId;
+let hotel1Token;
+let hotel2Token;
+
+const auth = (token, extra = {}) => ({
+  Authorization: `Bearer ${token}`,
+  ...extra,
+});
 const createdRoomTypeIds = [];
 const createdHotelIds = [];
 const createdUserIds = [];
@@ -212,6 +220,37 @@ const setupTestData = async () => {
   } else {
     secondHotelId = hotel2.id;
   }
+
+  await db('users').where({ id: testUser.id }).update({
+    hotel_id: testHotelId,
+    role: 'HOTEL_ADMIN',
+    is_active: true,
+  });
+  hotel1Token = generateAccessToken(testUser.id, 'HOTEL_ADMIN', testHotelId);
+
+  let secondUser = await db('users').where({ email: 'test_hotel_owner_2@test.com' }).first();
+  if (!secondUser) {
+    const [userId] = await db('users').insert({
+      name: 'Test Owner 2',
+      email: 'test_hotel_owner_2@test.com',
+      password: 'hashed_password_123',
+      phone: '+919876543211',
+      role: 'HOTEL_ADMIN',
+      hotel_id: secondHotelId,
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+    createdUserIds.push(userId);
+    secondUser = { id: userId };
+  } else {
+    await db('users').where({ id: secondUser.id }).update({
+      hotel_id: secondHotelId,
+      role: 'HOTEL_ADMIN',
+      is_active: true,
+    });
+  }
+  hotel2Token = generateAccessToken(secondUser.id, 'HOTEL_ADMIN', secondHotelId);
 };
 
 const cleanupTestData = async () => {
@@ -257,7 +296,7 @@ const runTests = async () => {
       hotel_id: 9999999,
       name: 'Ghost Hotel Room',
     });
-    assert(invalidHotelRes.status === 404, 'POST with non-existent hotel_id returns 404 Not Found');
+    assert(invalidHotelRes.status === 401, 'POST without a token returns 401 Unauthorized');
 
     // -------------------------------------------------------------
     // Test 2: POST /api/v1/room-types (Multipart with images and S3)
@@ -267,7 +306,7 @@ const runTests = async () => {
     const deluxeName = `Deluxe Ocean View ${Date.now()}`;
     const multipartData = buildMultipartPayload(
       {
-        hotel_id: testHotelId,
+        hotel_id: 9999999,
         name: deluxeName,
         description: 'Luxurious room overlooking the ocean',
       },
@@ -291,14 +330,14 @@ const runTests = async () => {
       'POST',
       '/api/v1/room-types',
       multipartData.body,
-      multipartData.headers
+      auth(hotel1Token, multipartData.headers)
     );
 
     assert(createRes.status === 201, 'POST /api/v1/room-types returns 201 Created');
     assert(createRes.body.success === true, 'POST response has success: true');
     assert(createRes.body.data && createRes.body.data.id, 'POST response returns created category with ID');
     assert(createRes.body.data.name === deluxeName, 'POST response returns correct category name');
-    assert(createRes.body.data.hotel_id === testHotelId, 'POST response returns correct hotel_id');
+    assert(createRes.body.data.hotel_id === testHotelId, 'POST uses hotel_id from the token and ignores the body');
     assert(createRes.body.data.description === 'Luxurious room overlooking the ocean', 'POST response returns description');
     assert(Array.isArray(createRes.body.data.images), 'POST response returns images as an array');
     assert(createRes.body.data.images.length === 2, 'POST response returns 2 uploaded image URLs');
@@ -323,20 +362,34 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 3. Testing Duplicate Name Enforcement ---');
 
-    const duplicateRes = await sendRequest('POST', '/api/v1/room-types', {
-      hotel_id: testHotelId,
-      name: deluxeName.toLowerCase(), // case-insensitive duplicate check
-      description: 'Another duplicate attempt',
-    });
+    const duplicateRes = await sendRequest(
+      'POST',
+      '/api/v1/room-types',
+      {
+        hotel_id: secondHotelId,
+        name: deluxeName.toLowerCase(), // case-insensitive duplicate check
+        description: 'Another duplicate attempt',
+      },
+      auth(hotel1Token)
+    );
     assert(duplicateRes.status === 409, 'POST with duplicate name in same hotel returns 409 Conflict');
 
     // But same name in DIFFERENT hotel is permitted!
-    const diffHotelRes = await sendRequest('POST', '/api/v1/room-types', {
-      hotel_id: secondHotelId,
-      name: deluxeName,
-      description: 'Same name in second hotel is valid',
-    });
+    const diffHotelRes = await sendRequest(
+      'POST',
+      '/api/v1/room-types',
+      {
+        hotel_id: testHotelId,
+        name: deluxeName,
+        description: 'Same name in second hotel is valid',
+      },
+      auth(hotel2Token)
+    );
     assert(diffHotelRes.status === 201, 'POST same name in a different hotel returns 201 Created');
+    assert(
+      diffHotelRes.body.data?.hotel_id === secondHotelId,
+      'Body hotel_id is ignored; the category is created for the token hotel'
+    );
     if (diffHotelRes.body.data?.id) {
       createdRoomTypeIds.push(diffHotelRes.body.data.id);
     }
@@ -353,12 +406,17 @@ const runTests = async () => {
     assert(Boolean(foundDeluxe), 'Created room category is present in GET all list');
     assert(Array.isArray(foundDeluxe.images) && foundDeluxe.images.length === 2, 'Images in GET all list are formatted as array of URLs');
 
-    // Filter by hotel_id
-    const filterRes = await sendRequest('GET', `/api/v1/room-types?hotel_id=${testHotelId}`);
-    assert(filterRes.status === 200, 'GET with hotel_id query filter returns 200 OK');
+    // Token hotel wins over a query hotel_id pointing at the other hotel
+    const filterRes = await sendRequest(
+      'GET',
+      `/api/v1/room-types?hotel_id=${secondHotelId}`,
+      null,
+      auth(hotel1Token)
+    );
+    assert(filterRes.status === 200, 'GET with a token returns 200 OK');
     assert(
       filterRes.body.data.every((r) => r.hotel_id === testHotelId),
-      'All returned categories belong to the requested hotel_id'
+      'Query hotel_id is ignored; results belong to the token hotel'
     );
 
     // -------------------------------------------------------------
@@ -383,11 +441,27 @@ const runTests = async () => {
     // -------------------------------------------------------------
     console.log('\n--- 6. Testing PUT /api/v1/room-types/:id ---');
 
+    const keepNameRes = await sendRequest(
+      'PUT',
+      `/api/v1/room-types/${deluxeId}`,
+      {
+        name: deluxeName,
+        description: 'Same name retained',
+      },
+      auth(hotel1Token)
+    );
+    assert(keepNameRes.status === 200, 'PUT keeping the current name returns 200 OK');
+
     const updatedName = `${deluxeName} - Premium Renovated`;
-    const updateRes = await sendRequest('PUT', `/api/v1/room-types/${deluxeId}`, {
-      name: updatedName,
-      description: 'Updated premium description',
-    });
+    const updateRes = await sendRequest(
+      'PUT',
+      `/api/v1/room-types/${deluxeId}`,
+      {
+        name: updatedName,
+        description: 'Updated premium description',
+      },
+      auth(hotel1Token)
+    );
     assert(updateRes.status === 200, 'PUT /api/v1/room-types/:id returns 200 OK');
     assert(updateRes.body.data.name === updatedName, 'PUT successfully updates category name');
     assert(updateRes.body.data.description === 'Updated premium description', 'PUT successfully updates description');
@@ -411,7 +485,7 @@ const runTests = async () => {
       'PUT',
       `/api/v1/room-types/${deluxeId}`,
       putMultipart.body,
-      putMultipart.headers
+      auth(hotel1Token, putMultipart.headers)
     );
     assert(putImageRes.status === 200, 'PUT with multipart new image returns 200 OK');
     assert(putImageRes.body.data.images.length === 1, 'Category old images removed and replaced with new image without duplication');
@@ -432,7 +506,12 @@ const runTests = async () => {
     });
 
     // Attempt to delete category when physical room is assigned -> Should FAIL!
-    const blockedDeleteRes = await sendRequest('DELETE', `/api/v1/room-types/${deluxeId}`);
+    const blockedDeleteRes = await sendRequest(
+      'DELETE',
+      `/api/v1/room-types/${deluxeId}`,
+      null,
+      auth(hotel1Token)
+    );
     assert(
       blockedDeleteRes.status === 400,
       'DELETE is safely blocked with 400 Bad Request when physical rooms are assigned'
@@ -446,8 +525,25 @@ const runTests = async () => {
     await db('rooms').where({ id: roomId }).del();
 
     // Now attempt deletion again -> Should SUCCEED!
-    const successDeleteRes = await sendRequest('DELETE', `/api/v1/room-types/${deluxeId}`);
+    const successDeleteRes = await sendRequest(
+      'DELETE',
+      `/api/v1/room-types/${deluxeId}`,
+      null,
+      auth(hotel1Token)
+    );
     assert(successDeleteRes.status === 200, 'DELETE succeeds with 200 OK when no physical rooms are assigned');
+
+    const reuseRes = await sendRequest(
+      'POST',
+      '/api/v1/room-types',
+      {
+        name: updatedName,
+        description: 'Name reused after soft delete',
+      },
+      auth(hotel1Token)
+    );
+    assert(reuseRes.status === 201, 'Soft-deleted category name can be created again in the same hotel');
+    if (reuseRes.body.data?.id) createdRoomTypeIds.push(reuseRes.body.data.id);
 
     // Verify it is excluded from active GET queries
     const getAfterDelete = await sendRequest('GET', `/api/v1/room-types/${deluxeId}`);

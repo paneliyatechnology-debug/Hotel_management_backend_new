@@ -82,7 +82,9 @@ const createUser = async (payload, req_user) => {
     );
   }
 
-  let hotel_id = payload.hotel_id;
+  // Hotel staff are bound to the hotel on the caller's token.
+  // Super Admin may assign a hotel because that account is not tied to one property.
+  let hotel_id = req_user.role === ROLE_CODES.SUPER_ADMIN ? payload.hotel_id : req_user.hotel_id;
 
   // RBAC checks
   if (req_user.role === ROLE_CODES.HOTEL_ADMIN) {
@@ -102,8 +104,12 @@ const createUser = async (payload, req_user) => {
       );
     }
 
-    // Force hotel isolation
-    hotel_id = req_user.hotel_id;
+    if (!hotel_id) {
+      throw new AppError(
+        'Your account is not associated with a hotel. hotel_id must come from the authenticated user token.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
   } else if (req_user.role === ROLE_CODES.SUPER_ADMIN) {
     // Super Admin can create any role
   } else {
@@ -223,8 +229,14 @@ const getUsers = async (query = {}, req_user) => {
     is_active: query.is_active,
   };
 
-  // Hotel isolation
+  // Hotel isolation. Hotel admins are scoped by the token hotel, not query hotel_id.
   if (req_user.role === ROLE_CODES.HOTEL_ADMIN) {
+    if (!req_user.hotel_id) {
+      throw new AppError(
+        'Your account is not associated with a hotel. hotel_id must come from the authenticated user token.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
     filters.hotel_id = req_user.hotel_id;
   } else if (req_user.role === ROLE_CODES.SUPER_ADMIN) {
     if (query.hotel_id) {
@@ -386,15 +398,6 @@ const updateUser = async (id, payload, req_user) => {
       }
     }
 
-    // Cannot reassign hotel
-    if (payload.hotel_id !== undefined) {
-      if (Number(payload.hotel_id) !== Number(req_user.hotel_id)) {
-        throw new AppError(
-          'Hotel administrators cannot transfer users to another hotel.',
-          HTTP_STATUS.FORBIDDEN
-        );
-      }
-    }
   } else if (req_user.role !== ROLE_CODES.SUPER_ADMIN) {
     throw new AppError(
       `Access denied. Role '${req_user.role}' is not authorized to update users.`,
@@ -427,7 +430,7 @@ const updateUser = async (id, payload, req_user) => {
     updates.must_change_password = Boolean(payload.must_change_password);
   }
 
-  // Super Admin can reassign hotel
+  // Super Admin can reassign hotel. Hotel admins stay on the token hotel.
   if (req_user.role === ROLE_CODES.SUPER_ADMIN) {
     if (payload.hotel_id !== undefined) updates.hotel_id = payload.hotel_id;
   }

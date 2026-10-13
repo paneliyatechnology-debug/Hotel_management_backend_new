@@ -9,6 +9,7 @@ const assert = require('assert');
 const app = require('../app');
 const db = require('../database/knex');
 const s3Service = require('../services/s3Service');
+const { generateAccessToken } = require('../utils/jwt');
 
 let server;
 let port;
@@ -143,6 +144,17 @@ async function runTest() {
     });
     testHotelId = hId;
 
+    await db('users').where({ id: testUserId }).update({
+      hotel_id: testHotelId,
+      role: 'HOTEL_ADMIN',
+      is_active: true,
+    });
+    const token = generateAccessToken(testUserId, 'HOTEL_ADMIN', testHotelId);
+    const auth = (extra = {}) => ({
+      Authorization: `Bearer ${token}`,
+      ...extra,
+    });
+
     // -----------------------------------------------------------------
     // TEST 1: Room Category (Room Type) Image Replacement
     // -----------------------------------------------------------------
@@ -159,7 +171,7 @@ async function runTest() {
       ]
     );
 
-    const postRtRes = await sendRequest('POST', '/api/v1/room-types', postRtMultipart.body, postRtMultipart.headers);
+    const postRtRes = await sendRequest('POST', '/api/v1/room-types', postRtMultipart.body, auth(postRtMultipart.headers));
     assert.strictEqual(postRtRes.status, 201);
     testRoomTypeId = postRtRes.body.data.id;
     assert.strictEqual(postRtRes.body.data.images.length, 1);
@@ -181,7 +193,7 @@ async function runTest() {
         },
       ]
     );
-    const putRtRes = await sendRequest('PUT', `/api/v1/room-types/${testRoomTypeId}`, putRtMultipart.body, putRtMultipart.headers);
+    const putRtRes = await sendRequest('PUT', `/api/v1/room-types/${testRoomTypeId}`, putRtMultipart.body, auth(putRtMultipart.headers));
     assert.strictEqual(putRtRes.status, 200);
     assert.strictEqual(putRtRes.body.data.images.length, 1, 'Only new image exists in array');
     assert.notStrictEqual(putRtRes.body.data.images[0], originalRtImage, 'New image URL replaced old one');
@@ -212,7 +224,7 @@ async function runTest() {
       ]
     );
 
-    const postRoomRes = await sendRequest('POST', '/api/v1/rooms', postRoomMultipart.body, postRoomMultipart.headers);
+    const postRoomRes = await sendRequest('POST', '/api/v1/rooms', postRoomMultipart.body, auth(postRoomMultipart.headers));
     assert.strictEqual(postRoomRes.status, 201);
     testRoomId = postRoomRes.body.data.id;
     assert.strictEqual(postRoomRes.body.data.images.length, 1);
@@ -235,7 +247,7 @@ async function runTest() {
       ]
     );
 
-    const putRoomRes = await sendRequest('PUT', `/api/v1/rooms/${testRoomId}`, putRoomMultipart.body, putRoomMultipart.headers);
+    const putRoomRes = await sendRequest('PUT', `/api/v1/rooms/${testRoomId}`, putRoomMultipart.body, auth(putRoomMultipart.headers));
     assert.strictEqual(putRoomRes.status, 200);
     assert.strictEqual(putRoomRes.body.data.images.length, 1, 'Room only has 1 image URL');
     assert.notStrictEqual(putRoomRes.body.data.images[0], originalRoomImage, 'Room image replaced');
@@ -275,7 +287,7 @@ async function runTest() {
       ]
     );
 
-    const postBookingRes = await sendRequest('POST', '/api/v1/bookings', postBookingMultipart.body, postBookingMultipart.headers);
+    const postBookingRes = await sendRequest('POST', '/api/v1/bookings', postBookingMultipart.body, auth(postBookingMultipart.headers));
     assert.strictEqual(postBookingRes.status, 201);
     testBookingId = postBookingRes.body.data.id;
     assert.strictEqual(postBookingRes.body.data.images.length, 1);
@@ -308,7 +320,7 @@ async function runTest() {
       ]
     );
 
-    const putBookingRes = await sendRequest('PUT', `/api/v1/bookings/${testBookingId}`, putBookingMultipart.body, putBookingMultipart.headers);
+    const putBookingRes = await sendRequest('PUT', `/api/v1/bookings/${testBookingId}`, putBookingMultipart.body, auth(putBookingMultipart.headers));
     assert.strictEqual(putBookingRes.status, 200);
     assert.strictEqual(putBookingRes.body.data.images.length, 1, 'Booking has 1 image');
     assert.strictEqual(putBookingRes.body.data.signatures.length, 1, 'Booking has 1 signature');

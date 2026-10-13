@@ -11,6 +11,7 @@ const userModel = require('../models/userModel');
 const s3Service = require('./s3Service');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
+const { resolveHotelId } = require('../utils/hotelScope');
 const { HTTP_STATUS, ROLE_CODES } = require('../constants');
 
 /**
@@ -237,13 +238,8 @@ const validateBookingPreconditions = async ({
  * @returns {Promise<Object>} Created booking
  */
 const createBooking = async (body, files = [], reqUser = null) => {
-  // Extract hotel_id from authenticated user's token; do not accept hotel_id from request body
-  const hotelId = reqUser?.hotel_id ? Number(reqUser.hotel_id) : Number(body.hotel_id);
-  if (!hotelId || isNaN(hotelId) || hotelId <= 0) {
-    throw new AppError('A valid hotel_id is required.', HTTP_STATUS.BAD_REQUEST, [
-      { field: 'hotel_id', message: 'hotel_id must be a positive integer.' },
-    ]);
-  }
+  // hotel_id comes from the authenticated user token. Body hotel_id is ignored.
+  const hotelId = resolveHotelId(reqUser);
 
   const roomId = Number(body.room_id);
   if (!roomId || isNaN(roomId) || roomId <= 0) {
@@ -371,10 +367,8 @@ const createBooking = async (body, files = [], reqUser = null) => {
 const getBookings = async (query = {}, reqUser = null) => {
   const filters = {};
 
-  if (reqUser && reqUser.role !== ROLE_CODES.SUPER_ADMIN && reqUser.hotel_id) {
-    filters.hotel_id = reqUser.hotel_id;
-  } else if (query.hotel_id) {
-    filters.hotel_id = Number(query.hotel_id);
+  if (reqUser && reqUser.hotel_id) {
+    filters.hotel_id = Number(reqUser.hotel_id);
   }
 
   if (query.room_id) filters.room_id = Number(query.room_id);

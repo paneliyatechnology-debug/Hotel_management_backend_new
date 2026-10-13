@@ -173,8 +173,6 @@ const setupTestData = async () => {
     staffUserId = user.id;
   }
 
-  staffToken = generateAccessToken(staffUserId, 'RECEPTIONIST');
-
   // 2. Setup Hotel 1 & Hotel 2
   let h1 = await db('hotels').where({ slug: 'booking-test-hotel-1' }).first();
   if (!h1) {
@@ -217,6 +215,13 @@ const setupTestData = async () => {
   } else {
     hotel2Id = h2.id;
   }
+
+  await db('users').where({ id: staffUserId }).update({
+    hotel_id: hotel1Id,
+    role: 'RECEPTIONIST',
+    is_active: true,
+  });
+  staffToken = generateAccessToken(staffUserId, 'RECEPTIONIST', hotel1Id);
 
   // 3. Setup Room Type
   let rt = await db('room_types').where({ hotel_id: hotel1Id, name: 'Deluxe Sea View' }).whereNull('deleted_at').first();
@@ -358,8 +363,9 @@ const runTests = async () => {
     // Check-out date earlier than check-in date
     const resBadDates = await makeRequest('/api/v1/bookings', {
       method: 'POST',
+      headers: { Authorization: `Bearer ${staffToken}` },
       body: {
-        hotel_id: hotel1Id,
+        hotel_id: 999999,
         primary_guest_name: 'Aditya Roy',
         mobile_number: '+919876543210',
         room_id: room1Id,
@@ -373,8 +379,7 @@ const runTests = async () => {
       'Clear error message explaining check-out must be after check-in'
     );
 
-    // Non-existent hotel
-    const resNoHotel = await makeRequest('/api/v1/bookings', {
+    const resNoAuth = await makeRequest('/api/v1/bookings', {
       method: 'POST',
       body: {
         hotel_id: 999999,
@@ -385,13 +390,14 @@ const runTests = async () => {
         check_out_date: '2026-11-22T11:00:00Z',
       },
     });
-    assert(resNoHotel.status === 400, 'Rejects non-existent hotel with 400 Bad Request');
+    assert(resNoAuth.status === 401, 'POST without a token returns 401 Unauthorized');
 
     // Inactive room
     const resInactive = await makeRequest('/api/v1/bookings', {
       method: 'POST',
+      headers: { Authorization: `Bearer ${staffToken}` },
       body: {
-        hotel_id: hotel1Id,
+        hotel_id: 999999,
         primary_guest_name: 'Aditya Roy',
         mobile_number: '+919876543210',
         room_id: inactiveRoomId,
@@ -404,8 +410,9 @@ const runTests = async () => {
     // Cross-hotel mismatched room
     const resWrongHotelRoom = await makeRequest('/api/v1/bookings', {
       method: 'POST',
+      headers: { Authorization: `Bearer ${staffToken}` },
       body: {
-        hotel_id: hotel1Id,
+        hotel_id: hotel2Id,
         primary_guest_name: 'Aditya Roy',
         mobile_number: '+919876543210',
         room_id: hotel2RoomId, // Belongs to Hotel 2!

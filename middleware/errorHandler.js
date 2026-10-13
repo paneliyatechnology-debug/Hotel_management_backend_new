@@ -37,6 +37,10 @@ const errorHandler = (err, req, res, _next) => {
       message = 'A hotel with this slug already exists';
     } else if (sqlMsg.includes('subscription_plans_code_unique') || sqlMsg.includes('subscription_plans.code')) {
       message = 'A subscription plan with this code already exists';
+    } else if (sqlMsg.includes('room_types_active_name_key') || sqlMsg.includes('active_name_key')) {
+      message = 'A room category with this name already exists for this hotel.';
+    } else if (sqlMsg.includes('rooms_active_room_key') || sqlMsg.includes('active_room_key')) {
+      message = 'A room with this number already exists on this floor for this hotel.';
     } else if (sqlMsg.includes('unique')) {
       const match = sqlMsg.match(/key '([^']+)'/);
       if (match && match[1]) {
