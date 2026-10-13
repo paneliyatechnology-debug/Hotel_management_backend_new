@@ -15,10 +15,12 @@ exports.seed = async function(knex) {
       password: hashedPassword,
       phone: '+919876543210',
       role: 'SUPER_ADMIN',
-      status: 'ACTIVE',
+      is_active: true,
       must_change_password: false,
       failed_login_attempts: 0,
       deleted_at: null,
+      created_at: new Date(),
+      updated_at: new Date(),
     });
     console.log('[Seed] Admin user created: admin@hotel.com / Admin@123 (SUPER_ADMIN)');
   }

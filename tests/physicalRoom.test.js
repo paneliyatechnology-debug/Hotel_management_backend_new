@@ -489,7 +489,7 @@ const runTests = async () => {
       putMultipart.headers
     );
     assert(putImageRes.status === 200, 'PUT with new image upload returns 200 OK');
-    assert(putImageRes.body.data.images.length === 2, 'Room now has 2 image URLs');
+    assert(putImageRes.body.data.images.length === 1, 'Room old images removed and replaced with new image without duplication');
 
     // Update with conflicting room number on same floor -> Should FAIL with 409!
     // Try to rename floor2 room to 101 when 101 already exists on floor 2?

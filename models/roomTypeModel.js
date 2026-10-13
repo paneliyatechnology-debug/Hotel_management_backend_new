@@ -3,7 +3,7 @@
  * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
-const { buildImageUrl } = require('../services/s3Service');
+const { buildImageUrl, deleteFile } = require('../services/s3Service');
 
 /**
  * Format raw database row to structured RoomType object.
@@ -41,7 +41,7 @@ const getImagesByRoomTypeId = async (roomTypeId, client = db) => {
 
   return rows.map((r) => {
     if (r.image_url && (r.image_url.startsWith('http://') || r.image_url.startsWith('https://'))) {
-      return r.image_url;
+      return buildImageUrl(r.image_url);
     }
     const key = r.image_name || r.s3_key || '';
     return buildImageUrl(key);
@@ -73,7 +73,7 @@ const getImagesByRoomTypeIds = async (roomTypeIds, client = db) => {
     }
     const url =
       row.image_url && (row.image_url.startsWith('http://') || row.image_url.startsWith('https://'))
-        ? row.image_url
+        ? buildImageUrl(row.image_url)
         : buildImageUrl(row.image_name || row.s3_key || '');
     map[row.room_type_id].push(url);
   }
@@ -267,21 +267,30 @@ const updateRoomType = async (id, updates, newImageRecords = [], trx) => {
     await client('room_types').where({ id }).update(updateFields);
 
     if (Array.isArray(newImageRecords) && newImageRecords.length > 0) {
-      const maxOrderRow = await client('images')
+      // 1. Fetch old images for this room type
+      const oldImages = await client('images')
         .where({ room_type_id: id })
-        .max('display_order as maxOrder')
-        .first();
-      let startOrder = Number(maxOrderRow?.maxOrder || 0);
+        .select('*');
 
-      for (const img of newImageRecords) {
-        startOrder++;
+      // 2. Delete old images from S3
+      for (const old of oldImages) {
+        const key = old.s3_key || old.image_name || old.image_url;
+        if (key) await deleteFile(key);
+      }
+
+      // 3. Delete old images from database table to prevent duplication
+      await client('images').where({ room_type_id: id }).delete();
+
+      // 4. Insert new images
+      for (let i = 0; i < newImageRecords.length; i++) {
+        const img = newImageRecords[i];
         await insertImageRow(client, {
           room_type_id: id,
           image_name: img.imageName,
           image_url: img.imageUrl,
           s3_key: img.s3Key,
-          is_primary: startOrder === 1,
-          display_order: startOrder,
+          is_primary: i === 0,
+          display_order: i + 1,
         });
       }
     }

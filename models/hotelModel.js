@@ -3,6 +3,7 @@
  * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
+const { buildImageUrl, deleteFile } = require('../services/s3Service');
 
 /**
  * Format raw database row to structured Hotel object
@@ -38,7 +39,7 @@ const formatHotel = (row) => {
     totalRooms: Number(row.total_rooms) || 0,
     hotelType: row.hotel_type || 'Boutique Hotel',
     website: row.website || '',
-    logo: row.logo || '',
+    logo: buildImageUrl(row.logo || ''),
     status: row.status,
     statusReason: row.status_reason || '',
     subscription_plan_id: row.subscription_plan_id !== undefined ? row.subscription_plan_id : null,
@@ -170,6 +171,30 @@ const softDeleteHotel = async (id) => {
     });
 };
 
+/**
+ * Update a hotel record and remove old logo from S3 if replaced
+ * @param {number|string} id
+ * @param {Object} updates
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object>}
+ */
+const updateHotel = async (id, updates, client = db) => {
+  const existing = await client('hotels').where({ id }).whereNull('deleted_at').first();
+  if (!existing) return null;
+
+  if (updates.logo !== undefined && updates.logo !== existing.logo && existing.logo) {
+    await deleteFile(existing.logo);
+  }
+
+  await client('hotels').where({ id }).update({
+    ...updates,
+    updated_at: new Date(),
+  });
+
+  const row = await client('hotels').where({ id }).first();
+  return formatHotel(row);
+};
+
 module.exports = {
   formatHotel,
   findHotelById,
@@ -177,5 +202,6 @@ module.exports = {
   slugExists,
   findHotelByEmail,
   createHotel,
+  updateHotel,
   softDeleteHotel,
 };

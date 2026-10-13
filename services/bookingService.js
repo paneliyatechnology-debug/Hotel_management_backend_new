@@ -488,6 +488,23 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   if (body.children !== undefined) updatePayload.children = Math.max(0, Number(body.children) || 0);
   if (body.notes !== undefined) updatePayload.notes = body.notes ? String(body.notes).trim() : '';
 
+  // Parse client-provided URL arrays if provided in update
+  if (body.signatures !== undefined) {
+    if (typeof body.signatures === 'string') {
+      try { updatePayload.signatures = JSON.parse(body.signatures); } catch (_) { updatePayload.signatures = [body.signatures]; }
+    } else if (Array.isArray(body.signatures)) {
+      updatePayload.signatures = body.signatures;
+    }
+  }
+
+  if (body.images !== undefined) {
+    if (typeof body.images === 'string') {
+      try { updatePayload.images = JSON.parse(body.images); } catch (_) { updatePayload.images = [body.images]; }
+    } else if (Array.isArray(body.images)) {
+      updatePayload.images = body.images;
+    }
+  }
+
   // Upload new images and signatures
   const { imageFiles, signatureFiles } = categorizeUploadedFiles(files);
   const uploadedImages = await s3Service.uploadFiles(imageFiles, 'bookings/images');

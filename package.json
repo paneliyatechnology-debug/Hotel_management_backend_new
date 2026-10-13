@@ -9,7 +9,7 @@
     "migrate": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
     "seed": "knex seed:run",
-    "test": "node tests/hotelRegistration.test.js && node tests/subscriptionPlan.test.js && node tests/roomType.test.js && node tests/physicalRoom.test.js && node tests/booking.test.js && node tests/user.test.js",
+    "test": "node tests/hotelRegistration.test.js && node tests/subscriptionPlan.test.js && node tests/roomType.test.js && node tests/physicalRoom.test.js && node tests/booking.test.js && node tests/user.test.js && node tests/imageReplacement.test.js",
     "test:hotels": "node tests/hotelRegistration.test.js",
     "test:plans": "node tests/subscriptionPlan.test.js",
     "test:room-types": "node tests/roomType.test.js",

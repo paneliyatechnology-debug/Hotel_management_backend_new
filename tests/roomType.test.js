@@ -413,7 +413,7 @@ const runTests = async () => {
       putMultipart.headers
     );
     assert(putImageRes.status === 200, 'PUT with multipart new image returns 200 OK');
-    assert(putImageRes.body.data.images.length === 3, 'Category now has 3 images in array');
+    assert(putImageRes.body.data.images.length === 1, 'Category old images removed and replaced with new image without duplication');
 
     // -------------------------------------------------------------
     // Test 7: DELETE /api/v1/room-types/:id (Safe Deletion Check)

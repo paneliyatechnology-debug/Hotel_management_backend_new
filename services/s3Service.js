@@ -25,17 +25,51 @@ const s3Client = new S3Client({
 
 /**
  * Generate full public/accessible URL for an image name or S3 key.
+ * Handles public content domains for Tigris (tigrisfiles.io), AWS S3, and custom CDN URLs.
  * @param {string} imageNameOrKey
  * @returns {string}
  */
 const buildImageUrl = (imageNameOrKey) => {
   if (!imageNameOrKey) return '';
+
+  const customPublicUrl = (process.env.S3_PUBLIC_URL || '').replace(/\/+$/, '');
+
+  // If already a full URL
   if (imageNameOrKey.startsWith('http://') || imageNameOrKey.startsWith('https://')) {
+    // If it's an internal Tigris API endpoint, convert to public delivery domain
+    if (imageNameOrKey.includes('.storageapi.dev/')) {
+      const match = imageNameOrKey.match(/^https?:\/\/([^.]+)\.storageapi\.dev\/([^/]+)\/(.+)$/);
+      if (match) {
+        const sub = match[1];
+        const b = match[2];
+        const path = match[3];
+        if (customPublicUrl) {
+          return `${customPublicUrl}/${path}`;
+        }
+        return `https://${b}.${sub}.tigrisfiles.io/${path}`;
+      }
+    }
     return imageNameOrKey;
   }
 
   const cleanEndpoint = endpoint.replace(/\/+$/, '');
   const key = imageNameOrKey.replace(/^\/+/, '');
+
+  if (customPublicUrl) {
+    return `${customPublicUrl}/${key}`;
+  }
+
+  // Handle Tigris Object Storage public domain (e.g., https://<bucket>.t3.tigrisfiles.io/<key>)
+  if (cleanEndpoint.includes('storageapi.dev')) {
+    const match = cleanEndpoint.match(/^https?:\/\/([^.]+)\.storageapi\.dev/);
+    const sub = match ? match[1] : 't3';
+    return `https://${bucket}.${sub}.tigrisfiles.io/${key}`;
+  }
+
+  // Handle standard AWS S3 public domain
+  if (cleanEndpoint.includes('amazonaws.com')) {
+    return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+  }
 
   if (cleanEndpoint && bucket) {
     return `${cleanEndpoint}/${bucket}/${key}`;
@@ -66,6 +100,7 @@ const uploadFile = async (file, folder = 'room-types') => {
     Key: s3Key,
     Body: file.buffer,
     ContentType: file.mimetype || 'image/jpeg',
+    ACL: 'public-read',
   });
 
   await s3Client.send(command);
@@ -89,11 +124,66 @@ const uploadFiles = async (files, folder = 'room-types') => {
 };
 
 /**
- * Delete an object from S3
- * @param {string} s3Key
+ * Extract S3 object key from a full URL or key string.
+ * Supports Tigris (*.tigrisfiles.io, storageapi.dev), AWS S3 (*.amazonaws.com), and custom CDN paths.
+ * @param {string} keyOrUrl
+ * @returns {string}
+ */
+const extractS3Key = (keyOrUrl) => {
+  if (!keyOrUrl || typeof keyOrUrl !== 'string') return '';
+  const str = keyOrUrl.trim();
+
+  // Tigris public delivery domain: https://<bucket>.<subdomain>.tigrisfiles.io/<key>
+  if (str.includes('.tigrisfiles.io/')) {
+    const parts = str.split('.tigrisfiles.io/');
+    if (parts[1]) return decodeURIComponent(parts[1].replace(/^\/+/, ''));
+  }
+
+  // Tigris authenticated API gateway: https://<subdomain>.storageapi.dev/<bucket>/<key>
+  if (str.includes('.storageapi.dev/')) {
+    const after = str.split('.storageapi.dev/')[1] || '';
+    const slashIdx = after.indexOf('/');
+    if (slashIdx !== -1) {
+      return decodeURIComponent(after.substring(slashIdx + 1).replace(/^\/+/, ''));
+    }
+  }
+
+  // Standard AWS S3 URL: https://<bucket>.s3.<region>.amazonaws.com/<key>
+  if (str.includes('.amazonaws.com/')) {
+    const parts = str.split('.amazonaws.com/');
+    if (parts[1]) return decodeURIComponent(parts[1].replace(/^\/+/, ''));
+  }
+
+  // Custom public URL base
+  if (process.env.S3_PUBLIC_URL && str.startsWith(process.env.S3_PUBLIC_URL)) {
+    return decodeURIComponent(str.replace(process.env.S3_PUBLIC_URL, '').replace(/^\/+/, ''));
+  }
+
+  // Generic URL fallback
+  if (str.startsWith('http://') || str.startsWith('https://')) {
+    try {
+      const parsed = new URL(str);
+      let p = parsed.pathname.replace(/^\/+/, '');
+      if (bucket && p.startsWith(`${bucket}/`)) {
+        p = p.substring(bucket.length + 1);
+      }
+      return decodeURIComponent(p);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // Already a relative key / path
+  return decodeURIComponent(str.replace(/^\/+/, ''));
+};
+
+/**
+ * Delete an object from S3 using its key or full URL
+ * @param {string} s3KeyOrUrl
  * @returns {Promise<void>}
  */
-const deleteFile = async (s3Key) => {
+const deleteFile = async (s3KeyOrUrl) => {
+  const s3Key = extractS3Key(s3KeyOrUrl);
   if (!s3Key || !bucket) return;
   try {
     const command = new DeleteObjectCommand({
@@ -106,10 +196,22 @@ const deleteFile = async (s3Key) => {
   }
 };
 
+/**
+ * Delete multiple objects from S3
+ * @param {Array<string>} keysOrUrls
+ * @returns {Promise<void>}
+ */
+const deleteFiles = async (keysOrUrls) => {
+  if (!Array.isArray(keysOrUrls) || keysOrUrls.length === 0) return;
+  await Promise.all(keysOrUrls.map((k) => deleteFile(k)));
+};
+
 module.exports = {
   s3Client,
   buildImageUrl,
+  extractS3Key,
   uploadFile,
   uploadFiles,
   deleteFile,
+  deleteFiles,
 };

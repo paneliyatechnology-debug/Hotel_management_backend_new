@@ -4,6 +4,7 @@
  */
 const crypto = require('crypto');
 const db = require('../database/knex');
+const { buildImageUrl, deleteFile } = require('../services/s3Service');
 
 /**
  * Safe JSON parser helper
@@ -40,12 +41,16 @@ const formatBooking = (row, relations = {}) => {
   const imageUrls = [
     ...storedImages,
     ...imageRecords.map((img) => img.image_url || img.imageUrl),
-  ].filter((v, i, a) => v && a.indexOf(v) === i);
+  ]
+    .filter((v, i, a) => v && a.indexOf(v) === i)
+    .map((u) => buildImageUrl(u));
 
   const signatureUrls = [
     ...storedSignatures,
     ...signatureRecords.map((sig) => sig.image_url || sig.imageUrl),
-  ].filter((v, i, a) => v && a.indexOf(v) === i);
+  ]
+    .filter((v, i, a) => v && a.indexOf(v) === i)
+    .map((u) => buildImageUrl(u));
 
   const booking = {
     id: row.id,
@@ -493,18 +498,58 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
     let finalImages = updateData.images;
 
     if (signatureRecords.length > 0 || updateData.signatures !== undefined) {
+      // 1. Fetch old signature rows for this booking
+      const oldSigRows = await trx('images')
+        .where({ booking_id: id, is_signature: 1 })
+        .select('*');
+
+      // 2. Delete old signatures from S3
+      for (const old of oldSigRows) {
+        const key = old.s3_key || old.image_name || old.image_url;
+        if (key) await deleteFile(key);
+      }
+
       const prevSigs = parseJson(existing.signatures, []);
+      for (const prevUrl of prevSigs) {
+        if (typeof prevUrl === 'string' && !oldSigRows.some((r) => r.image_url === prevUrl)) {
+          await deleteFile(prevUrl);
+        }
+      }
+
+      // 3. Delete old signature rows from database
+      await trx('images').where({ booking_id: id, is_signature: 1 }).delete();
+
       const newSigs = [
-        ...(Array.isArray(updateData.signatures) ? updateData.signatures : prevSigs),
+        ...(Array.isArray(updateData.signatures) ? updateData.signatures : []),
         ...signatureRecords.map((s) => s.image_url || s.imageUrl),
       ].filter(Boolean);
       finalSignatures = JSON.stringify(newSigs);
     }
 
     if (imageRecords.length > 0 || updateData.images !== undefined) {
+      // 1. Fetch old photo rows for this booking
+      const oldImageRows = await trx('images')
+        .where({ booking_id: id, is_signature: 0 })
+        .select('*');
+
+      // 2. Delete old photos from S3
+      for (const old of oldImageRows) {
+        const key = old.s3_key || old.image_name || old.image_url;
+        if (key) await deleteFile(key);
+      }
+
       const prevImgs = parseJson(existing.images, []);
+      for (const prevUrl of prevImgs) {
+        if (typeof prevUrl === 'string' && !oldImageRows.some((r) => r.image_url === prevUrl)) {
+          await deleteFile(prevUrl);
+        }
+      }
+
+      // 3. Delete old photo rows from database
+      await trx('images').where({ booking_id: id, is_signature: 0 }).delete();
+
       const newImgs = [
-        ...(Array.isArray(updateData.images) ? updateData.images : prevImgs),
+        ...(Array.isArray(updateData.images) ? updateData.images : []),
         ...imageRecords.map((i) => i.image_url || i.imageUrl),
       ].filter(Boolean);
       finalImages = JSON.stringify(newImgs);

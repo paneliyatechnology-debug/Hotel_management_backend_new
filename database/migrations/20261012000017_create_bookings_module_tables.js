@@ -114,21 +114,29 @@ exports.up = async function (knex) {
  * @returns { Promise<void> }
  */
 exports.down = async function (knex) {
-  const hasImages = await knex.schema.hasTable('images');
-  if (hasImages) {
-    const hasBookingId = await knex.schema.hasColumn('images', 'booking_id');
-    const hasCategory = await knex.schema.hasColumn('images', 'category');
-    if (hasBookingId || hasCategory) {
-      try {
-        await knex.schema.alterTable('images', (table) => {
-          if (hasBookingId) table.dropColumn('booking_id');
-          if (hasCategory) table.dropColumn('category');
-        });
-      } catch (_) {}
+  await knex.raw('SET FOREIGN_KEY_CHECKS = 0');
+  try {
+    const hasImages = await knex.schema.hasTable('images');
+    if (hasImages) {
+      const hasBookingId = await knex.schema.hasColumn('images', 'booking_id');
+      const hasCategory = await knex.schema.hasColumn('images', 'category');
+      if (hasBookingId || hasCategory) {
+        try {
+          await knex.schema.alterTable('images', (table) => {
+            if (hasBookingId) {
+              try { table.dropForeign('booking_id'); } catch (_) {}
+              table.dropColumn('booking_id');
+            }
+            if (hasCategory) table.dropColumn('category');
+          });
+        } catch (_) {}
+      }
     }
-  }
 
-  await knex.schema.dropTableIfExists('booking_guests');
-  await knex.schema.dropTableIfExists('booking_rooms');
-  await knex.schema.dropTableIfExists('bookings');
+    await knex.schema.dropTableIfExists('booking_guests');
+    await knex.schema.dropTableIfExists('booking_rooms');
+    await knex.schema.dropTableIfExists('bookings');
+  } finally {
+    await knex.raw('SET FOREIGN_KEY_CHECKS = 1');
+  }
 };
