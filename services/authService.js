@@ -224,28 +224,6 @@ const forgotPassword = async (email) => {
 };
 
 /**
- * Verify if a password reset token is valid and unexpired
- * @param {string} token
- * @returns {Promise<Object>}
- */
-const verifyResetToken = async (token) => {
-  if (!token || !token.trim()) {
-    throw new AppError('Reset token is required.', HTTP_STATUS.BAD_REQUEST);
-  }
-
-  const resetRecord = await tokenModel.findValidToken(token);
-
-  if (!resetRecord) {
-    throw new AppError(
-      'Invalid or expired reset token. Please request a new password reset link.',
-      HTTP_STATUS.BAD_REQUEST
-    );
-  }
-
-  return { valid: true };
-};
-
-/**
  * Reset password using single-use reset token
  * @param {Object} params - { token, password }
  * @returns {Promise<null>}
@@ -340,7 +318,6 @@ module.exports = {
   refreshToken,
   logout,
   forgotPassword,
-  verifyResetToken,
   resetPassword,
   changePassword,
   getProfile,

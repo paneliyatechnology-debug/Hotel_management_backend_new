@@ -243,8 +243,8 @@ const getUsers = async (query = {}, req_user) => {
   };
 
   const sorting = {
-    sort_by: query.sort_by || query.sortBy,
-    sort_order: query.sort_order || query.sortOrder,
+    sort_by: query.sort_by,
+    sort_order: query.sort_order,
   };
 
   const result = await userModel.findUsers(filters, pagination, sorting);

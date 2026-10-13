@@ -40,14 +40,14 @@ const formatBooking = (row, relations = {}) => {
   // Merge URLs
   const imageUrls = [
     ...storedImages,
-    ...imageRecords.map((img) => img.image_url || img.imageUrl),
+    ...imageRecords.map((img) => img.image_url),
   ]
     .filter((v, i, a) => v && a.indexOf(v) === i)
     .map((u) => buildImageUrl(u));
 
   const signatureUrls = [
     ...storedSignatures,
-    ...signatureRecords.map((sig) => sig.image_url || sig.imageUrl),
+    ...signatureRecords.map((sig) => sig.image_url),
   ]
     .filter((v, i, a) => v && a.indexOf(v) === i)
     .map((u) => buildImageUrl(u));

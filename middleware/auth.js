@@ -19,12 +19,9 @@ const { HTTP_STATUS, ROLE_CODES } = require('../constants');
  */
 const extractTargetHotelId = (req) => {
   const rawId =
-    req.params?.hotelId ||
     req.params?.hotel_id ||
     req.query?.hotel_id ||
-    req.query?.hotelId ||
     req.body?.hotel_id ||
-    req.body?.hotelId ||
     req.headers?.['x-hotel-id'];
 
   if (rawId !== undefined && rawId !== null && rawId !== '') {
@@ -94,11 +91,9 @@ const authenticateUser = async (req, res, next) => {
     if (user.role !== ROLE_CODES.SUPER_ADMIN && req.hotel_id) {
       if (req.query) {
         req.query.hotel_id = String(req.hotel_id);
-        delete req.query.hotelId;
       }
       if (req.body && typeof req.body === 'object') {
         req.body.hotel_id = req.hotel_id;
-        delete req.body.hotelId;
       }
     }
 
@@ -161,11 +156,9 @@ const requireRole = (...roles) => {
     req.hotel_id = req.user.hotel_id;
     if (req.query) {
       req.query.hotel_id = String(req.user.hotel_id);
-      delete req.query.hotelId;
     }
     if (req.body && typeof req.body === 'object') {
       req.body.hotel_id = req.user.hotel_id;
-      delete req.body.hotelId;
     }
     next();
   };
@@ -243,11 +236,9 @@ const optionalAuthenticate = async (req, res, next) => {
           if (user.role !== ROLE_CODES.SUPER_ADMIN && req.hotel_id) {
             if (req.query) {
               req.query.hotel_id = String(req.hotel_id);
-              delete req.query.hotelId;
             }
             if (req.body && typeof req.body === 'object') {
               req.body.hotel_id = req.hotel_id;
-              delete req.body.hotelId;
             }
           }
         }

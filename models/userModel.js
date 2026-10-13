@@ -179,9 +179,9 @@ const findUsers = async (filters = {}, pagination = {}, sorting = {}) => {
   const offset = (page - 1) * limit;
 
   const validSortFields = ['id', 'name', 'email', 'role', 'is_active', 'created_at', 'updated_at', 'last_login_at'];
-  let sortField = sorting.sort_by || sorting.sortBy || 'created_at';
+  let sortField = sorting.sort_by || 'created_at';
   if (!validSortFields.includes(sortField)) sortField = 'created_at';
-  const sortOrder = String(sorting.sort_order || sorting.sortOrder || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+  const sortOrder = String(sorting.sort_order || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
 
   const applyFilters = (qb) => {
     qb.whereNull('users.deleted_at');

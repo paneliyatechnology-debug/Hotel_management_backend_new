@@ -32,8 +32,7 @@ const refreshToken = async (req, res, next) => {
     const token =
       req.cookies?.refresh_token ||
       req.cookies?.refreshToken ||
-      req.body?.refresh_token ||
-      req.body?.refreshToken;
+      req.body?.refresh_token;
     const data = await authService.refreshToken(token, res);
     return success(res, MESSAGES.TOKEN_REFRESHED, data);
   } catch (err) {
@@ -73,20 +72,6 @@ const forgotPassword = async (req, res, next) => {
 };
 
 /**
- * GET /api/v1/auth/verify-token
- * Verify if reset token in link query string is valid and active.
- */
-const verifyResetToken = async (req, res, next) => {
-  try {
-    const token = req.query?.token || req.body?.token;
-    const data = await authService.verifyResetToken(token);
-    return success(res, 'Password reset token is valid.', data);
-  } catch (err) {
-    next(err);
-  }
-};
-
-/**
  * POST /api/v1/auth/reset-password
  * Reset password using validated reset token.
  */
@@ -95,7 +80,7 @@ const resetPassword = async (req, res, next) => {
     const { token, password } = req.body;
     await authService.resetPassword({
       token,
-      password: password || req.body.newPassword,
+      password,
     });
     return success(res, MESSAGES.PASSWORD_RESET_SUCCESS, null);
   } catch (err) {
@@ -135,7 +120,6 @@ module.exports = {
   refreshToken,
   logout,
   forgotPassword,
-  verifyResetToken,
   resetPassword,
   changePassword,
   getMe,

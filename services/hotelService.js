@@ -98,18 +98,18 @@ const calculateTrialDates = (settings) => {
  */
 const registerHotel = async (payload, res = null, files = []) => {
   const name = (payload.name || '').trim();
-  const ownerName = (payload.owner_name || payload.ownerName || '').trim();
-  const ownerEmail = (payload.owner_email || payload.ownerEmail || '').trim();
-  const ownerPhone = (payload.owner_phone || payload.ownerPhone || '').trim();
+  const ownerName = (payload.owner_name || '').trim();
+  const ownerEmail = (payload.owner_email || '').trim();
+  const ownerPhone = (payload.owner_phone || '').trim();
   const address = payload.address;
   const city = payload.city;
   const state = payload.state;
   const country = payload.country;
   const pincode = payload.pincode;
-  const gstNumber = (payload.gst_number || payload.gstNumber || '').trim();
-  const panNumber = (payload.pan_number || payload.panNumber || '').trim();
-  const totalRooms = payload.total_rooms !== undefined ? payload.total_rooms : payload.totalRooms;
-  const hotelType = payload.hotel_type || payload.hotelType;
+  const gstNumber = (payload.gst_number || '').trim();
+  const panNumber = (payload.pan_number || '').trim();
+  const totalRooms = payload.total_rooms !== undefined ? payload.total_rooms : 0;
+  const hotelType = payload.hotel_type;
   const website = payload.website;
   const logo = payload.logo;
   const password = payload.password;
@@ -249,23 +249,17 @@ const registerHotel = async (payload, res = null, files = []) => {
     const finalPlanActive =
       payload.subscription_plan_active !== undefined
         ? Boolean(payload.subscription_plan_active)
-        : payload.subscriptionPlanActive !== undefined
-          ? Boolean(payload.subscriptionPlanActive)
-          : payload.subscription_plan_status !== undefined
-            ? Boolean(payload.subscription_plan_status)
-            : true;
+        : payload.subscription_plan_status !== undefined
+          ? Boolean(payload.subscription_plan_status)
+          : true;
 
     const finalStartDate = payload.subscription_plan_start_date
       ? new Date(payload.subscription_plan_start_date)
-      : payload.subscriptionPlanStartDate
-        ? new Date(payload.subscriptionPlanStartDate)
-        : trialStartDate;
+      : trialStartDate;
 
     const finalEndDate = payload.subscription_plan_end_date
       ? new Date(payload.subscription_plan_end_date)
-      : payload.subscriptionPlanEndDate
-        ? new Date(payload.subscriptionPlanEndDate)
-        : trialEndDate;
+      : trialEndDate;
 
     const hotelData = {
       name: name.trim(),
@@ -294,7 +288,7 @@ const registerHotel = async (payload, res = null, files = []) => {
       currency: 'INR',
       tax_percentage: 18.00,
       gst_enabled: Boolean(gstNumber),
-      upi_id: payload.upi_id || payload.upiId || null,
+      upi_id: payload.upi_id || null,
       late_checkout_grace_minutes: 10,
       amenities: JSON.stringify(['Free WiFi', '24/7 Room Service', 'Air Conditioning']),
       policies: JSON.stringify([
