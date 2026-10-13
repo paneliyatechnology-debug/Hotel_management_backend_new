@@ -81,6 +81,24 @@ const updateRoom = async (req, res, next) => {
 };
 
 /**
+ * PATCH /api/v1/rooms/:id/status
+ * Update only the room status
+ */
+const updateRoomStatus = async (req, res, next) => {
+  try {
+    const data = await roomService.updateRoomStatus(req.params.id, req.body, req.user);
+    return success(
+      res,
+      MESSAGES.ROOM_STATUS_UPDATED_SUCCESS,
+      data,
+      HTTP_STATUS.OK
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * DELETE /api/v1/rooms/:id
  * Soft-delete a physical room
  */
@@ -103,5 +121,6 @@ module.exports = {
   getRooms,
   getRoomById,
   updateRoom,
+  updateRoomStatus,
   deleteRoom,
 };

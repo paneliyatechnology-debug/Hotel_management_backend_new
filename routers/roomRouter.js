@@ -5,7 +5,8 @@
  * 2. GET /api/v1/rooms – List rooms with pagination and filters (hotel, floor, room_type, status, active).
  * 3. GET /api/v1/rooms/:id – Get a single room by ID.
  * 4. PUT /api/v1/rooms/:id – Update room details.
- * 5. DELETE /api/v1/rooms/:id – Soft-delete a room.
+ * 5. PATCH /api/v1/rooms/:id/status – Update only the room status.
+ * 6. DELETE /api/v1/rooms/:id – Soft-delete a room.
  *
  * Follows TradeNexa router architecture.
  */
@@ -14,6 +15,7 @@ const roomController = require('../controllers/roomController');
 const {
   createRoomValidator,
   updateRoomValidator,
+  updateRoomStatusValidator,
   getRoomByIdValidator,
   deleteRoomValidator,
   getRoomsQueryValidator,
@@ -74,6 +76,17 @@ router.put(
   updateRoomValidator,
   validate,
   roomController.updateRoom
+);
+
+/**
+ * PATCH /api/v1/rooms/:id/status
+ * Update only the room status
+ */
+router.patch(
+  '/:id/status',
+  updateRoomStatusValidator,
+  validate,
+  roomController.updateRoomStatus
 );
 
 /**

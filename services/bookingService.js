@@ -12,7 +12,18 @@ const s3Service = require('./s3Service');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
-const { HTTP_STATUS, ROLE_CODES } = require('../constants');
+const {
+  HTTP_STATUS,
+  ROLE_CODES,
+  BOOKING_STATUSES,
+  NON_BLOCKING_BOOKING_STATUSES,
+} = require('../constants');
+
+// Stays that can still hold the room or its dates. Derived so the list cannot drift
+// from BOOKING_STATUSES.
+const OPEN_BOOKING_STATUSES = BOOKING_STATUSES.filter(
+  (status) => !NON_BLOCKING_BOOKING_STATUSES.includes(status)
+);
 
 /**
  * Filter uploaded file array into image files and signature files
@@ -38,6 +49,145 @@ const categorizeUploadedFiles = (files) => {
   }
 
   return { imageFiles, signatureFiles };
+};
+
+/**
+ * Accept a stay status from the client.
+ * Blank input uses fallback. Create uses CHECKED_IN. The status update API requires a value.
+ * @param {*} value
+ * @param {{ required?: boolean, fallback?: string|null }} [options]
+ * @returns {string|null}
+ */
+const resolveBookingStatus = (value, { required = false, fallback = 'CHECKED_IN' } = {}) => {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    if (required) {
+      throw new AppError('booking_status is required.', HTTP_STATUS.BAD_REQUEST, [
+        { field: 'booking_status', message: `Must be one of: ${BOOKING_STATUSES.join(', ')}.` },
+      ]);
+    }
+    return fallback;
+  }
+
+  const status = String(value).trim().toUpperCase();
+  if (!BOOKING_STATUSES.includes(status)) {
+    throw new AppError(
+      `booking_status must be one of: ${BOOKING_STATUSES.join(', ')}.`,
+      HTTP_STATUS.BAD_REQUEST,
+      [{ field: 'booking_status', message: `Must be one of: ${BOOKING_STATUSES.join(', ')}.` }]
+    );
+  }
+
+  return status;
+};
+
+/**
+ * Find whether another stay still needs this room.
+ * Pending is included so its dates stay protected, but it does not keep the room reserved.
+ * @param {number|string} roomId
+ * @param {number|string} bookingId - Stay being changed, excluded from the result
+ * @returns {Promise<{ checkedIn: boolean, confirmed: boolean }>}
+ */
+const findOtherOpenStays = async (roomId, bookingId) => {
+  const rows = await db('bookings')
+    .where('room_id', Number(roomId))
+    .whereNot('id', Number(bookingId))
+    .whereNull('deleted_at')
+    .whereNull('actual_check_out')
+    .whereIn('booking_status', OPEN_BOOKING_STATUSES)
+    .select('booking_status');
+
+  return {
+    checkedIn: rows.some((row) => row.booking_status === 'CHECKED_IN'),
+    confirmed: rows.some((row) => row.booking_status === 'CONFIRMED'),
+  };
+};
+
+/**
+ * Room status to use after this stay gives the room up.
+ * Returns null when this stay was not holding the room, so MAINTENANCE and BLOCKED are left alone.
+ * Another checked-in guest keeps the room OCCUPIED. Another confirmed stay keeps it RESERVED.
+ * @param {string} currentRoomStatus
+ * @param {string} stayStatus
+ * @param {{ checkedIn: boolean, confirmed: boolean }} others
+ * @returns {string|null}
+ */
+const roomStatusAfterRelease = (currentRoomStatus, stayStatus, others) => {
+  const releasingStay = stayStatus === 'CANCELLED' || stayStatus === 'NO_SHOW' || stayStatus === 'PENDING';
+  if (!releasingStay) return null;
+
+  // Pending only reserved an available room. It must not clear an occupied room.
+  const thisStayHoldsRoom = stayStatus === 'PENDING'
+    ? currentRoomStatus === 'RESERVED'
+    : currentRoomStatus === 'RESERVED' || currentRoomStatus === 'OCCUPIED';
+  if (!thisStayHoldsRoom) return null;
+
+  if (others.checkedIn) return 'OCCUPIED';
+  if (others.confirmed) return 'RESERVED';
+  return 'AVAILABLE';
+};
+
+/**
+ * Move the assigned room to match this stay.
+ * Check-in always occupies the room. Checkout always starts cleaning, even when another
+ * stay exists, so housekeeping is not skipped.
+ * @param {Object} booking
+ * @param {string} status
+ * @param {Date} [now]
+ * @returns {Promise<void>}
+ */
+const syncRoomForBookingStatus = async (booking, status, now = new Date()) => {
+  if (!booking.room_id) return;
+
+  const room = await roomModel.findRoomById(booking.room_id);
+  if (!room || Number(room.hotel_id) !== Number(booking.hotel_id)) return;
+
+  if (status === 'CHECKED_IN') {
+    await roomModel.updateRoom(room.id, { status: 'OCCUPIED' });
+    return;
+  }
+
+  if (status === 'CHECKED_OUT') {
+    await roomModel.updateRoom(room.id, {
+      status: 'CLEANING',
+      cleaning_started_at: now,
+    });
+    return;
+  }
+
+  const others = await findOtherOpenStays(room.id, booking.id);
+
+  // Confirming must not replace a guest who is already in the room.
+  if (status === 'CONFIRMED' && room.status === 'AVAILABLE' && !others.checkedIn) {
+    await roomModel.updateRoom(room.id, { status: 'RESERVED' });
+    return;
+  }
+
+  const releasedStatus = roomStatusAfterRelease(room.status, status, others);
+  if (releasedStatus) {
+    await roomModel.updateRoom(room.id, { status: releasedStatus });
+  }
+};
+
+/**
+ * Save booking_status and align the room.
+ * Guest details, scheduled dates, and payment amounts are not changed here.
+ * @param {Object} booking
+ * @param {string} status
+ * @returns {Promise<void>}
+ */
+const applyBookingStatusEffects = async (booking, status) => {
+  const now = new Date();
+  const updates = { booking_status: status };
+
+  if (status === 'CHECKED_IN' && !booking.actual_check_in) {
+    updates.actual_check_in = now;
+  }
+  if (status === 'CHECKED_OUT' && !booking.actual_check_out) {
+    updates.actual_check_out = now;
+  }
+
+  await bookingModel.updateBooking(booking.id, updates);
+  await syncRoomForBookingStatus(booking, status, now);
 };
 
 /**
@@ -347,6 +497,9 @@ const createBooking = async (body, files = [], reqUser = null) => {
     signatures: clientSignatures,
     images: clientImages,
     notes: body.notes ? String(body.notes).trim() : '',
+    // Front desk create checks the guest in unless booking_status is sent.
+    // payment_status in the pricing fields is still derived only from the amount paid.
+    booking_status: resolveBookingStatus(body.booking_status, { fallback: 'CHECKED_IN' }),
     deleted_at: null,
   };
 
@@ -354,6 +507,13 @@ const createBooking = async (body, files = [], reqUser = null) => {
     imageRecords: uploadedImages,
     signatureRecords: uploadedSignatures,
   });
+
+  // PENDING leaves the room unchanged. Any other status moves the room, then we re-read
+  // so the response includes that room status and actual_check_in when it was just recorded.
+  if (newBooking.booking_status && newBooking.booking_status !== 'PENDING') {
+    await applyBookingStatusEffects(newBooking, newBooking.booking_status);
+    return bookingModel.findBookingById(newBooking.id);
+  }
 
   return newBooking;
 };
@@ -377,6 +537,7 @@ const getBookings = async (query = {}, reqUser = null) => {
   if (query.guest_name) filters.guest_name = query.guest_name;
   if (query.mobile_number) filters.mobile_number = query.mobile_number;
   if (query.payment_status) filters.payment_status = query.payment_status;
+  if (query.booking_status) filters.booking_status = query.booking_status;
   if (query.check_in_from) filters.check_in_from = query.check_in_from;
   if (query.check_in_to) filters.check_in_to = query.check_in_to;
   if (query.check_out_from) filters.check_out_from = query.check_out_from;
@@ -514,6 +675,99 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
 };
 
 /**
+ * Check a guest out of a booking.
+ * body.paid_amount is added to the amount already paid. It does not replace it.
+ * A late fee is run through the same GST calculation. Scheduled dates and nights stay as booked.
+ * The stay becomes CHECKED_OUT and the room is marked CLEANING, so those dates can be booked again.
+ * @param {number|string} id
+ * @param {Object} [body={}]
+ * @param {Object} [reqUser=null]
+ * @returns {Promise<Object>}
+ */
+const checkOutBooking = async (id, body = {}, reqUser = null) => {
+  const hotelId = resolveHotelId(reqUser);
+  const existing = await getBookingById(id, reqUser);
+
+  if (Number(existing.hotel_id) !== hotelId) {
+    throw new AppError(
+      'Access denied: You cannot check out a booking from another hotel.',
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
+  if (existing.actual_check_out) {
+    throw new AppError('This booking has already been checked out.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const collectedNow = body.paid_amount !== undefined && body.paid_amount !== ''
+    ? Number(body.paid_amount)
+    : 0;
+  const lateCharge = body.late_checkout_charge !== undefined && body.late_checkout_charge !== ''
+    ? Number(body.late_checkout_charge)
+    : Number(existing.late_checkout_charge) || 0;
+  const lateHours = body.late_checkout_hours !== undefined && body.late_checkout_hours !== ''
+    ? Number(body.late_checkout_hours)
+    : Number(existing.late_checkout_hours) || 0;
+
+  if ([collectedNow, lateCharge, lateHours].some((value) => Number.isNaN(value) || value < 0)) {
+    throw new AppError('Checkout amounts cannot be negative.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const pricing = calculatePricing({
+    base_amount: existing.base_amount,
+    discount_amount: existing.discount_amount,
+    extra_charges_total: existing.extra_charges_total,
+    late_checkout_charge: lateCharge,
+    late_checkout_hours: lateHours,
+    gst_rate: existing.gst_rate,
+    paid_amount: Number(existing.paid_amount) + collectedNow,
+    numberOfNights: existing.number_of_nights,
+  });
+
+  const now = new Date();
+  const updates = {
+    ...pricing,
+    actual_check_out: now,
+    booking_status: 'CHECKED_OUT',
+  };
+
+  if (body.notes !== undefined && String(body.notes).trim()) {
+    const note = String(body.notes).trim();
+    updates.notes = existing.notes ? `${existing.notes}\n${note}` : note;
+  }
+
+  await bookingModel.updateBooking(existing.id, updates);
+  await syncRoomForBookingStatus(existing, 'CHECKED_OUT', now);
+
+  return getBookingById(existing.id, reqUser);
+};
+
+/**
+ * Update only booking_status.
+ * hotel_id comes from the authenticated user token.
+ * Guest details, dates, and payment totals are left unchanged. The room follows the new status.
+ * @param {number|string} id
+ * @param {Object} body
+ * @param {Object} [reqUser=null]
+ * @returns {Promise<Object>}
+ */
+const updateBookingStatus = async (id, body = {}, reqUser = null) => {
+  const hotelId = resolveHotelId(reqUser);
+  const existing = await getBookingById(id, reqUser);
+
+  if (Number(existing.hotel_id) !== hotelId) {
+    throw new AppError(
+      'Access denied: You cannot update a booking from another hotel.',
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
+  const status = resolveBookingStatus(body.booking_status, { required: true, fallback: null });
+  await applyBookingStatusEffects(existing, status);
+  return getBookingById(existing.id, reqUser);
+};
+
+/**
  * Soft delete a booking setting deleted_at
  * @param {number|string} id
  * @param {Object} [reqUser=null]
@@ -531,5 +785,7 @@ module.exports = {
   getBookings,
   getBookingById,
   updateBooking,
+  checkOutBooking,
+  updateBookingStatus,
   deleteBooking,
 };

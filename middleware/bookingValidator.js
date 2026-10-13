@@ -3,6 +3,7 @@
  * Follows TradeNexa validator architecture.
  */
 const { body, param, query } = require('express-validator');
+const { BOOKING_STATUSES } = require('../constants');
 
 /**
  * Validation schema for POST /api/v1/bookings
@@ -75,6 +76,14 @@ const createBookingValidator = [
     .optional()
     .isFloat({ min: 0, max: 100 })
     .withMessage('gst_rate must be between 0 and 100.'),
+
+  // Optional. When omitted, the service stores CHECKED_IN.
+  body('booking_status')
+    .optional({ nullable: true })
+    .trim()
+    .toUpperCase()
+    .isIn(BOOKING_STATUSES)
+    .withMessage(`booking_status must be one of: ${BOOKING_STATUSES.join(', ')}.`),
 ];
 
 /**
@@ -135,6 +144,35 @@ const getBookingByIdValidator = [
 ];
 
 /**
+ * Validation schema for POST /api/v1/bookings/:id/check-out
+ */
+const checkOutBookingValidator = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Invalid booking ID. Must be a positive integer.'),
+
+  body('paid_amount')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('paid_amount collected at checkout cannot be negative.'),
+
+  body('late_checkout_charge')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('late_checkout_charge cannot be negative.'),
+
+  body('late_checkout_hours')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('late_checkout_hours cannot be negative.'),
+
+  body('notes')
+    .optional()
+    .isString()
+    .withMessage('notes must be a string.'),
+];
+
+/**
  * Validation schema for DELETE /api/v1/bookings/:id
  */
 const deleteBookingValidator = [
@@ -166,12 +204,39 @@ const getBookingsQueryValidator = [
     .optional()
     .isIn(['PENDING', 'PARTIALLY_PAID', 'PAID'])
     .withMessage('payment_status must be PENDING, PARTIALLY_PAID, or PAID.'),
+
+  // Stay filter. payment_status above filters the bill, not the stay.
+  query('booking_status')
+    .optional()
+    .trim()
+    .toUpperCase()
+    .isIn(BOOKING_STATUSES)
+    .withMessage(`booking_status must be one of: ${BOOKING_STATUSES.join(', ')}.`),
+];
+
+/**
+ * Validation schema for PATCH /api/v1/bookings/:id/status
+ */
+const updateBookingStatusValidator = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Invalid booking ID. Must be a positive integer.'),
+
+  body('booking_status')
+    .trim()
+    .notEmpty()
+    .withMessage('booking_status is required.')
+    .toUpperCase()
+    .isIn(BOOKING_STATUSES)
+    .withMessage(`booking_status must be one of: ${BOOKING_STATUSES.join(', ')}.`),
 ];
 
 module.exports = {
   createBookingValidator,
   updateBookingValidator,
   getBookingByIdValidator,
+  checkOutBookingValidator,
   deleteBookingValidator,
   getBookingsQueryValidator,
+  updateBookingStatusValidator,
 };

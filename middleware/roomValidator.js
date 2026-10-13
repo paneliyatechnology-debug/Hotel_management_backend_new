@@ -3,8 +3,7 @@
  * Follows TradeNexa validation pattern using express-validator.
  */
 const { body, param, query } = require('express-validator');
-
-const VALID_STATUSES = ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE', 'CLEANING', 'RESERVED'];
+const { ROOM_STATUSES } = require('../constants');
 
 /**
  * Validation schema for POST /api/v1/rooms
@@ -31,8 +30,8 @@ const createRoomValidator = [
   body('status')
     .optional()
     .toUpperCase()
-    .isIn(VALID_STATUSES)
-    .withMessage(`Status must be one of: ${VALID_STATUSES.join(', ')}.`),
+    .isIn(ROOM_STATUSES)
+    .withMessage(`Status must be one of: ${ROOM_STATUSES.join(', ')}.`),
 
   body('seating_capacity')
     .optional()
@@ -106,8 +105,8 @@ const updateRoomValidator = [
   body('status')
     .optional()
     .toUpperCase()
-    .isIn(VALID_STATUSES)
-    .withMessage(`Status must be one of: ${VALID_STATUSES.join(', ')}.`),
+    .isIn(ROOM_STATUSES)
+    .withMessage(`Status must be one of: ${ROOM_STATUSES.join(', ')}.`),
 
   body('seating_capacity')
     .optional()
@@ -153,6 +152,23 @@ const updateRoomValidator = [
 ];
 
 /**
+ * Validation schema for PATCH /api/v1/rooms/:id/status
+ */
+const updateRoomStatusValidator = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Invalid room ID. Must be a positive integer.'),
+
+  body('status')
+    .trim()
+    .notEmpty()
+    .withMessage('Room status is required.')
+    .toUpperCase()
+    .isIn(ROOM_STATUSES)
+    .withMessage(`Status must be one of: ${ROOM_STATUSES.join(', ')}.`),
+];
+
+/**
  * Validation schema for GET /api/v1/rooms/:id
  */
 const getRoomByIdValidator = [
@@ -187,8 +203,8 @@ const getRoomsQueryValidator = [
   query('status')
     .optional()
     .toUpperCase()
-    .isIn(VALID_STATUSES)
-    .withMessage(`status filter must be one of: ${VALID_STATUSES.join(', ')}.`),
+    .isIn(ROOM_STATUSES)
+    .withMessage(`status filter must be one of: ${ROOM_STATUSES.join(', ')}.`),
 
   query('is_active')
     .optional()
@@ -209,6 +225,7 @@ const getRoomsQueryValidator = [
 module.exports = {
   createRoomValidator,
   updateRoomValidator,
+  updateRoomStatusValidator,
   getRoomByIdValidator,
   deleteRoomValidator,
   getRoomsQueryValidator,

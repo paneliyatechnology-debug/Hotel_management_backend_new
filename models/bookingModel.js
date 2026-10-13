@@ -5,6 +5,7 @@
 const crypto = require('crypto');
 const db = require('../database/knex');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');
+const { NON_BLOCKING_BOOKING_STATUSES } = require('../constants');
 
 /**
  * Safe JSON parser helper
@@ -88,6 +89,8 @@ const formatBooking = (row, relations = {}) => {
     paid_amount: Number(row.paid_amount) || 0,
     due_amount: Number(row.due_amount) || 0,
     payment_status: row.payment_status || 'PENDING',
+    // Stay lifecycle. Kept separate from payment_status above.
+    booking_status: row.booking_status || 'PENDING',
 
     signatures: signatureUrls,
     images: imageUrls,
@@ -180,8 +183,10 @@ const loadBookingMedia = async (bookingIds, client = db) => {
 };
 
 /**
- * Check if requested room has overlapping bookings in the date range.
- * Excludes soft-deleted bookings.
+ * Check if the room already has a stay on these dates.
+ * Soft-deleted rows are ignored. A stay also stops blocking the room once it is
+ * checked out, cancelled, or marked no-show. Both actual_check_out and
+ * booking_status are checked so an old row is covered either way.
  *
  * Overlap condition:
  * (existing_check_in < new_check_out) AND (existing_check_out > new_check_in)
@@ -207,6 +212,8 @@ const checkRoomOverlaps = async (
   let query = client('bookings')
     .leftJoin('rooms', 'bookings.room_id', 'rooms.id')
     .whereNull('bookings.deleted_at')
+    .whereNull('bookings.actual_check_out')
+    .whereNotIn('bookings.booking_status', NON_BLOCKING_BOOKING_STATUSES)
     .where('bookings.room_id', Number(roomId))
     .where('bookings.check_in_date', '<', outDate)
     .where('bookings.check_out_date', '>', inDate);
@@ -315,6 +322,10 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
 
     if (filters.payment_status) {
       qb.where('bookings.payment_status', String(filters.payment_status).trim().toUpperCase());
+    }
+
+    if (filters.booking_status) {
+      qb.where('bookings.booking_status', String(filters.booking_status).trim().toUpperCase());
     }
 
     if (filters.check_in_from) {

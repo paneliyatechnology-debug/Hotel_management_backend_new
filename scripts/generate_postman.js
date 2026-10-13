@@ -745,7 +745,7 @@ Safely deletes a category.
 // =========================================================================
 const roomFolder = {
   name: "6. Physical Rooms",
-  description: "Inventory of physical rooms (e.g. Room 101, 102, 201). Enforces composite floor uniqueness (room number unique per hotel and floor), room status workflows (AVAILABLE, OCCUPIED, MAINTENANCE, CLEANING, RESERVED), and S3 photo galleries.",
+  description: "Inventory of physical rooms (e.g. Room 101, 102, 201). Enforces composite floor uniqueness (room number unique per hotel and floor), room status workflows (AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, BLOCKED), and S3 photo galleries.",
   item: [
     {
       name: "Create Physical Room (Full Payload)",
@@ -776,7 +776,7 @@ const roomFolder = {
             { key: "room_number", value: "Suite-" + Math.floor(Math.random() * 800 + 100), type: "text", description: "Room identifier (Required, unique per hotel + floor)" },
             { key: "room_type_id", value: "{{roomTypeId}}", type: "text", description: "Category ID (Required)" },
             { key: "floor", value: "2", type: "text", description: "Floor number (Optional, default: 1)" },
-            { key: "status", value: "AVAILABLE", type: "text", description: "Status: AVAILABLE, OCCUPIED, MAINTENANCE, etc. (Optional, default: AVAILABLE)" },
+            { key: "status", value: "AVAILABLE", type: "text", description: "Status: AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, BLOCKED (Optional, default: AVAILABLE)" },
             { key: "seating_capacity", value: "3", type: "text", description: "Max guest capacity (Optional, default: 2)" },
             { key: "bed_count", value: "1", type: "text", description: "Number of beds (Optional, default: 1)" },
             { key: "bed_type", value: "1 Super King Bed", type: "text", description: "Bed description (Optional)" },
@@ -799,7 +799,7 @@ Creates a physical inventory room in the hotel and uploads room photos directly 
 | \`room_number\` | String | **Required** | Room identifier (e.g. \`"101"\`, \`"201B"\`) | Max 50 chars, unique per hotel + floor |
 | \`room_type_id\` | Integer | **Required** | Category ID | Must belong to specified hotel |
 | \`floor\` | Integer | *Optional* | Floor number | Default: \`1\` |
-| \`status\` | String | *Optional* | Current status | One of: \`AVAILABLE\`, \`OCCUPIED\`, \`MAINTENANCE\`, \`CLEANING\`, \`RESERVED\` (Default: \`AVAILABLE\`) |
+| \`status\` | String | *Optional* | Current status | One of: \`AVAILABLE\`, \`RESERVED\`, \`OCCUPIED\`, \`CLEANING\`, \`MAINTENANCE\`, \`BLOCKED\` (Default: \`AVAILABLE\`) |
 | \`seating_capacity\`| Integer | *Optional* | Max guest capacity | Min 1 (Default: \`2\`) |
 | \`bed_count\` | Integer | *Optional* | Number of beds | Min 1 (Default: \`1\`) |
 | \`bed_type\` | String | *Optional* | Bed description | Default: \`"1 King Bed"\` |
@@ -835,7 +835,7 @@ Queries rooms with multi-criteria filtering, search, and pagination.
 | \`hotel_id\` | Integer | *Optional* | Filter by hotel ID |
 | \`floor\` | Integer | *Optional* | Filter by floor |
 | \`room_type_id\` | Integer | *Optional* | Filter by category ID |
-| \`status\` | String | *Optional* | Status: \`AVAILABLE\`, \`OCCUPIED\`, \`MAINTENANCE\`, \`CLEANING\`, \`RESERVED\` |
+| \`status\` | String | *Optional* | Status: \`AVAILABLE\`, \`RESERVED\`, \`OCCUPIED\`, \`CLEANING\`, \`MAINTENANCE\`, \`BLOCKED\` |
 | \`is_active\` | Boolean | *Optional* | \`true\` or \`false\` |
 | \`search\` | String | *Optional* | Substring match on room number or notes |
 | \`page\` | Integer | *Optional* | Page index (default: 1) |
@@ -975,6 +975,7 @@ Creates a reservation with overlap validation, automated tax/payment computation
 | \`late_checkout_hours\` | Number | *Optional* | Late checkout hours approved (default: 0) |
 | \`gst_rate\` | Number | *Optional* | GST percentage (default: 18.00) |
 | \`paid_amount\` | Number | *Optional* | Advance payment made (default: 0) |
+| \`booking_status\` | String | *Optional* | Stay status. Defaults to \`CHECKED_IN\`. Also \`PENDING\`, \`CONFIRMED\`, \`CHECKED_OUT\`, \`CANCELLED\`, \`NO_SHOW\` |
 | \`notes\` | String | *Optional* | Special requests or front desk remarks |
 | \`images\` | File | *Optional* | Guest ID document photo uploaded directly to S3 |
 | \`signatures\` | File | *Optional* | Digital signature image uploaded directly to S3 |`
@@ -987,7 +988,8 @@ Creates a reservation with overlap validation, automated tax/payment computation
         header: jsonHeaders(),
         url: buildUrl("{{baseUrl}}/api/v1/bookings?hotel_id={{hotelId}}&payment_status=PARTIALLY_PAID&page=1&limit=10", [
           { key: "hotel_id", value: "{{hotelId}}", description: "Filter by Hotel ID" },
-          { key: "payment_status", value: "PARTIALLY_PAID", description: "Filter by status: PENDING, PARTIALLY_PAID, PAID" },
+          { key: "payment_status", value: "PARTIALLY_PAID", description: "Filter by payment status: PENDING, PARTIALLY_PAID, PAID" },
+          { key: "booking_status", value: "CONFIRMED", description: "Filter by stay status: PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, NO_SHOW", disabled: true },
           { key: "room_id", value: "{{roomId}}", description: "Filter by Room ID", disabled: true },
           { key: "booking_number", value: "BK-", description: "Filter by booking code (e.g. BK-17918-999)", disabled: true },
           { key: "primary_guest_name", value: "Aaditya", description: "Filter by primary guest name", disabled: true },
@@ -1007,6 +1009,7 @@ Retrieves paginated bookings with flexible filtering and search criteria.
 | \`booking_number\` | String | *Optional* | Exact booking reference code |
 | \`primary_guest_name\` | String | *Optional* | Guest name |
 | \`payment_status\` | String | *Optional* | \`PENDING\`, \`PARTIALLY_PAID\`, or \`PAID\` |
+| \`booking_status\` | String | *Optional* | \`PENDING\`, \`CONFIRMED\`, \`CHECKED_IN\`, \`CHECKED_OUT\`, \`CANCELLED\`, or \`NO_SHOW\` |
 | \`check_in_from\` | ISO Date | *Optional* | Start date of check-in window |
 | \`check_in_to\` | ISO Date | *Optional* | End date of check-in window |
 | \`check_out_from\` | ISO Date | *Optional* | Start date of check-out window |
@@ -1051,6 +1054,30 @@ Updates booking fields and automatically recalculates tax balances.
 - Supports uploading additional ID proof photos or signature files to AWS S3.
 - If \`paid_amount\` is increased to meet total balance, \`payment_status\` transitions to \`PAID\`.
 - If dates or room are updated, validates that new dates do not collide with another booking.`
+      }
+    },
+    {
+      name: "Update Booking Status",
+      request: {
+        method: "PATCH",
+        header: jsonHeaders(),
+        body: {
+          mode: "raw",
+          raw: JSON.stringify({
+            booking_status: "CHECKED_IN"
+          }, null, 2)
+        },
+        url: buildUrl("{{baseUrl}}/api/v1/bookings/:id/status", [], [
+          { key: "id", value: "{{bookingId}}", description: "Booking ID" }
+        ]),
+        description: `### Update Booking Stay Status
+Updates only \`booking_status\`. Allowed values: \`PENDING\`, \`CONFIRMED\`, \`CHECKED_IN\`, \`CHECKED_OUT\`, \`CANCELLED\`, \`NO_SHOW\`.
+
+- \`CONFIRMED\` marks an available room \`RESERVED\`.
+- \`CHECKED_IN\` records \`actual_check_in\` and marks the room \`OCCUPIED\`.
+- \`CHECKED_OUT\` records \`actual_check_out\` and marks the room \`CLEANING\`.
+- \`CANCELLED\` and \`NO_SHOW\` release the room and no longer block those dates.
+- \`payment_status\` and billed amounts are left unchanged. Checkout settlement still uses \`POST /bookings/:id/check-out\`.`
       }
     },
     {

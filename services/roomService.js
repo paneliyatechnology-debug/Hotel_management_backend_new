@@ -8,7 +8,7 @@ const roomModel = require('../models/roomModel');
 const s3Service = require('./s3Service');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
-const { HTTP_STATUS } = require('../constants');
+const { HTTP_STATUS, ROOM_STATUSES } = require('../constants');
 
 /**
  * Filter uploaded file array to valid image buffers
@@ -284,6 +284,41 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
 };
 
 /**
+ * Update only the room status.
+ * hotel_id comes from the authenticated user token. Price, number, and other fields are not changed.
+ * @param {number|string} id
+ * @param {Object} body - { status }
+ * @param {Object} [reqUser=null]
+ * @returns {Promise<Object>}
+ */
+const updateRoomStatus = async (id, body = {}, reqUser = null) => {
+  const hotelId = resolveHotelId(reqUser);
+
+  const existing = await roomModel.findRoomById(id);
+  if (!existing) {
+    throw new AppError('Physical room not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  if (Number(existing.hotel_id) !== hotelId) {
+    throw new AppError(
+      'Access denied. You do not have permission to modify rooms belonging to another hotel.',
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+
+  const status = body.status ? String(body.status).trim().toUpperCase() : '';
+  if (!ROOM_STATUSES.includes(status)) {
+    throw new AppError(
+      `Status must be one of: ${ROOM_STATUSES.join(', ')}.`,
+      HTTP_STATUS.BAD_REQUEST,
+      [{ field: 'status', message: `Status must be one of: ${ROOM_STATUSES.join(', ')}.` }]
+    );
+  }
+
+  return roomModel.updateRoom(id, { status });
+};
+
+/**
  * Soft delete a physical room
  * @param {number|string} id
  * @param {Object} [reqUser=null]
@@ -312,5 +347,6 @@ module.exports = {
   getRooms,
   getRoomById,
   updateRoom,
+  updateRoomStatus,
   deleteRoom,
 };

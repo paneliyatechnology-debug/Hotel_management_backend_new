@@ -147,6 +147,7 @@ let inactiveRoomId;
 let hotel2RoomId;
 let staffUserId;
 let staffToken;
+let hotel2Token;
 
 const createdBookingIds = [];
 const createdHotelIds = [];
@@ -222,6 +223,30 @@ const setupTestData = async () => {
     is_active: true,
   });
   staffToken = generateAccessToken(staffUserId, 'RECEPTIONIST', hotel1Id);
+
+  let hotel2User = await db('users').where({ email: 'booking_staff_h2@hotel.com' }).first();
+  let hotel2UserId;
+  if (!hotel2User) {
+    const [uid2] = await db('users').insert({
+      name: 'Booking Staff Hotel 2',
+      email: 'booking_staff_h2@hotel.com',
+      password: 'hashed_password_123',
+      role: 'RECEPTIONIST',
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+    hotel2UserId = uid2;
+    createdUserIds.push(uid2);
+  } else {
+    hotel2UserId = hotel2User.id;
+  }
+  await db('users').where({ id: hotel2UserId }).update({
+    hotel_id: hotel2Id,
+    role: 'RECEPTIONIST',
+    is_active: true,
+  });
+  hotel2Token = generateAccessToken(hotel2UserId, 'RECEPTIONIST', hotel2Id);
 
   // 3. Setup Room Type
   let rt = await db('room_types').where({ hotel_id: hotel1Id, name: 'Deluxe Sea View' }).whereNull('deleted_at').first();
@@ -495,6 +520,9 @@ const runTests = async () => {
     assert(booking1.paid_amount === 5000, 'Paid amount is 5000');
     assert(booking1.due_amount === 7036, `Due amount is 7036 (got ${booking1.due_amount})`);
     assert(booking1.payment_status === 'PARTIALLY_PAID', 'Derived payment status is PARTIALLY_PAID');
+    assert(booking1.booking_status === 'CHECKED_IN', 'New booking is created as CHECKED_IN');
+    assert(Boolean(booking1.actual_check_in), 'Create records actual_check_in');
+    assert(booking1.room.status === 'OCCUPIED', 'Create marks the room OCCUPIED');
 
     // Media verification
     assert(Array.isArray(booking1.images) && booking1.images.length >= 1, 'Returns uploaded image URLs in images array');
@@ -589,6 +617,24 @@ const runTests = async () => {
     assert(resFilterNumber.status === 200, 'Filter by booking_number returns 200 OK');
     assert(resFilterNumber.body.data.bookings.length === 1, 'Returns single matching booking');
     assert(resFilterNumber.body.data.bookings[0].id === booking1.id, 'Returned booking ID matches');
+
+    const resFilterStay = await makeRequest('/api/v1/bookings?booking_status=checked_in', {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
+    assert(resFilterStay.status === 200, 'Filter by booking_status returns 200 OK');
+    assert(
+      resFilterStay.body.data.bookings.every((b) => b.booking_status === 'CHECKED_IN'),
+      'All returned bookings have booking_status CHECKED_IN'
+    );
+    assert(
+      resFilterStay.body.data.bookings.some((b) => b.id === booking1.id),
+      'CHECKED_IN filter includes the new booking'
+    );
+
+    const resBadStay = await makeRequest('/api/v1/bookings?booking_status=UNKNOWN', {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
+    assert(resBadStay.status === 400, 'Unknown booking_status filter returns 400 Bad Request');
 
     // Search query
     const resSearch = await makeRequest(`/api/v1/bookings?search=Rahul`);
@@ -688,6 +734,182 @@ const runTests = async () => {
 
     assert(resRebook.status === 201, 'Soft-deleted booking releases room: new booking on same dates succeeds with 201 Created');
     createdBookingIds.push(resRebook.body.data.id);
+
+    // =========================================================================
+    // 9️⃣ Checkout
+    // =========================================================================
+    console.log('\n--- 9. Testing POST /api/v1/bookings/:id/check-out ---');
+
+    const checkoutId = resRebook.body.data.id;
+    const noAuthCheckout = await makeRequest(`/api/v1/bookings/${checkoutId}/check-out`, {
+      method: 'POST',
+      body: {},
+    });
+    assert(noAuthCheckout.status === 401, 'Checkout without a token returns 401 Unauthorized');
+
+    const checkoutRes = await makeRequest(`/api/v1/bookings/${checkoutId}/check-out`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: {
+        paid_amount: 100,
+        late_checkout_charge: 0,
+        notes: 'Guest departed',
+      },
+    });
+    assert(checkoutRes.status === 200, 'POST /api/v1/bookings/:id/check-out returns 200 OK');
+    assert(checkoutRes.body.data.booking_status === 'CHECKED_OUT', 'Checkout sets booking_status CHECKED_OUT');
+    assert(Boolean(checkoutRes.body.data.actual_check_out), 'actual_check_out is recorded');
+    assert(checkoutRes.body.data.room.status === 'CLEANING', 'Room status is CLEANING after checkout');
+    assert(Number(checkoutRes.body.data.paid_amount) >= 100, 'Checkout payment is added to the amount already paid');
+
+    const checkoutAgain = await makeRequest(`/api/v1/bookings/${checkoutId}/check-out`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: {},
+    });
+    assert(checkoutAgain.status === 400, 'Checking out the same booking again returns 400 Bad Request');
+
+    const afterCheckout = await makeRequest('/api/v1/bookings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: {
+        primary_guest_name: 'Guest After Checkout',
+        mobile_number: '9988776600',
+        room_id: room1Id,
+        check_in_date: '2026-11-10T14:00:00Z',
+        check_out_date: '2026-11-12T11:00:00Z',
+      },
+    });
+    assert(afterCheckout.status === 201, 'Checked-out stay no longer blocks the same room and dates');
+    if (afterCheckout.body.data?.id) createdBookingIds.push(afterCheckout.body.data.id);
+
+    // =========================================================================
+    // 10. Booking stay status
+    // =========================================================================
+    console.log('\n--- 10. Testing booking stay status ---');
+
+    await db('rooms').where({ id: room2Id }).update({ status: 'AVAILABLE' });
+
+    const statusBookingRes = await makeRequest('/api/v1/bookings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: {
+        primary_guest_name: 'Status Guest',
+        mobile_number: '9000000001',
+        room_id: room2Id,
+        check_in_date: '2027-03-01T14:00:00Z',
+        check_out_date: '2027-03-03T11:00:00Z',
+      },
+    });
+    assert(statusBookingRes.status === 201, 'Status test booking is created');
+    const statusBooking = statusBookingRes.body.data;
+    if (statusBooking?.id) createdBookingIds.push(statusBooking.id);
+    assert(statusBooking.booking_status === 'CHECKED_IN', 'Created booking_status is CHECKED_IN');
+    assert(statusBooking.room.status === 'OCCUPIED', 'Created booking occupies the room');
+    const paymentBefore = statusBooking.payment_status;
+
+    const noAuthStatus = await makeRequest(`/api/v1/bookings/${statusBooking.id}/status`, {
+      method: 'PATCH',
+      body: { booking_status: 'CONFIRMED' },
+    });
+    assert(noAuthStatus.status === 401, 'Status update without a token returns 401 Unauthorized');
+
+    const otherHotelStatus = await makeRequest(`/api/v1/bookings/${statusBooking.id}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${hotel2Token}` },
+      body: { booking_status: 'CONFIRMED' },
+    });
+    assert(otherHotelStatus.status === 403, 'Status update for another hotel returns 403 Forbidden');
+
+    const badStatus = await makeRequest(`/api/v1/bookings/${statusBooking.id}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: { booking_status: 'HOLD' },
+    });
+    assert(badStatus.status === 400, 'Unknown booking_status returns 400 Bad Request');
+
+    const confirmedRes = await makeRequest(`/api/v1/bookings/${statusBooking.id}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: { booking_status: 'confirmed' },
+    });
+    assert(confirmedRes.status === 200, 'PATCH /api/v1/bookings/:id/status returns 200 OK');
+    assert(confirmedRes.body.data.booking_status === 'CONFIRMED', 'booking_status is stored as CONFIRMED');
+    assert(confirmedRes.body.data.room.status === 'OCCUPIED', 'A checked-in room stays OCCUPIED when the stay status changes to CONFIRMED');
+    assert(confirmedRes.body.data.payment_status === paymentBefore, 'Payment status is unchanged by the stay-status update');
+    assert(confirmedRes.body.data.primary_guest_name === 'Status Guest', 'Other booking fields stay unchanged');
+
+    const confirmedList = await makeRequest('/api/v1/bookings?booking_status=CONFIRMED', {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
+    assert(confirmedList.status === 200, 'GET filter booking_status=CONFIRMED returns 200 OK');
+    assert(
+      confirmedList.body.data.bookings.every((b) => b.booking_status === 'CONFIRMED'),
+      'CONFIRMED filter returns only confirmed bookings'
+    );
+    assert(
+      confirmedList.body.data.bookings.some((b) => b.id === statusBooking.id),
+      'CONFIRMED filter includes the updated booking'
+    );
+
+    const checkedInRes = await makeRequest(`/api/v1/bookings/${statusBooking.id}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: { booking_status: 'CHECKED_IN' },
+    });
+    assert(checkedInRes.status === 200, 'Status can be updated to CHECKED_IN');
+    assert(Boolean(checkedInRes.body.data.actual_check_in), 'CHECKED_IN records actual_check_in');
+    assert(checkedInRes.body.data.room.status === 'OCCUPIED', 'CHECKED_IN marks the room OCCUPIED');
+
+    const cancelledRes = await makeRequest(`/api/v1/bookings/${statusBooking.id}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: { booking_status: 'CANCELLED' },
+    });
+    assert(cancelledRes.status === 200, 'Status can be updated to CANCELLED');
+    assert(cancelledRes.body.data.booking_status === 'CANCELLED', 'booking_status is CANCELLED');
+    assert(cancelledRes.body.data.room.status === 'AVAILABLE', 'Cancelling the stay releases the room');
+
+    const cancelledList = await makeRequest('/api/v1/bookings?booking_status=cancelled', {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
+    assert(
+      cancelledList.body.data.bookings.some((b) => b.id === statusBooking.id),
+      'booking_status filter matches CANCELLED case-insensitively'
+    );
+
+    const rebookAfterCancel = await makeRequest('/api/v1/bookings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: {
+        primary_guest_name: 'Guest After Cancel',
+        mobile_number: '9000000002',
+        room_id: room2Id,
+        check_in_date: '2027-03-01T14:00:00Z',
+        check_out_date: '2027-03-03T11:00:00Z',
+        booking_status: 'CONFIRMED',
+      },
+    });
+    assert(rebookAfterCancel.status === 201, 'CANCELLED stay no longer blocks the same room and dates');
+    const noShowBooking = rebookAfterCancel.body.data;
+    if (noShowBooking?.id) createdBookingIds.push(noShowBooking.id);
+    assert(noShowBooking.booking_status === 'CONFIRMED', 'Create accepts an explicit booking_status');
+
+    const noShowRes = await makeRequest(`/api/v1/bookings/${noShowBooking.id}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${staffToken}` },
+      body: { booking_status: 'NO_SHOW' },
+    });
+    assert(noShowRes.status === 200, 'Status can be updated to NO_SHOW');
+    assert(noShowRes.body.data.room.status === 'AVAILABLE', 'NO_SHOW releases a reserved room');
+
+    const noShowList = await makeRequest('/api/v1/bookings?booking_status=NO_SHOW', {
+      headers: { Authorization: `Bearer ${staffToken}` },
+    });
+    assert(
+      noShowList.body.data.bookings.some((b) => b.id === noShowBooking.id),
+      'booking_status filter returns NO_SHOW bookings'
+    );
 
     // =========================================================================
     // 8️⃣ Route Prefix Aliases

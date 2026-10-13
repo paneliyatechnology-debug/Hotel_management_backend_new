@@ -43,12 +43,15 @@ const MESSAGES = {
   ROOM_TYPES_RETRIEVED_SUCCESS: 'Room categories retrieved successfully.',
   ROOM_CREATED_SUCCESS: 'Physical room created successfully.',
   ROOM_UPDATED_SUCCESS: 'Physical room updated successfully.',
+  ROOM_STATUS_UPDATED_SUCCESS: 'Room status updated successfully.',
   ROOM_DELETED_SUCCESS: 'Physical room deleted successfully.',
   ROOM_RETRIEVED_SUCCESS: 'Physical room retrieved successfully.',
   ROOMS_RETRIEVED_SUCCESS: 'Physical rooms retrieved successfully.',
   BOOKING_CREATED_SUCCESS: 'Booking created successfully.',
   BOOKING_UPDATED_SUCCESS: 'Booking updated successfully.',
   BOOKING_DELETED_SUCCESS: 'Booking deleted successfully.',
+  BOOKING_CHECKED_OUT_SUCCESS: 'Checkout completed successfully. Room is now marked for cleaning.',
+  BOOKING_STATUS_UPDATED_SUCCESS: 'Booking status updated successfully.',
   BOOKING_RETRIEVED_SUCCESS: 'Booking retrieved successfully.',
   BOOKINGS_RETRIEVED_SUCCESS: 'Bookings retrieved successfully.',
   USER_CREATED_SUCCESS: 'User created successfully.',
@@ -80,9 +83,45 @@ const TOKEN_TYPES = {
   REFRESH: 'REFRESH',
 };
 
+// ==========================================
+// Physical room statuses
+// Used by room create, update, list filters, and PATCH /rooms/:id/status.
+// ==========================================
+
+const ROOM_STATUSES = [
+  'AVAILABLE',
+  'RESERVED',
+  'OCCUPIED',
+  'CLEANING',
+  'MAINTENANCE',
+  'BLOCKED',
+];
+
+// ==========================================
+// Booking stay statuses
+// This is the guest's stay, not the bill.
+// payment_status stays PENDING | PARTIALLY_PAID | PAID.
+// Create defaults to CHECKED_IN unless the client sends another value.
+// ==========================================
+
+const BOOKING_STATUSES = [
+  'PENDING',
+  'CONFIRMED',
+  'CHECKED_IN',
+  'CHECKED_OUT',
+  'CANCELLED',
+  'NO_SHOW',
+];
+
+// These stays no longer block the room, so the same dates can be booked again.
+const NON_BLOCKING_BOOKING_STATUSES = ['CHECKED_OUT', 'CANCELLED', 'NO_SHOW'];
+
 module.exports = {
   HTTP_STATUS,
   MESSAGES,
   ROLE_CODES,
   TOKEN_TYPES,
+  ROOM_STATUSES,
+  BOOKING_STATUSES,
+  NON_BLOCKING_BOOKING_STATUSES,
 };

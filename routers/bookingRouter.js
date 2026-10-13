@@ -5,7 +5,9 @@
  * 2. GET /api/v1/bookings – List bookings with pagination and filters (hotel, room, booking number, guest, mobile, status, dates).
  * 3. GET /api/v1/bookings/:id – Get complete booking details.
  * 4. PUT /api/v1/bookings/:id – Update booking details and relations.
- * 5. DELETE /api/v1/bookings/:id – Soft-delete a booking.
+ * 5. POST /api/v1/bookings/:id/check-out – Check out a booking and mark the room for cleaning.
+ * 6. PATCH /api/v1/bookings/:id/status – Update only the booking stay status.
+ * 7. DELETE /api/v1/bookings/:id – Soft-delete a booking.
  *
  * Follows TradeNexa router architecture.
  */
@@ -15,8 +17,10 @@ const {
   createBookingValidator,
   updateBookingValidator,
   getBookingByIdValidator,
+  checkOutBookingValidator,
   deleteBookingValidator,
   getBookingsQueryValidator,
+  updateBookingStatusValidator,
 } = require('../middleware/bookingValidator');
 const { validate } = require('../middleware/validation');
 const { optionalAuthenticate } = require('../middleware/auth');
@@ -76,6 +80,30 @@ router.put(
   updateBookingValidator,
   validate,
   bookingController.updateBooking
+);
+
+/**
+ * POST /api/v1/bookings/:id/check-out
+ * Check the guest out and mark the room CLEANING
+ */
+router.post(
+  '/:id/check-out',
+  optionalAuthenticate,
+  checkOutBookingValidator,
+  validate,
+  bookingController.checkOutBooking
+);
+
+/**
+ * PATCH /api/v1/bookings/:id/status
+ * Update only the booking stay status
+ */
+router.patch(
+  '/:id/status',
+  optionalAuthenticate,
+  updateBookingStatusValidator,
+  validate,
+  bookingController.updateBookingStatus
 );
 
 /**

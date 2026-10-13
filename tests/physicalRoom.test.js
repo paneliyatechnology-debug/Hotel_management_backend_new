@@ -548,6 +548,44 @@ const runTests = async () => {
     assert(updateRes.body.data.custom_price_per_night === 5200, 'Custom price updated to 5200');
     assert(updateRes.body.data.notes === 'Guest checked in today', 'Notes updated');
 
+    const statusRes = await sendRequest(
+      'PATCH',
+      `/api/v1/rooms/${room101Id}/status`,
+      { status: 'blocked' },
+      auth(hotel1Token)
+    );
+    assert(statusRes.status === 200, 'PATCH /api/v1/rooms/:id/status returns 200 OK');
+    assert(statusRes.body.data.status === 'BLOCKED', 'Room status is updated to BLOCKED');
+    assert(statusRes.body.data.room_number === '101', 'Status update does not change the room number');
+
+    const invalidStatusRes = await sendRequest(
+      'PATCH',
+      `/api/v1/rooms/${room101Id}/status`,
+      { status: 'OUT_OF_SERVICE' },
+      auth(hotel1Token)
+    );
+    assert(invalidStatusRes.status === 400, 'PATCH with an unknown status returns 400 Bad Request');
+
+    const otherHotelStatusRes = await sendRequest(
+      'PATCH',
+      `/api/v1/rooms/${room101Id}/status`,
+      { status: 'AVAILABLE' },
+      auth(hotel2Token)
+    );
+    assert(otherHotelStatusRes.status === 403, 'PATCH status for another hotel returns 403 Forbidden');
+
+    const blockedListRes = await sendRequest(
+      'GET',
+      '/api/v1/rooms?status=BLOCKED',
+      null,
+      auth(hotel1Token)
+    );
+    assert(blockedListRes.status === 200, 'GET with status=BLOCKED returns 200 OK');
+    assert(
+      blockedListRes.body.data.rooms.some((r) => r.id === room101Id && r.status === 'BLOCKED'),
+      'BLOCKED room is returned by the status filter'
+    );
+
     // Append image via multipart
     const putMultipart = buildMultipartPayload(
       { notes: 'Appended second photo' },

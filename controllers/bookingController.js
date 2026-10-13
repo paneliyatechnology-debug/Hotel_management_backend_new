@@ -81,6 +81,42 @@ const updateBooking = async (req, res, next) => {
 };
 
 /**
+ * POST /api/v1/bookings/:id/check-out
+ * Check the guest out, settle optional payment, and mark the room for cleaning
+ */
+const checkOutBooking = async (req, res, next) => {
+  try {
+    const data = await bookingService.checkOutBooking(req.params.id, req.body, req.user);
+    return success(
+      res,
+      MESSAGES.BOOKING_CHECKED_OUT_SUCCESS,
+      data,
+      HTTP_STATUS.OK
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * PATCH /api/v1/bookings/:id/status
+ * Update only the booking stay status
+ */
+const updateBookingStatus = async (req, res, next) => {
+  try {
+    const data = await bookingService.updateBookingStatus(req.params.id, req.body, req.user);
+    return success(
+      res,
+      MESSAGES.BOOKING_STATUS_UPDATED_SUCCESS,
+      data,
+      HTTP_STATUS.OK
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * DELETE /api/v1/bookings/:id
  * Soft-delete a booking
  */
@@ -103,5 +139,7 @@ module.exports = {
   getBookings,
   getBookingById,
   updateBooking,
+  checkOutBooking,
+  updateBookingStatus,
   deleteBooking,
 };
