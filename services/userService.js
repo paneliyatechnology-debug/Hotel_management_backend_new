@@ -182,7 +182,7 @@ const createUser = async (payload, req_user) => {
   const portalUrl = `${adminBaseUrl}/login`;
   const setupUrl = `${adminBaseUrl}/reset-password?token=${setupToken}`;
 
-  let hotelName = 'The Grand Royale Cloud';
+  let hotelName = 'MYOWNPMS';
   if (hotel_id) {
     try {
       const hotelRecord = await hotelModel.findHotelById(hotel_id);

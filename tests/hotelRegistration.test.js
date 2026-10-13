@@ -241,7 +241,7 @@ const runTests = async () => {
     assert(dbHotel.owner_id === data5.data.admin.id, 'Database hotel record stores owner_id foreign key');
     assert(dbHotel.owner_name === undefined, 'Database hotel table no longer has owner_name column');
 
-    assert(data5.data.admin.mustChangePassword === true, 'mustChangePassword is true for temporary password flow');
+    assert(data5.data.admin.mustChangePassword === undefined, 'mustChangePassword key is removed from admin response');
 
     // Verify PasswordResetToken setup token was generated
     const setupTokenRecord5 = await db('password_reset_tokens').where({ user_id: data5.data.admin.id }).first();
@@ -284,7 +284,7 @@ const runTests = async () => {
     const data6 = await res6.json();
 
     assert(res6.status === 201, 'Returns 201 Created on registration without password (via /hotels/register)');
-    assert(data6.data.admin.mustChangePassword === true, 'mustChangePassword is true for auto-generated password');
+    assert(data6.data.admin.mustChangePassword === undefined, 'mustChangePassword key is removed from admin response');
     assert(data6.data.admin.password === undefined, 'Does not expose temporary password in API response');
 
     // Verify database record has secure bcrypt hash NOT derived from owner name

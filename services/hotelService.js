@@ -373,7 +373,6 @@ const registerHotel = async (payload, res = null, files = []) => {
       role: createdAdminUser.role,
       status: createdAdminUser.status,
       hotelId: createdHotel.id,
-      mustChangePassword: Boolean(createdAdminUser.must_change_password),
     },
     trial: {
       startDate: trialStartDate,

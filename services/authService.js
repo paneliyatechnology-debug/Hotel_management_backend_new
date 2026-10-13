@@ -104,7 +104,6 @@ const login = async (email, password, res) => {
       role: user.role,
       phone: user.phone || '',
       status: user.status,
-      mustChangePassword: Boolean(user.must_change_password),
     },
   };
 };

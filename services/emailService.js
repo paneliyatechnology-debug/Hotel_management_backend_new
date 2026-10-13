@@ -34,7 +34,7 @@ const sendEmail = async ({ to, subject, html, text, toName }) => {
     return { success: true, simulated: true };
   }
 
-  const senderName = process.env.FROM_NAME || process.env.APP_NAME || 'The Grand Royale Cloud';
+  const senderName = process.env.FROM_NAME || process.env.APP_NAME || 'MYOWNPMS';
   const senderEmail = (
     process.env.BREVO_SENDER_EMAIL ||
     process.env.FROM_EMAIL ||
@@ -95,7 +95,7 @@ const sendPasswordResetLinkEmail = async (to, userName, resetUrl, expiryMinutes 
   return sendEmail({
     to,
     toName: userName,
-    subject: 'Reset Your Password - The Grand Royale Cloud',
+    subject: 'Reset Your Password - MYOWNPMS',
     html: htmlContent,
     text: `Hello ${userName},\n\nPlease use the following link to reset your password:\n${resetUrl}\n\nThis link is valid for ${expiryMinutes} minutes. If you did not request this, please ignore this email.`,
   });
@@ -121,9 +121,9 @@ const sendHotelRegisteredEmail = async (data) => {
   return sendEmail({
     to: data.adminEmail,
     toName: data.ownerName,
-    subject: `🎉 Congratulations! ${data.hotelName} Registered - Your Admin Temporary Password & Password Setup Link`,
+    subject: `Welcome to MYOWNPMS – ${data.hotelName} Account & Login Details`,
     html: htmlContent,
-    text: `Congratulations ${data.ownerName}!\n\nYour property ${data.hotelName} has been successfully registered on The Grand Royale Cloud.\n\nAdmin Email: ${data.adminEmail}\nTemporary Password: ${data.temporaryPassword}\nPassword Reset Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\nTrial Period: ${data.trialStartDate} to ${data.trialEndDate}\n\nPlease use your temporary password to log in or click the password reset link above to set your permanent password.`,
+    text: `Welcome ${data.ownerName},\n\nYour property ${data.hotelName} has been successfully registered on MYOWNPMS.\n\nAdmin Email: ${data.adminEmail}\nTemporary Password: ${data.temporaryPassword}\nPassword Setup Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\nTrial Period: ${data.trialStartDate} to ${data.trialEndDate}\n\nYou can log in directly with your temporary password or use the setup link to set your permanent password.`,
   });
 };
 
@@ -146,9 +146,9 @@ const sendStaffUserCreatedEmail = async (data) => {
   return sendEmail({
     to: data.email,
     toName: data.userName,
-    subject: `🎉 Welcome to ${data.hotelName} - Your Staff Login Password & Account Setup Link`,
+    subject: `Welcome to ${data.hotelName} – Your Staff Login Details`,
     html: htmlContent,
-    text: `Hello ${data.userName},\n\nYour staff account (${data.role}) has been created for ${data.hotelName}.\n\nLogin Email: ${data.email}\nTemporary Password: ${data.temporaryPassword}\nPassword Reset Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\n\nPlease use your temporary password to log in or click the password reset link above to set your permanent password.`,
+    text: `Hello ${data.userName},\n\nYour staff account (${data.role}) has been created for ${data.hotelName}.\n\nLogin Email: ${data.email}\nTemporary Password: ${data.temporaryPassword}\nPassword Setup Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\n\nYou can log in directly with your temporary password or use the setup link to set your permanent password.`,
   });
 };
 
