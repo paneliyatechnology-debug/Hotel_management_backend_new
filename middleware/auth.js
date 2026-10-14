@@ -3,7 +3,7 @@
  * Enforces JWT authentication, Role-Based Access Control (RBAC),
  * and Multi-Tenant Hotel ID Isolation.
  */
-const { verifyAccessToken } = require('../utils/jwt');
+const { verifyAccessToken, clearAuthCookies } = require('../utils/jwt');
 const userModel = require('../models/userModel');
 const { assertHotelActive } = require('../utils/hotelScope');
 const { getRequestMeta } = require('../utils/requestMeta');
@@ -94,8 +94,17 @@ const authenticateUser = async (req, res, next) => {
       );
     }
 
-    // A deactivated hotel blocks all of its users on every protected API, even with a valid token.
-    await assertHotelActive(user);
+    // Deactivated hotel, inactive plan, or expired plan: block every protected API, clear auth
+    // cookies the same way logout does, and tell the frontend to log out (force_logout). This
+    // covers an old access token that was issued before the plan ended.
+    try {
+      await assertHotelActive(user);
+    } catch (hotelErr) {
+      if (hotelErr.forceLogout) {
+        clearAuthCookies(res);
+      }
+      throw hotelErr;
+    }
 
     // request_meta (caller address and browser) travels with the user so services can write audit logs.
     req.user = { ...user, request_meta: getRequestMeta(req) };

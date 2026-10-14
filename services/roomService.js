@@ -4,6 +4,7 @@
  * composite uniqueness per hotel and floor, S3 image uploads, and soft deletion.
  */
 const roomModel = require('../models/roomModel');
+const hotelModel = require('../models/hotelModel');
 const s3Service = require('./s3Service');
 const auditService = require('./auditService');
 const { AppError } = require('../utils/response');
@@ -16,6 +17,30 @@ const {
   AUDIT_ACTIONS,
   AUDIT_ENTITIES,
 } = require('../constants');
+
+/**
+ * Check that the hotel's subscription plan allows one more room.
+ * Plan active/expired access is enforced by assertHotelActive on every request. This check only
+ * enforces the plan's max_rooms. A hotel with no plan has no limit.
+ * @param {number} hotelId
+ * @returns {Promise<void>}
+ */
+const assertPlanAllowsNewRoom = async (hotelId) => {
+  const subscription = await hotelModel.findHotelSubscription(hotelId);
+  if (!subscription || !subscription.subscription_plan_id) return;
+
+  const maxRooms = Number(subscription.plan_max_rooms);
+  if (!(maxRooms > 0)) return;
+
+  const roomCount = await roomModel.countRoomsByHotel(hotelId);
+  if (roomCount >= maxRooms) {
+    const planName = subscription.plan_name || 'current';
+    throw new AppError(
+      `Your ${planName} plan allows up to ${maxRooms} rooms and this hotel already has ${roomCount}. Please upgrade your plan to add more rooms.`,
+      HTTP_STATUS.FORBIDDEN
+    );
+  }
+};
 
 /**
  * Create a new physical room
@@ -55,7 +80,10 @@ const createRoom = async (body, files = [], reqUser = null) => {
     throw new AppError(verifyResult.error, HTTP_STATUS.BAD_REQUEST);
   }
 
-  // 2. Room numbers are unique per hotel and floor. Soft-deleted rooms are ignored.
+  // 2. The subscription plan must allow one more room.
+  await assertPlanAllowsNewRoom(hotelId);
+
+  // 3. Room numbers are unique per hotel and floor. Soft-deleted rooms are ignored.
   // The same room number is allowed in a different hotel.
   const duplicate = await roomModel.findRoomByHotelFloorAndNumber(hotelId, floor, roomNumber);
   if (duplicate) {
@@ -65,7 +93,7 @@ const createRoom = async (body, files = [], reqUser = null) => {
     );
   }
 
-  // 3. Process image uploads to S3
+  // 4. Process image uploads to S3
   const imageFiles = extractImageFiles(files);
   let imageRecords = [];
   if (imageFiles.length > 0) {
@@ -79,7 +107,7 @@ const createRoom = async (body, files = [], reqUser = null) => {
     }
   }
 
-  // 4. Parse amenities
+  // 5. Parse amenities
   let amenities = [];
   if (body.amenities) {
     if (Array.isArray(body.amenities)) {
@@ -93,7 +121,7 @@ const createRoom = async (body, files = [], reqUser = null) => {
     }
   }
 
-  // 5. Create room in database
+  // 6. Create room in database
   const newRoom = await roomModel.createRoom(
     {
       hotel_id: hotelId,

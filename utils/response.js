@@ -17,12 +17,17 @@ class AppError extends Error {
    * @param {string} message - Human-readable error message
    * @param {number} [statusCode=500] - HTTP status code
    * @param {Array<{field?: string, message: string}>} [errors=[]] - Field-level validation errors
+   * @param {Object} [options={}]
+   * @param {boolean} [options.forceLogout=false] - Tell the frontend to clear the session and log out
+   * @param {string|null} [options.code=null] - Stable machine-readable error code
    */
-  constructor(message, statusCode = HTTP_STATUS.INTERNAL_SERVER_ERROR, errors = []) {
+  constructor(message, statusCode = HTTP_STATUS.INTERNAL_SERVER_ERROR, errors = [], options = {}) {
     super(message);
     this.statusCode = statusCode;
     this.errors = errors;
     this.isOperational = true;
+    this.forceLogout = Boolean(options.forceLogout);
+    this.code = options.code || null;
   }
 }
 

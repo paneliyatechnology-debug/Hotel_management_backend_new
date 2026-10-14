@@ -166,6 +166,10 @@ const login = async (email, password, res, requestMeta) => {
     return await verifyAndLogin(user, password, res, requestMeta);
   } catch (err) {
     if (err instanceof AppError) {
+      // Expired/inactive plan or deactivated hotel: clear any leftover session cookies (same as logout).
+      if (err.forceLogout) {
+        clearAuthCookies(res);
+      }
       await recordUserEvent(
         user,
         requestMeta,
@@ -218,7 +222,15 @@ const refreshToken = async (token, res) => {
     throw new AppError('Account is deactivated or disabled.', HTTP_STATUS.FORBIDDEN);
   }
 
-  await assertHotelActive(user);
+  try {
+    await assertHotelActive(user);
+  } catch (hotelErr) {
+    // Same as logout: drop cookies so the frontend cannot keep refreshing after the plan ended.
+    if (hotelErr.forceLogout) {
+      clearAuthCookies(res);
+    }
+    throw hotelErr;
+  }
 
   const newAccessToken = generateAccessToken(user.id, user.role, user.hotel_id);
   const newRefreshToken = generateRefreshToken(user.id, user.hotel_id);

@@ -315,6 +315,8 @@ The password is never returned.`,
       description: `### POST /api/v1/auth/refresh-token
 Public. Issues a new access token and a new refresh token.
 
+If the hotel is deactivated or its subscription plan is inactive or expired, this returns 403 with \`force_logout: true\` and \`code: "FORCE_LOGOUT"\`, clears auth cookies, and does not issue new tokens. The frontend should clear local tokens and send the user to login.
+
 The body key is \`refresh_token\` (snake_case). A browser may instead send the \`refreshToken\` cookie. Postman should send the body key.
 
 **Body keys**
@@ -860,6 +862,8 @@ ${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
 Do not send \`hotel_id\`. The category must already exist in this hotel.
 
 A duplicate \`room_number\` on the same floor returns 409.
+
+The hotel's subscription plan must allow one more room. A request is rejected with 403 when the hotel already has as many rooms as the plan's \`max_rooms\`. Deleted rooms are not counted. Updating or deleting rooms is not affected. A hotel whose plan is not active or has ended cannot call this API at all: every protected request returns 403 until a super admin renews the plan.
 
 **Body keys** are described on each form row.
 
@@ -1797,6 +1801,8 @@ A super admin is never blocked and can still read and edit a deactivated hotel.
 | \`is_active\` | boolean | Yes | \`true\` or \`false\`. |
 
 **Blocked users see:** 403 with the message \`This hotel has been deactivated. Please contact the platform administrator.\`
+
+The same full-hotel block applies when \`subscription_plan_active\` is false or \`subscription_plan_end_date\` has passed. Renew the plan with **Update hotel**.
 
 ${idNote('Use **Get hotel** to read \`is_active\`.')}`,
     }),

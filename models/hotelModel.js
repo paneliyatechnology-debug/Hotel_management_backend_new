@@ -175,11 +175,42 @@ const findHotelById = async (id) => {
 /**
  * Minimal state used to decide whether a hotel's users may keep working.
  * Includes soft-deleted hotels so they can be told apart from missing ones.
+ * Also loads the subscription window so an expired or inactive plan can block access.
  * @param {number|string} id
- * @returns {Promise<{ is_active: number|boolean, deleted_at: Date|null }|undefined>}
+ * @returns {Promise<{ is_active: number|boolean, deleted_at: Date|null, subscription_plan_id: number|null, subscription_plan_active: number|boolean, subscription_plan_end_date: Date|null, plan_name: string|null }|undefined>}
  */
 const findHotelAccessState = (id) =>
-  db('hotels').where({ id }).select('is_active', 'deleted_at').first();
+  db('hotels')
+    .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+    .where('hotels.id', id)
+    .select(
+      'hotels.is_active',
+      'hotels.deleted_at',
+      'hotels.subscription_plan_id',
+      'hotels.subscription_plan_active',
+      'hotels.subscription_plan_end_date',
+      'subscription_plans.name as plan_name'
+    )
+    .first();
+
+/**
+ * The hotel's subscription plan and its limits, used to decide whether it may add rooms.
+ * An archived plan is still returned: hotels already on it keep its limits.
+ * @param {number|string} id - Hotel id
+ * @returns {Promise<{ subscription_plan_id: number|null, subscription_plan_active: number|boolean, subscription_plan_end_date: Date|null, plan_name: string|null, plan_max_rooms: number|null }|undefined>}
+ */
+const findHotelSubscription = (id) =>
+  db('hotels')
+    .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+    .where('hotels.id', id)
+    .select(
+      'hotels.subscription_plan_id',
+      'hotels.subscription_plan_active',
+      'hotels.subscription_plan_end_date',
+      'subscription_plans.name as plan_name',
+      'subscription_plans.max_rooms as plan_max_rooms'
+    )
+    .first();
 
 // Columns a super admin may sort the hotel list by.
 const HOTEL_SORT_FIELDS = ['id', 'name', 'city', 'is_active', 'created_at', 'updated_at'];
@@ -351,6 +382,7 @@ module.exports = {
   formatHotel,
   findHotelById,
   findHotelAccessState,
+  findHotelSubscription,
   findHotels,
   findHotelBySlug,
   slugExists,

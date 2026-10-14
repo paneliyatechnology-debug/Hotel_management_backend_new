@@ -42,9 +42,14 @@ const resolveHotelId = (reqUser) => {
   return hotelId;
 };
 
+// Frontend should clear the session and call logout when this code is returned.
+const FORCE_LOGOUT = { forceLogout: true, code: 'FORCE_LOGOUT' };
+
 /**
- * Block every user of a hotel that a super admin has deactivated (or deleted).
- * Super admins have no hotel and are never blocked.
+ * Block every user of a hotel that a super admin has deactivated or deleted, or whose
+ * subscription plan is switched off or has ended. Super admins have no hotel and are never blocked.
+ * Used by auth middleware on every protected API, and by login / refresh-token / password reset.
+ * Failures set force_logout so the frontend clears the session (including after a refresh-token attempt).
  * @param {Object|null|undefined} user - User row with role and hotel_id
  * @returns {Promise<void>}
  */
@@ -57,7 +62,33 @@ const assertHotelActive = async (user) => {
   if (!isActive) {
     throw new AppError(
       'This hotel has been deactivated. Please contact the platform administrator.',
-      HTTP_STATUS.FORBIDDEN
+      HTTP_STATUS.FORBIDDEN,
+      [],
+      FORCE_LOGOUT
+    );
+  }
+
+  // A hotel with no plan assigned is left open. The rest must have an active, unexpired plan.
+  if (!hotel.subscription_plan_id) return;
+
+  const planName = hotel.plan_name || 'current';
+
+  if (!hotel.subscription_plan_active) {
+    throw new AppError(
+      `Your ${planName} plan is not active. Please renew your plan to continue.`,
+      HTTP_STATUS.FORBIDDEN,
+      [],
+      FORCE_LOGOUT
+    );
+  }
+
+  const endDate = hotel.subscription_plan_end_date;
+  if (endDate && new Date(endDate).getTime() < Date.now()) {
+    throw new AppError(
+      `Your ${planName} plan ended on ${new Date(endDate).toISOString().slice(0, 10)}. Please renew your plan to continue.`,
+      HTTP_STATUS.FORBIDDEN,
+      [],
+      FORCE_LOGOUT
     );
   }
 };

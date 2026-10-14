@@ -5,6 +5,7 @@
  * Failed changes made by a signed-in user are also written to the audit trail.
  */
 const auditService = require('../services/auditService');
+const { clearAuthCookies } = require('../utils/jwt');
 const { HTTP_STATUS } = require('../constants');
 
 /**
@@ -82,11 +83,20 @@ const errorHandler = async (err, req, res, _next) => {
     errors,
   });
 
-  return res.status(statusCode).json({
+  // Hotel deactivated / plan expired or inactive: drop cookies so a refresh-token flow cannot stay signed in.
+  if (err.forceLogout) {
+    clearAuthCookies(res);
+  }
+
+  const body = {
     success: false,
     message,
     errors,
-  });
+  };
+  if (err.forceLogout) body.force_logout = true;
+  if (err.code) body.code = err.code;
+
+  return res.status(statusCode).json(body);
 };
 
 module.exports = errorHandler;

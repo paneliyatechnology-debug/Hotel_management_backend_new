@@ -192,6 +192,10 @@ Error (validation, `AppError` and database errors):
 }
 ```
 
+When the hotel is deactivated or its plan is inactive / expired, the same error shape also includes
+`"force_logout": true` and `"code": "FORCE_LOGOUT"`. Auth cookies are cleared. The frontend should
+log the user out.
+
 Database constraint errors map to `409 Conflict` (duplicates) or `400` (foreign keys).
 
 ---
@@ -340,16 +344,25 @@ append-only. The API is read-only.
 
 **Booking and rooms**
 
+- Creating a room is limited by the hotel's subscription plan. It returns `403` when the hotel already
+  has `max_rooms` rooms (deleted rooms are not counted). Updating and deleting rooms is not affected.
 - A new booking defaults to `CHECKED_IN` and sets its rooms to `OCCUPIED`.
 - A room cannot be booked twice for overlapping dates. `CHECKED_OUT`, `CANCELLED` and `NO_SHOW` stays do not block dates.
 - After check-out the room becomes `CLEANING`, then `AVAILABLE` again automatically (see [Scheduled Jobs](#scheduled-jobs)).
 - Deleted rooms still show their number, floor and type on past bookings.
 
-**Hotel active status**
+**Hotel active status and subscription access**
 
 - Every hotel starts with `is_active = true`. A super admin can switch it off with `PATCH /hotels/:id/active-status`.
 - While a hotel is off, all of its users get `403` on login, refresh token, password reset and every protected API (even with a token issued earlier), and their sockets are disconnected. Nothing is deleted.
-- Switching it back on restores access. Super admins are never blocked.
+- The same block applies when the hotel's subscription plan is switched off (`subscription_plan_active = false`)
+  or its end date has passed. Users see a message asking them to renew the plan. Super admins are never blocked
+  and can renew the plan with `PUT /hotels/:id`. A missing end date means the plan never expires.
+- These blocks are enforced in auth middleware on every protected API, and also on login, refresh-token and
+  password reset. When an old access or refresh token is used after the plan ends, the server clears auth
+  cookies the same way `POST /auth/logout` does, and the error includes `"force_logout": true` and
+  `"code": "FORCE_LOGOUT"`. The frontend should clear local tokens and redirect to login.
+- Switching the hotel or plan back on restores access.
 
 **Billing**
 

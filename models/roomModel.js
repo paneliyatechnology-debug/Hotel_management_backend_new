@@ -167,6 +167,22 @@ const findRoomByHotelFloorAndNumber = async (
 };
 
 /**
+ * Count the hotel's rooms. Soft-deleted rooms are not counted.
+ * @param {number|string} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const countRoomsByHotel = async (hotelId, client = db) => {
+  const result = await client('rooms')
+    .where({ hotel_id: hotelId })
+    .whereNull('deleted_at')
+    .count('id as total')
+    .first();
+
+  return Number(result?.total || 0);
+};
+
+/**
  * Find physical room by ID with related hotel & room_type details
  * @param {number|string} id
  * @param {Object} [options={}]
@@ -475,6 +491,7 @@ module.exports = {
   getImagesByRoomIds,
   verifyHotelAndRoomType,
   findRoomByHotelFloorAndNumber,
+  countRoomsByHotel,
   findRoomById,
   findRooms,
   createRoom,

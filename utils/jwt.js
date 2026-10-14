@@ -89,8 +89,11 @@ const clearAuthCookies = (res) => {
     expires: new Date(0),
   };
 
+  // Clear both naming styles used by clients and older cookies.
   res.cookie('accessToken', '', clearOptions);
   res.cookie('refreshToken', '', clearOptions);
+  res.cookie('access_token', '', clearOptions);
+  res.cookie('refresh_token', '', clearOptions);
 };
 
 module.exports = {
