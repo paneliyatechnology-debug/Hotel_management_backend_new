@@ -4,7 +4,7 @@
  * Standardizes responses using success() helper and routes errors to next(err).
  */
 const subscriptionPlanService = require('../services/subscriptionPlanService');
-const { success } = require('../utils/response');
+const { success, successMessage } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
@@ -13,13 +13,8 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const createPlan = async (req, res, next) => {
   try {
-    const data = await subscriptionPlanService.createSubscriptionPlan(req.body);
-    return success(
-      res,
-      MESSAGES.PLAN_CREATED_SUCCESS,
-      data,
-      HTTP_STATUS.CREATED
-    );
+    await subscriptionPlanService.createSubscriptionPlan(req.body);
+    return successMessage(res, MESSAGES.PLAN_CREATED_SUCCESS, HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);
   }
@@ -67,13 +62,8 @@ const getPlanById = async (req, res, next) => {
  */
 const updatePlan = async (req, res, next) => {
   try {
-    const data = await subscriptionPlanService.updateSubscriptionPlan(req.params.id, req.body);
-    return success(
-      res,
-      MESSAGES.PLAN_UPDATED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await subscriptionPlanService.updateSubscriptionPlan(req.params.id, req.body);
+    return successMessage(res, MESSAGES.PLAN_UPDATED_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -85,13 +75,8 @@ const updatePlan = async (req, res, next) => {
  */
 const deletePlan = async (req, res, next) => {
   try {
-    const data = await subscriptionPlanService.deleteSubscriptionPlan(req.params.id);
-    return success(
-      res,
-      MESSAGES.PLAN_DELETED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await subscriptionPlanService.deleteSubscriptionPlan(req.params.id);
+    return successMessage(res, MESSAGES.PLAN_DELETED_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -103,13 +88,8 @@ const deletePlan = async (req, res, next) => {
  */
 const resetDefaults = async (req, res, next) => {
   try {
-    const data = await subscriptionPlanService.resetDefaultPlans();
-    return success(
-      res,
-      'Standard 6 Subscription Plans restored successfully.',
-      data,
-      HTTP_STATUS.OK
-    );
+    await subscriptionPlanService.resetDefaultPlans();
+    return successMessage(res, 'Standard 6 Subscription Plans restored successfully.');
   } catch (err) {
     next(err);
   }

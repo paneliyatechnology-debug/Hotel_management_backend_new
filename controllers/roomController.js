@@ -4,7 +4,7 @@
  * Standardizes responses using success() helper and routes errors to next(err).
  */
 const roomService = require('../services/roomService');
-const { success } = require('../utils/response');
+const { success, successMessage } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
@@ -13,13 +13,8 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const createRoom = async (req, res, next) => {
   try {
-    const data = await roomService.createRoom(req.body, req.files, req.user);
-    return success(
-      res,
-      MESSAGES.ROOM_CREATED_SUCCESS,
-      data,
-      HTTP_STATUS.CREATED
-    );
+    await roomService.createRoom(req.body, req.files, req.user);
+    return successMessage(res, MESSAGES.ROOM_CREATED_SUCCESS, HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);
   }
@@ -67,13 +62,8 @@ const getRoomById = async (req, res, next) => {
  */
 const updateRoom = async (req, res, next) => {
   try {
-    const data = await roomService.updateRoom(req.params.id, req.body, req.files, req.user);
-    return success(
-      res,
-      MESSAGES.ROOM_UPDATED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await roomService.updateRoom(req.params.id, req.body, req.files, req.user);
+    return successMessage(res, MESSAGES.ROOM_UPDATED_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -85,13 +75,8 @@ const updateRoom = async (req, res, next) => {
  */
 const updateRoomStatus = async (req, res, next) => {
   try {
-    const data = await roomService.updateRoomStatus(req.params.id, req.body, req.user);
-    return success(
-      res,
-      MESSAGES.ROOM_STATUS_UPDATED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await roomService.updateRoomStatus(req.params.id, req.body, req.user);
+    return successMessage(res, MESSAGES.ROOM_STATUS_UPDATED_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -103,13 +88,8 @@ const updateRoomStatus = async (req, res, next) => {
  */
 const deleteRoom = async (req, res, next) => {
   try {
-    const data = await roomService.deleteRoom(req.params.id, req.user);
-    return success(
-      res,
-      MESSAGES.ROOM_DELETED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await roomService.deleteRoom(req.params.id, req.user);
+    return successMessage(res, MESSAGES.ROOM_DELETED_SUCCESS);
   } catch (err) {
     next(err);
   }

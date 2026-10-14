@@ -54,7 +54,7 @@ const getRoomTypeById = async (id, reqUser = null) => {
  * @param {Object} body - { name, description }
  * @param {Array<Object>} [files=[]] - Uploaded image files
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const createRoomType = async (body, files = [], reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
@@ -96,7 +96,7 @@ const createRoomType = async (body, files = [], reqUser = null) => {
   }
 
   // 4. Create database record and relational image entries
-  const newRoomType = await roomTypeModel.createRoomType(
+  await roomTypeModel.createRoomType(
     {
       hotel_id: hotelId,
       name,
@@ -104,8 +104,6 @@ const createRoomType = async (body, files = [], reqUser = null) => {
     },
     imageRecords
   );
-
-  return newRoomType;
 };
 
 /**
@@ -114,7 +112,7 @@ const createRoomType = async (body, files = [], reqUser = null) => {
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const updateRoomType = async (id, body, files = [], reqUser = null) => {
   const existing = await roomTypeModel.findRoomTypeById(id);
@@ -171,15 +169,14 @@ const updateRoomType = async (id, body, files = [], reqUser = null) => {
     }
   }
 
-  const updated = await roomTypeModel.updateRoomType(id, updates, newImageRecords);
-  return updated;
+  await roomTypeModel.updateRoomType(id, updates, newImageRecords);
 };
 
 /**
  * Safely delete a category only if no physical rooms are assigned to it
  * @param {number|string} id
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const deleteRoomType = async (id, reqUser = null) => {
   const existing = await roomTypeModel.findRoomTypeById(id);
@@ -204,8 +201,7 @@ const deleteRoomType = async (id, reqUser = null) => {
     );
   }
 
-  const deleted = await roomTypeModel.softDeleteRoomType(id);
-  return deleted;
+  await roomTypeModel.softDeleteRoomType(id);
 };
 
 module.exports = {

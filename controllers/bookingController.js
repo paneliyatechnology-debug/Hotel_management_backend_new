@@ -5,7 +5,7 @@
  */
 const bookingService = require('../services/bookingService');
 const bookingPdfService = require('../services/bookingPdfService');
-const { success } = require('../utils/response');
+const { success, successMessage } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
@@ -14,13 +14,8 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const createBooking = async (req, res, next) => {
   try {
-    const data = await bookingService.createBooking(req.body, req.files, req.user);
-    return success(
-      res,
-      MESSAGES.BOOKING_CREATED_SUCCESS,
-      data,
-      HTTP_STATUS.CREATED
-    );
+    await bookingService.createBooking(req.body, req.files, req.user);
+    return successMessage(res, MESSAGES.BOOKING_CREATED_SUCCESS, HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);
   }
@@ -88,13 +83,8 @@ const getBookingPdf = async (req, res, next) => {
  */
 const updateBooking = async (req, res, next) => {
   try {
-    const data = await bookingService.updateBooking(req.params.id, req.body, req.files, req.user);
-    return success(
-      res,
-      MESSAGES.BOOKING_UPDATED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await bookingService.updateBooking(req.params.id, req.body, req.files, req.user);
+    return successMessage(res, MESSAGES.BOOKING_UPDATED_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -107,11 +97,7 @@ const updateBooking = async (req, res, next) => {
 const checkOutBooking = async (req, res, next) => {
   try {
     await bookingService.checkOutBooking(req.params.id, req.body, req.user);
-    // Checkout answers with only success and message. No data.
-    return res.status(HTTP_STATUS.OK).json({
-      success: true,
-      message: MESSAGES.BOOKING_CHECKED_OUT_SUCCESS,
-    });
+    return successMessage(res, MESSAGES.BOOKING_CHECKED_OUT_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -123,13 +109,8 @@ const checkOutBooking = async (req, res, next) => {
  */
 const updateBookingStatus = async (req, res, next) => {
   try {
-    const data = await bookingService.updateBookingStatus(req.params.id, req.body, req.user);
-    return success(
-      res,
-      MESSAGES.BOOKING_STATUS_UPDATED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await bookingService.updateBookingStatus(req.params.id, req.body, req.user);
+    return successMessage(res, MESSAGES.BOOKING_STATUS_UPDATED_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -141,13 +122,8 @@ const updateBookingStatus = async (req, res, next) => {
  */
 const deleteBooking = async (req, res, next) => {
   try {
-    const data = await bookingService.deleteBooking(req.params.id, req.user);
-    return success(
-      res,
-      MESSAGES.BOOKING_DELETED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await bookingService.deleteBooking(req.params.id, req.user);
+    return successMessage(res, MESSAGES.BOOKING_DELETED_SUCCESS);
   } catch (err) {
     next(err);
   }

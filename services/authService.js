@@ -15,6 +15,7 @@ const {
 const {
   sendPasswordResetLinkEmail,
 } = require('./emailService');
+const { assertHotelActive } = require('../utils/hotelScope');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS } = require('../constants');
 
@@ -53,6 +54,8 @@ const login = async (email, password, res) => {
       HTTP_STATUS.FORBIDDEN
     );
   }
+
+  await assertHotelActive(user);
 
   // Check temporary lockout
   if (user.account_locked_until) {
@@ -156,6 +159,8 @@ const refreshToken = async (token, res) => {
     throw new AppError('Account is deactivated or disabled.', HTTP_STATUS.FORBIDDEN);
   }
 
+  await assertHotelActive(user);
+
   const newAccessToken = generateAccessToken(user.id, user.role, user.hotel_id);
   const newRefreshToken = generateRefreshToken(user.id, user.hotel_id);
   setAuthCookies(res, newAccessToken, newRefreshToken);
@@ -233,6 +238,8 @@ const forgotPassword = async (email, requestOrigin) => {
     throw new AppError('This account has been deactivated. Please contact your hotel administrator.', HTTP_STATUS.FORBIDDEN);
   }
 
+  await assertHotelActive(user);
+
   // Generate secure single-use reset token
   const token = crypto.randomBytes(32).toString('hex');
   const expiryMinutes = 30;
@@ -297,6 +304,8 @@ const resetPassword = async ({ token, password }) => {
       HTTP_STATUS.FORBIDDEN
     );
   }
+
+  await assertHotelActive(user);
 
   // Hash new password and update in database
   const hashedPassword = await bcrypt.hash(password, 10);

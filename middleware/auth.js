@@ -5,6 +5,7 @@
  */
 const { verifyAccessToken } = require('../utils/jwt');
 const userModel = require('../models/userModel');
+const { assertHotelActive } = require('../utils/hotelScope');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, ROLE_CODES } = require('../constants');
 
@@ -91,6 +92,9 @@ const authenticateUser = async (req, res, next) => {
         HTTP_STATUS.FORBIDDEN
       );
     }
+
+    // A deactivated hotel blocks all of its users on every protected API, even with a valid token.
+    await assertHotelActive(user);
 
     req.user = user;
     req.hotel_id = user.hotel_id || decoded.hotel_id || null;

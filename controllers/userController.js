@@ -4,7 +4,7 @@
  * Standardizes responses using success() helper and routes errors to next(err).
  */
 const userService = require('../services/userService');
-const { success } = require('../utils/response');
+const { success, successMessage } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
@@ -13,13 +13,8 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const createUser = async (req, res, next) => {
   try {
-    const data = await userService.createUser(req.body, req.user);
-    return success(
-      res,
-      MESSAGES.USER_CREATED_SUCCESS || 'User created successfully.',
-      data,
-      HTTP_STATUS.CREATED
-    );
+    await userService.createUser(req.body, req.user);
+    return successMessage(res, MESSAGES.USER_CREATED_SUCCESS || 'User created successfully.', HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);
   }
@@ -67,13 +62,8 @@ const getUserById = async (req, res, next) => {
  */
 const updateUser = async (req, res, next) => {
   try {
-    const data = await userService.updateUser(req.params.id, req.body, req.user);
-    return success(
-      res,
-      MESSAGES.USER_UPDATED_SUCCESS || 'User updated successfully.',
-      data,
-      HTTP_STATUS.OK
-    );
+    await userService.updateUser(req.params.id, req.body, req.user);
+    return successMessage(res, MESSAGES.USER_UPDATED_SUCCESS || 'User updated successfully.');
   } catch (err) {
     next(err);
   }
@@ -85,13 +75,8 @@ const updateUser = async (req, res, next) => {
  */
 const updateAccountStatus = async (req, res, next) => {
   try {
-    const data = await userService.updateAccountStatus(req.params.id, req.body, req.user);
-    return success(
-      res,
-      MESSAGES.USER_ACCOUNT_STATUS_UPDATED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await userService.updateAccountStatus(req.params.id, req.body, req.user);
+    return successMessage(res, MESSAGES.USER_ACCOUNT_STATUS_UPDATED_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -103,13 +88,8 @@ const updateAccountStatus = async (req, res, next) => {
  */
 const deleteUser = async (req, res, next) => {
   try {
-    const data = await userService.deleteUser(req.params.id, req.user);
-    return success(
-      res,
-      MESSAGES.USER_DELETED_SUCCESS || 'User deleted successfully.',
-      data,
-      HTTP_STATUS.OK
-    );
+    await userService.deleteUser(req.params.id, req.user);
+    return successMessage(res, MESSAGES.USER_DELETED_SUCCESS || 'User deleted successfully.');
   } catch (err) {
     next(err);
   }

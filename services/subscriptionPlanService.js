@@ -193,7 +193,7 @@ const generatePlanCode = (billingCycle, name) => {
 /**
  * Create a new subscription plan with features
  * @param {Object} payload
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const createSubscriptionPlan = async (payload) => {
   const {
@@ -273,8 +273,8 @@ const createSubscriptionPlan = async (payload) => {
     displayOrder: Number(displayOrder) || 1,
   };
 
-  return db.transaction(async (trx) => {
-    return subscriptionPlanModel.createPlan(planData, cleanedFeatures, trx);
+  await db.transaction(async (trx) => {
+    await subscriptionPlanModel.createPlan(planData, cleanedFeatures, trx);
   });
 };
 
@@ -346,7 +346,7 @@ const getSubscriptionPlanById = async (id) => {
  * Update plan details and synchronize features
  * @param {number|string} id
  * @param {Object} payload
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const updateSubscriptionPlan = async (id, payload) => {
   const numId = Number(id);
@@ -441,15 +441,15 @@ const updateSubscriptionPlan = async (id, payload) => {
     cleanedFeatures = sanitizeFeatures(payload.features);
   }
 
-  return db.transaction(async (trx) => {
-    return subscriptionPlanModel.updatePlan(numId, updateData, cleanedFeatures, trx);
+  await db.transaction(async (trx) => {
+    await subscriptionPlanModel.updatePlan(numId, updateData, cleanedFeatures, trx);
   });
 };
 
 /**
  * Soft-delete subscription plan
  * @param {number|string} id
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const deleteSubscriptionPlan = async (id) => {
   const numId = Number(id);
@@ -463,23 +463,14 @@ const deleteSubscriptionPlan = async (id) => {
   }
 
   await subscriptionPlanModel.softDeletePlan(numId);
-
-  return {
-    id: existingPlan.id,
-    name: existingPlan.name,
-    code: existingPlan.code,
-    isActive: false,
-    isDeleted: true,
-    deletedAt: new Date(),
-  };
 };
 
 /**
  * Reset and provision standard 6 enterprise default plans
- * @returns {Promise<Object[]>}
+ * @returns {Promise<void>}
  */
 const resetDefaultPlans = async () => {
-  return db.transaction(async (trx) => {
+  await db.transaction(async (trx) => {
     // 1. Soft delete all active plans
     await trx('subscription_plans')
       .whereNull('deleted_at')
@@ -490,22 +481,10 @@ const resetDefaultPlans = async () => {
       });
 
     // 2. Insert fresh default plans
-    const createdPlans = [];
     for (const plan of DEFAULT_PLANS) {
       const { features, ...planData } = plan;
-      // Ensure unique code in table by generating or reusing
-      const created = await subscriptionPlanModel.createPlan(
-        {
-          ...planData,
-          code: planData.code,
-        },
-        features,
-        trx
-      );
-      createdPlans.push(created);
+      await subscriptionPlanModel.createPlan(planData, features, trx);
     }
-
-    return createdPlans;
   });
 };
 

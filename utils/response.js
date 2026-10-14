@@ -46,7 +46,23 @@ const success = (res, message, data = {}, statusCode = HTTP_STATUS.OK) => {
   });
 };
 
+/**
+ * Send a success response that carries only a message and no data.
+ * Used by create, update and delete APIs.
+ * @param {import('express').Response} res - Express response
+ * @param {string} message - Success message
+ * @param {number} [statusCode=200] - HTTP status code
+ * @returns {import('express').Response}
+ */
+const successMessage = (res, message, statusCode = HTTP_STATUS.OK) => {
+  return res.status(statusCode).json({
+    success: true,
+    message,
+  });
+};
+
 module.exports = {
   AppError,
   success,
+  successMessage,
 };

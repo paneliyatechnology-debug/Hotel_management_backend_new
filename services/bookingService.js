@@ -564,7 +564,7 @@ const validateBookingPreconditions = async ({
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>} Created booking
+ * @returns {Promise<void>}
  */
 const createBooking = async (body, files = [], reqUser = null) => {
   // hotel_id comes from the authenticated user token. Body hotel_id is ignored.
@@ -661,10 +661,7 @@ const createBooking = async (body, files = [], reqUser = null) => {
   // PENDING leaves every room unchanged. Any other status moves all rooms together.
   if (newBooking.booking_status && newBooking.booking_status !== 'PENDING') {
     await applyBookingStatusEffects(newBooking, newBooking.booking_status);
-    return bookingModel.findBookingById(newBooking.id);
   }
-
-  return newBooking;
 };
 
 /**
@@ -736,7 +733,7 @@ const getBookingById = async (id, reqUser = null) => {
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const updateBooking = async (id, body, files = [], reqUser = null) => {
   const existing = await getBookingById(id, reqUser);
@@ -823,8 +820,6 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   if (addedRoomIds.length > 0 && existing.booking_status && existing.booking_status !== 'PENDING') {
     await syncRoomForBookingStatus(existing, existing.booking_status, new Date(), addedRoomIds);
   }
-
-  return getBookingById(existing.id, reqUser);
 };
 
 /**
@@ -924,7 +919,7 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
  * @param {number|string} id
  * @param {Object} body
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const updateBookingStatus = async (id, body = {}, reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
@@ -941,7 +936,6 @@ const updateBookingStatus = async (id, body = {}, reqUser = null) => {
   if (status === 'CHECKED_OUT') assertNoDueForCheckout(existing.due_amount);
 
   await applyBookingStatusEffects(existing, status);
-  return getBookingById(existing.id, reqUser);
 };
 
 /**
@@ -961,14 +955,13 @@ const getBookingDetails = async (id, reqUser = null) => {
  * Soft delete a booking setting deleted_at
  * @param {number|string} id
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const deleteBooking = async (id, reqUser = null) => {
   const existing = await getBookingById(id, reqUser);
   // Free rooms this stay was holding before the row is hidden.
   await syncRoomForBookingStatus(existing, 'CANCELLED');
-  const result = await bookingModel.softDeleteBooking(existing.id);
-  return result;
+  await bookingModel.softDeleteBooking(existing.id);
 };
 
 module.exports = {

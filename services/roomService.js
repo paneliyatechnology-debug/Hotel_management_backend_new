@@ -15,7 +15,7 @@ const { HTTP_STATUS, ROOM_STATUSES, CLEANING_DURATION_MINUTES } = require('../co
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const createRoom = async (body, files = [], reqUser = null) => {
   // hotel_id comes from the authenticated user token. Body hotel_id is ignored.
@@ -87,7 +87,7 @@ const createRoom = async (body, files = [], reqUser = null) => {
   }
 
   // 5. Create room in database
-  const newRoom = await roomModel.createRoom(
+  await roomModel.createRoom(
     {
       hotel_id: hotelId,
       room_number: roomNumber,
@@ -110,8 +110,6 @@ const createRoom = async (body, files = [], reqUser = null) => {
     },
     imageRecords
   );
-
-  return newRoom;
 };
 
 /**
@@ -173,7 +171,7 @@ const getRoomById = async (id, reqUser = null) => {
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const updateRoom = async (id, body, files = [], reqUser = null) => {
   const existing = await roomModel.findRoomById(id);
@@ -268,8 +266,7 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
     updates.is_active = body.is_active === true || body.is_active === 'true' || body.is_active === 1 || body.is_active === '1';
   }
 
-  const updated = await roomModel.updateRoom(id, updates, newImageRecords);
-  return updated;
+  await roomModel.updateRoom(id, updates, newImageRecords);
 };
 
 /**
@@ -278,7 +275,7 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
  * @param {number|string} id
  * @param {Object} body - { status }
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const updateRoomStatus = async (id, body = {}, reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
@@ -306,7 +303,7 @@ const updateRoomStatus = async (id, body = {}, reqUser = null) => {
 
   // Setting CLEANING by hand starts the same cleaning timer that checkout starts.
   const updates = status === 'CLEANING' ? { status, cleaning_started_at: new Date() } : { status };
-  return roomModel.updateRoom(id, updates);
+  await roomModel.updateRoom(id, updates);
 };
 
 /**
@@ -335,7 +332,7 @@ const releaseCleanedRooms = async (now = new Date()) => {
  * Soft delete a physical room
  * @param {number|string} id
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const deleteRoom = async (id, reqUser = null) => {
   const existing = await roomModel.findRoomById(id);
@@ -357,8 +354,7 @@ const deleteRoom = async (id, reqUser = null) => {
     throw new AppError(message, HTTP_STATUS.BAD_REQUEST, [{ field: 'id', message }]);
   }
 
-  const deleted = await roomModel.softDeleteRoom(id);
-  return deleted;
+  await roomModel.softDeleteRoom(id);
 };
 
 module.exports = {

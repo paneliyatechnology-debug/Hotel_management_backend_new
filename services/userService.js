@@ -53,7 +53,7 @@ const formatUserResponse = (user) => {
  * Create a new user with validation, RBAC checks, and secure password hashing
  * @param {Object} payload
  * @param {Object} req_user
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const createUser = async (payload, req_user) => {
   const email = (payload.email || '').toLowerCase();
@@ -212,8 +212,6 @@ const createUser = async (payload, req_user) => {
   } catch (queueErr) {
     console.error('[UserService] Failed to enqueue staff welcome email:', queueErr.message);
   }
-
-  return formatUserResponse(created_user);
 };
 
 /**
@@ -309,7 +307,7 @@ const getUserById = async (id, req_user) => {
  * @param {number|string} id
  * @param {Object} payload
  * @param {Object} req_user
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const updateUser = async (id, payload, req_user) => {
   const existing_user = await userModel.findUserById(id);
@@ -441,8 +439,6 @@ const updateUser = async (id, payload, req_user) => {
   }
 
   await userModel.updateUser(id, updates);
-  const updated_user = await userModel.findUserById(id);
-  return formatUserResponse(updated_user);
 };
 
 /**
@@ -451,7 +447,7 @@ const updateUser = async (id, payload, req_user) => {
  * Guards against self-deletion and deleting the last active Super Admin
  * @param {number|string} id
  * @param {Object} req_user
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const deleteUser = async (id, req_user) => {
   const existing_user = await userModel.findUserById(id);
@@ -501,7 +497,6 @@ const deleteUser = async (id, req_user) => {
   }
 
   await userModel.softDeleteUser(id);
-  return { id: Number(id), is_deleted: true, isDeleted: true };
 };
 
 /**
@@ -522,7 +517,7 @@ const parseFlag = (value, field) => {
  * @param {number|string} id
  * @param {Object} payload
  * @param {Object} req_user
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const updateAccountStatus = async (id, payload, req_user) => {
   const existing_user = await userModel.findUserById(id);
@@ -578,8 +573,6 @@ const updateAccountStatus = async (id, payload, req_user) => {
   }
 
   await userModel.updateUser(id, updates);
-  const updated_user = await userModel.findUserById(id);
-  return formatUserResponse(updated_user);
 };
 
 module.exports = {

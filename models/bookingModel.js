@@ -5,8 +5,6 @@ const crypto = require('crypto');
 const db = require('../database/knex');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');
 const { NON_BLOCKING_BOOKING_STATUSES } = require('../constants');
-const { parseJson } = require('../utils/json');
-
 /**
  * Format raw database row to structured Booking object
  * @param {Object} row
@@ -19,24 +17,9 @@ const formatBooking = (row, relations = {}) => {
   const imageRecords = Array.isArray(relations.images) ? relations.images : [];
   const signatureRecords = Array.isArray(relations.signatures) ? relations.signatures : [];
 
-  // Parse JSON columns or fallback
-  const storedSignatures = parseJson(row.signatures, []);
-  const storedImages = parseJson(row.images, []);
-
-  // Merge URLs
-  const imageUrls = [
-    ...storedImages,
-    ...imageRecords.map((img) => img.image_url),
-  ]
-    .filter((v, i, a) => v && a.indexOf(v) === i)
-    .map((u) => buildImageUrl(u));
-
-  const signatureUrls = [
-    ...storedSignatures,
-    ...signatureRecords.map((sig) => sig.image_url),
-  ]
-    .filter((v, i, a) => v && a.indexOf(v) === i)
-    .map((u) => buildImageUrl(u));
+  // Photos and signatures live only in the images table.
+  const imageUrls = imageRecords.map((img) => buildImageUrl(img.image_url)).filter(Boolean);
+  const signatureUrls = signatureRecords.map((sig) => buildImageUrl(sig.image_url)).filter(Boolean);
 
   const booking = {
     id: row.id,
@@ -483,15 +466,6 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
     // 1. Generate unique booking number if not provided
     const bookingNumber = bookingData.booking_number || (await generateBookingNumber(trx));
 
-    // Stored URLs come from the uploaded files only.
-    const storedSignatures = signatureRecords
-      .map((s) => s.image_url || s.imageUrl)
-      .filter(Boolean);
-
-    const storedImages = imageRecords
-      .map((i) => i.image_url || i.imageUrl)
-      .filter(Boolean);
-
     const roomIds = Array.isArray(bookingData.room_ids) ? bookingData.room_ids : [];
     const {
       room_ids: _roomIds,
@@ -504,8 +478,6 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
       ...bookingColumns,
       room_id: roomIds[0] || bookingColumns.room_id,
       booking_number: bookingNumber,
-      signatures: JSON.stringify(storedSignatures),
-      images: JSON.stringify(storedImages),
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -580,9 +552,6 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
     if (!existing) return null;
 
     // A new file replaces the stored signature. A URL in the body is ignored.
-    let finalSignatures;
-    let finalImages;
-
     if (signatureRecords.length > 0) {
       // 1. Fetch old signature rows for this booking
       const oldSigRows = await trx('images')
@@ -595,19 +564,8 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
         if (key) await deleteFile(key);
       }
 
-      const prevSigs = parseJson(existing.signatures, []);
-      for (const prevUrl of prevSigs) {
-        if (typeof prevUrl === 'string' && !oldSigRows.some((r) => r.image_url === prevUrl)) {
-          await deleteFile(prevUrl);
-        }
-      }
-
       // 3. Delete old signature rows from database
       await trx('images').where({ booking_id: id, is_signature: 1 }).delete();
-
-      finalSignatures = JSON.stringify(
-        signatureRecords.map((s) => s.image_url || s.imageUrl).filter(Boolean)
-      );
     }
 
     if (imageRecords.length > 0) {
@@ -622,19 +580,8 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
         if (key) await deleteFile(key);
       }
 
-      const prevImgs = parseJson(existing.images, []);
-      for (const prevUrl of prevImgs) {
-        if (typeof prevUrl === 'string' && !oldImageRows.some((r) => r.image_url === prevUrl)) {
-          await deleteFile(prevUrl);
-        }
-      }
-
       // 3. Delete old photo rows from database
       await trx('images').where({ booking_id: id, is_signature: 0 }).delete();
-
-      finalImages = JSON.stringify(
-        imageRecords.map((i) => i.image_url || i.imageUrl).filter(Boolean)
-      );
     }
 
     const roomIds = Array.isArray(updateData.room_ids) ? updateData.room_ids : null;
@@ -653,9 +600,6 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
     if (roomIds && roomIds.length > 0) {
       payload.room_id = roomIds[0];
     }
-
-    if (finalSignatures !== undefined) payload.signatures = finalSignatures;
-    if (finalImages !== undefined) payload.images = finalImages;
 
     await trx('bookings').where({ id }).update(payload);
 

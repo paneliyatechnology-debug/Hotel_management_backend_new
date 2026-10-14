@@ -10,9 +10,11 @@ const bookingModel = require('../models/bookingModel');
 const userModel = require('../models/userModel');
 const tokenModel = require('../models/tokenModel');
 const systemSettingsModel = require('../models/systemSettingsModel');
+const subscriptionPlanModel = require('../models/subscriptionPlanModel');
 const s3Service = require('./s3Service');
 const { checkEmailExistsGlobally } = require('../utils/emailValidator');
 const { queueEmail } = require('../queues/emailQueue');
+const { disconnectHotel } = require('../sockets/roomSocket');
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -81,6 +83,30 @@ const calculateTrialDates = (settings) => {
 };
 
 /**
+ * Upload the hotel logo when the request carries one.
+ * The logo arrives only as a form-data file named logo, logo_image or file.
+ * @param {Array<Object>|Object} files - Files from multer
+ * @returns {Promise<string|null>} Public logo URL, or null when no logo was sent
+ */
+const uploadHotelLogo = async (files) => {
+  const logoFile = Array.isArray(files)
+    ? files.find((f) => f.fieldname === 'logo' || f.fieldname === 'logo_image' || f.fieldname === 'file')
+    : (files && (files.logo?.[0] || files.logo_image?.[0] || files.file?.[0]));
+
+  if (!logoFile || !logoFile.buffer) return null;
+
+  try {
+    const uploadResult = await s3Service.uploadFile(logoFile, 'hotels/logos');
+    return uploadResult?.imageUrl || null;
+  } catch (s3Error) {
+    throw new AppError(
+      `Failed to upload hotel logo to S3: ${s3Error.message}`,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+/**
  * Register a new hotel and provision hotel administrator account.
  *
  * @param {Object} payload - Registration body
@@ -104,25 +130,7 @@ const registerHotel = async (payload, res = null, files = []) => {
   const website = payload.website;
   const password = payload.password;
 
-  // The logo arrives only as a form-data file.
-  let uploadedLogoUrl = null;
-  const logoFile = Array.isArray(files)
-    ? files.find((f) => f.fieldname === 'logo' || f.fieldname === 'logo_image' || f.fieldname === 'file')
-    : (files && (files.logo?.[0] || files.logo_image?.[0] || files.file?.[0]));
-
-  if (logoFile && logoFile.buffer) {
-    try {
-      const uploadResult = await s3Service.uploadFile(logoFile, 'hotels/logos');
-      if (uploadResult && uploadResult.imageUrl) {
-        uploadedLogoUrl = uploadResult.imageUrl;
-      }
-    } catch (s3Error) {
-      throw new AppError(
-        `Failed to upload hotel logo to S3: ${s3Error.message}`,
-        HTTP_STATUS.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
+  const uploadedLogoUrl = await uploadHotelLogo(files);
 
   // 1. Normalize Inputs
   const normalizedEmail = (ownerEmail || '').toLowerCase().trim();
@@ -269,7 +277,7 @@ const registerHotel = async (payload, res = null, files = []) => {
       hotel_type: hotelType ? hotelType.trim() : 'Boutique Hotel',
       website: website ? website.trim() : '',
       logo: uploadedLogoUrl || null,
-      status: 'ACTIVE',
+      is_active: true,
       subscription_plan_id: finalPlanId,
       subscription_plan_active: finalPlanActive,
       subscription_plan_start_date: finalStartDate,
@@ -373,8 +381,172 @@ const registerHotel = async (payload, res = null, files = []) => {
   };
 };
 
+/**
+ * Create a hotel on behalf of a super admin.
+ * Same provisioning as public registration (owner account, trial, welcome email),
+ * but nobody is signed in and no token is returned.
+ * @param {Object} payload
+ * @param {Array<Object>} [files=[]]
+ * @returns {Promise<void>}
+ */
+const createHotel = async (payload, files = []) => {
+  await registerHotel(payload, null, files);
+};
+
+/**
+ * List hotels for the super admin.
+ * @param {Object} query - page, limit, search, is_active, subscription_plan_id, subscription_plan_active, sort_by, sort_order
+ * @returns {Promise<Object>}
+ */
+const getHotels = async (query = {}) => {
+  return hotelModel.findHotels(
+    {
+      search: query.search,
+      is_active: query.is_active,
+      subscription_plan_id: query.subscription_plan_id,
+      subscription_plan_active: query.subscription_plan_active,
+    },
+    { page: query.page, limit: query.limit },
+    { sort_by: query.sort_by, sort_order: query.sort_order }
+  );
+};
+
+/**
+ * Get one hotel with its owner summary.
+ * @param {number|string} id
+ * @returns {Promise<Object>}
+ */
+const getHotelById = async (id) => {
+  const hotel = await hotelModel.findHotelById(id);
+  if (!hotel) {
+    throw new AppError('Hotel not found.', HTTP_STATUS.NOT_FOUND);
+  }
+  return hotel;
+};
+
+const toBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
+
+const toDateOrNull = (value) => (value ? new Date(value) : null);
+
+// Plain text columns a super admin can change. Values are trimmed.
+const EDITABLE_TEXT_FIELDS = [
+  'name',
+  'address',
+  'city',
+  'state',
+  'country',
+  'pincode',
+  'hotel_type',
+  'website',
+];
+
+/**
+ * Update hotel details and subscription for the super admin.
+ * Switching the hotel on or off is a separate call: setHotelActive.
+ * Send only the keys that change. The slug and the owner account stay as they are.
+ * @param {number|string} id
+ * @param {Object} payload
+ * @param {Array<Object>} [files=[]]
+ * @returns {Promise<void>}
+ */
+const updateHotel = async (id, payload, files = []) => {
+  await getHotelById(id);
+
+  const updates = {};
+
+  EDITABLE_TEXT_FIELDS.forEach((field) => {
+    if (payload[field] !== undefined) {
+      updates[field] = String(payload[field] ?? '').trim();
+    }
+  });
+
+  if (payload.gst_number !== undefined) {
+    updates.gst_number = String(payload.gst_number ?? '').trim().toUpperCase();
+    updates.gst_enabled = Boolean(updates.gst_number);
+  }
+  if (payload.pan_number !== undefined) {
+    updates.pan_number = String(payload.pan_number ?? '').trim().toUpperCase();
+  }
+  if (payload.total_rooms !== undefined) {
+    updates.total_rooms = Number(payload.total_rooms) || 0;
+  }
+
+  if (payload.subscription_plan_id !== undefined) {
+    const plan = await subscriptionPlanModel.findPlanById(Number(payload.subscription_plan_id));
+    if (!plan) {
+      throw new AppError('Subscription plan not found.', HTTP_STATUS.NOT_FOUND);
+    }
+    updates.subscription_plan_id = plan.id;
+  }
+  if (payload.subscription_plan_active !== undefined) {
+    updates.subscription_plan_active = toBoolean(payload.subscription_plan_active);
+  }
+  if (payload.subscription_plan_start_date !== undefined) {
+    updates.subscription_plan_start_date = toDateOrNull(payload.subscription_plan_start_date);
+  }
+  if (payload.subscription_plan_end_date !== undefined) {
+    updates.subscription_plan_end_date = toDateOrNull(payload.subscription_plan_end_date);
+  }
+  if (payload.auto_renew !== undefined) {
+    updates.auto_renew = toBoolean(payload.auto_renew);
+  }
+
+  const logoUrl = await uploadHotelLogo(files);
+  if (logoUrl) {
+    updates.logo = logoUrl;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new AppError('Send at least one field to update.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  await hotelModel.updateHotel(id, updates);
+};
+
+/**
+ * Switch a hotel on or off.
+ * While a hotel is off, none of its users can log in or call any protected API,
+ * and clients that are already connected are dropped. Nothing is deleted.
+ * @param {number|string} id
+ * @param {boolean|string} isActive
+ * @returns {Promise<void>}
+ */
+const setHotelActive = async (id, isActive) => {
+  const hotel = await getHotelById(id);
+  const active = toBoolean(isActive);
+
+  await hotelModel.updateHotel(hotel.id, { is_active: active });
+
+  if (!active) {
+    disconnectHotel(hotel.id);
+  }
+};
+
+/**
+ * Soft delete a hotel and every user of that hotel, so nobody can sign in to it again.
+ * Rooms and bookings stay in the database.
+ * @param {number|string} id
+ * @returns {Promise<void>}
+ */
+const deleteHotel = async (id) => {
+  const hotel = await getHotelById(id);
+
+  await db.transaction(async (trx) => {
+    await hotelModel.softDeleteHotel(hotel.id, trx);
+    await userModel.softDeleteUsersByHotelId(hotel.id, trx);
+  });
+
+  disconnectHotel(hotel.id);
+};
+
 module.exports = {
   generateUniqueHotelSlug,
   calculateTrialDates,
   registerHotel,
+  createHotel,
+  getHotels,
+  getHotelById,
+  updateHotel,
+  setHotelActive,
+  deleteHotel,
 };

@@ -5,7 +5,7 @@
  * Standardizes responses using success() helper and routes errors to next(err).
  */
 const authService = require('../services/authService');
-const { success } = require('../utils/response');
+const { success, successMessage } = require('../utils/response');
 const { MESSAGES } = require('../constants');
 
 /**
@@ -46,7 +46,7 @@ const refreshToken = async (req, res, next) => {
 const logout = async (req, res, next) => {
   try {
     await authService.logout(res);
-    return success(res, MESSAGES.LOGOUT_SUCCESS, null);
+    return successMessage(res, MESSAGES.LOGOUT_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -81,7 +81,7 @@ const resetPassword = async (req, res, next) => {
       token,
       password,
     });
-    return success(res, MESSAGES.PASSWORD_RESET_SUCCESS, null);
+    return successMessage(res, MESSAGES.PASSWORD_RESET_SUCCESS);
   } catch (err) {
     next(err);
   }
@@ -95,7 +95,7 @@ const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
     await authService.changePassword(req.user.id, currentPassword, newPassword);
-    return success(res, MESSAGES.PASSWORD_CHANGED_SUCCESS, null);
+    return successMessage(res, MESSAGES.PASSWORD_CHANGED_SUCCESS);
   } catch (err) {
     next(err);
   }

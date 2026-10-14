@@ -29,8 +29,7 @@ const formatHotel = (row) => {
     hotel_type: row.hotel_type || 'Boutique Hotel',
     website: row.website || '',
     logo: buildImageUrl(row.logo || ''),
-    status: row.status,
-    status_reason: row.status_reason || '',
+    is_active: row.is_active === undefined ? true : Boolean(row.is_active),
     subscription_plan_id: row.subscription_plan_id !== undefined ? row.subscription_plan_id : null,
     subscription_plan_active: row.subscription_plan_active !== undefined ? Boolean(row.subscription_plan_active) : (row.subscription_plan_status !== undefined ? Boolean(row.subscription_plan_status) : true),
     subscription_plan_start_date: row.subscription_plan_start_date || null,
@@ -76,16 +75,181 @@ const formatHotel = (row) => {
 };
 
 /**
+ * Short shape used by the hotel list. The full hotel comes from GET /hotels/:id.
+ * @param {Object} row - Hotel row joined with its owner
+ * @returns {Object}
+ */
+const formatHotelListItem = (row) => ({
+  id: row.id,
+  name: row.name,
+  slug: row.slug,
+  logo_url: buildImageUrl(row.logo || ''),
+  owner: {
+    id: row.owner_id,
+    name: row.owner_name || null,
+    email: row.owner_email || null,
+    phone: row.owner_phone || '',
+  },
+  total_rooms: Number(row.total_rooms) || 0,
+  hotel_type: row.hotel_type || 'Boutique Hotel',
+  address: row.address,
+  city: row.city,
+  state: row.state,
+  country: row.country,
+  is_active: Boolean(row.is_active),
+  subscription: {
+    plan_id: row.subscription_plan_id ?? null,
+    plan_name: row.plan_name || null,
+    plan_code: row.plan_code || null,
+    billing_cycle: row.plan_billing_cycle || null,
+    price: row.plan_price === null || row.plan_price === undefined ? null : Number(row.plan_price),
+    max_rooms: row.plan_max_rooms ?? null,
+    start_date: row.subscription_plan_start_date || null,
+    end_date: row.subscription_plan_end_date || null,
+    auto_renew: Boolean(row.auto_renew),
+  },
+  created_at: row.created_at,
+  updated_at: row.updated_at,
+  deleted_at: row.deleted_at || null,
+});
+
+// Columns the hotel list reads. Nothing else is loaded.
+const HOTEL_LIST_COLUMNS = [
+  'hotels.id',
+  'hotels.name',
+  'hotels.slug',
+  'hotels.logo',
+  'hotels.owner_id',
+  'hotels.total_rooms',
+  'hotels.hotel_type',
+  'hotels.address',
+  'hotels.city',
+  'hotels.state',
+  'hotels.country',
+  'hotels.is_active',
+  'hotels.subscription_plan_id',
+  'hotels.subscription_plan_start_date',
+  'hotels.subscription_plan_end_date',
+  'hotels.auto_renew',
+  'hotels.created_at',
+  'hotels.updated_at',
+  'hotels.deleted_at',
+  'users.name as owner_name',
+  'users.email as owner_email',
+  'users.phone as owner_phone',
+  'subscription_plans.name as plan_name',
+  'subscription_plans.code as plan_code',
+  'subscription_plans.billing_cycle as plan_billing_cycle',
+  'subscription_plans.price as plan_price',
+  'subscription_plans.max_rooms as plan_max_rooms',
+];
+
+/**
+ * Hotels joined with their owner (a user), so the result carries the owner summary.
+ * @param {import('knex').Knex} [client=db]
+ * @returns {import('knex').Knex.QueryBuilder}
+ */
+const hotelsWithOwner = (client = db) =>
+  client('hotels')
+    .leftJoin('users', 'hotels.owner_id', 'users.id')
+    .select(
+      'hotels.*',
+      'users.name as owner_name',
+      'users.email as owner_email',
+      'users.phone as owner_phone'
+    );
+
+/**
  * Find hotel by ID
  * @param {number|string} id
  * @returns {Promise<Object|null>}
  */
 const findHotelById = async (id) => {
-  const row = await db('hotels')
-    .where({ id })
-    .whereNull('deleted_at')
+  const row = await hotelsWithOwner()
+    .where('hotels.id', id)
+    .whereNull('hotels.deleted_at')
     .first();
   return formatHotel(row);
+};
+
+/**
+ * Minimal state used to decide whether a hotel's users may keep working.
+ * Includes soft-deleted hotels so they can be told apart from missing ones.
+ * @param {number|string} id
+ * @returns {Promise<{ is_active: number|boolean, deleted_at: Date|null }|undefined>}
+ */
+const findHotelAccessState = (id) =>
+  db('hotels').where({ id }).select('is_active', 'deleted_at').first();
+
+// Columns a super admin may sort the hotel list by.
+const HOTEL_SORT_FIELDS = ['id', 'name', 'city', 'is_active', 'created_at', 'updated_at'];
+
+/**
+ * List hotels with filters, search, sorting and pagination.
+ * Always excludes soft-deleted hotels.
+ *
+ * @param {Object} [filters={}] - search, is_active, subscription_plan_id, subscription_plan_active
+ * @param {Object} [pagination={}] - page, limit (max 100)
+ * @param {Object} [sorting={}] - sort_by, sort_order
+ * @returns {Promise<{ hotels: Object[], total: number, page: number, limit: number, total_pages: number }>}
+ */
+const findHotels = async (filters = {}, pagination = {}, sorting = {}) => {
+  const page = Math.max(1, Number(pagination.page) || 1);
+  const limit = Math.max(1, Math.min(100, Number(pagination.limit) || 10));
+  const offset = (page - 1) * limit;
+
+  const sortField = HOTEL_SORT_FIELDS.includes(sorting.sort_by) ? sorting.sort_by : 'created_at';
+  const sortOrder = String(sorting.sort_order || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+  const applyFilters = (qb) => {
+    qb.whereNull('hotels.deleted_at');
+
+    if (filters.is_active !== undefined && filters.is_active !== '') {
+      const active = filters.is_active === true || filters.is_active === 'true';
+      qb.where('hotels.is_active', active);
+    }
+
+    if (filters.subscription_plan_id) {
+      qb.where('hotels.subscription_plan_id', Number(filters.subscription_plan_id));
+    }
+
+    if (filters.subscription_plan_active !== undefined && filters.subscription_plan_active !== '') {
+      const active = filters.subscription_plan_active === true || filters.subscription_plan_active === 'true';
+      qb.where('hotels.subscription_plan_active', active);
+    }
+
+    if (filters.search) {
+      const term = `%${String(filters.search).trim()}%`;
+      qb.where(function () {
+        this.where('hotels.name', 'like', term)
+          .orWhere('hotels.slug', 'like', term)
+          .orWhere('hotels.city', 'like', term)
+          .orWhere('users.name', 'like', term)
+          .orWhere('users.email', 'like', term)
+          .orWhere('users.phone', 'like', term);
+      });
+    }
+  };
+
+  const countQuery = db('hotels').leftJoin('users', 'hotels.owner_id', 'users.id');
+  applyFilters(countQuery);
+  const totalResult = await countQuery.count('hotels.id as total').first();
+  const total = Number(totalResult?.total || 0);
+
+  const dataQuery = db('hotels')
+    .leftJoin('users', 'hotels.owner_id', 'users.id')
+    .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+    .select(HOTEL_LIST_COLUMNS);
+  applyFilters(dataQuery);
+  const rows = await dataQuery.orderBy(`hotels.${sortField}`, sortOrder).offset(offset).limit(limit);
+
+  return {
+    hotels: rows.map(formatHotelListItem),
+    total,
+    page,
+    limit,
+    total_pages: Math.ceil(total / limit) || 1,
+  };
 };
 
 /**
@@ -120,12 +284,10 @@ const slugExists = async (slug) => {
  */
 const findHotelByEmail = async (email) => {
   if (!email) return null;
-  const row = await db('hotels')
-    .join('users', 'hotels.owner_id', 'users.id')
+  const row = await hotelsWithOwner()
     .where({ 'users.email': email.trim().toLowerCase() })
     .whereNull('hotels.deleted_at')
     .whereNull('users.deleted_at')
-    .select('hotels.*', 'users.name as owner_name', 'users.email as owner_email', 'users.phone as owner_phone')
     .first();
   return formatHotel(row);
 };
@@ -149,10 +311,11 @@ const createHotel = async (data) => {
 /**
  * Soft delete a hotel record by ID
  * @param {number|string} id
+ * @param {import('knex').Knex} [client=db]
  * @returns {Promise<number>}
  */
-const softDeleteHotel = async (id) => {
-  return db('hotels')
+const softDeleteHotel = async (id, client = db) => {
+  return client('hotels')
     .where({ id })
     .update({
       deleted_at: new Date(),
@@ -187,6 +350,8 @@ const updateHotel = async (id, updates, client = db) => {
 module.exports = {
   formatHotel,
   findHotelById,
+  findHotelAccessState,
+  findHotels,
   findHotelBySlug,
   slugExists,
   findHotelByEmail,

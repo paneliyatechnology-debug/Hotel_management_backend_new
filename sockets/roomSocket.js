@@ -128,6 +128,15 @@ const publishRoomStatus = (room) => {
   });
 };
 
+/**
+ * Drop every connected client of a hotel. Used when the hotel is deactivated.
+ * @param {number|string} hotelId
+ */
+const disconnectHotel = (hotelId) => {
+  if (!io) return;
+  io.in(hotelChannel(hotelId)).disconnectSockets(true);
+};
+
 const closeRoomSocket = () => {
   if (!io) return;
   io.close();
@@ -137,5 +146,6 @@ const closeRoomSocket = () => {
 module.exports = {
   attachRoomSocket,
   publishRoomStatus,
+  disconnectHotel,
   closeRoomSocket,
 };

@@ -151,7 +151,7 @@ router -> validator -> controller -> service -> model -> database
 | :--- | :--- |
 | Router | URL, auth and role guards, validators |
 | Validator | `express-validator` rules, errors mapped to a uniform response |
-| Controller | Reads the request, calls a service, returns `success(...)` |
+| Controller | Reads the request, calls a service, returns `success(...)` for reads and `successMessage(...)` for create, update and delete |
 | Service | Business rules, transactions, side effects (email, socket, storage) |
 | Model | SQL through Knex and formatting of rows |
 
@@ -166,10 +166,16 @@ Conventions:
 
 ### Response format
 
-Success:
+Success with data (read APIs, login, hotel registration):
 
 ```json
 { "success": true, "message": "Booking retrieved successfully.", "data": {} }
+```
+
+Success without data (create, update and delete APIs). Use the list or get API to read the saved record:
+
+```json
+{ "success": true, "message": "Booking updated successfully." }
 ```
 
 Error (validation, `AppError` and database errors):
@@ -195,7 +201,7 @@ Database constraint errors map to `409 Conflict` (duplicates) or `400` (foreign 
 
 | Role | Access |
 | :--- | :--- |
-| `SUPER_ADMIN` | Platform owner. Manages subscription plans. |
+| `SUPER_ADMIN` | Platform owner. Manages hotels and subscription plans. |
 | `HOTEL_ADMIN` | Full access to their own hotel: staff, rooms, room types, bookings |
 | `RECEPTIONIST` | Rooms, room types and bookings of their own hotel |
 | `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Staff accounts created by a hotel admin (can log in and use real-time updates) |
@@ -219,6 +225,17 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 | `POST` | `/auth/reset-password` | Reset with `{ token, password }` | Public |
 | `GET` | `/auth/me` | Current user profile | Authenticated |
 | `POST` | `/hotel/register` | Register a hotel and start the free trial | Public |
+
+### Hotels (`SUPER_ADMIN` only)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/hotels` | Create a hotel and its owner account (multipart for the logo). The owner gets a welcome email. |
+| `GET` | `/hotels` | List hotels (filters: `search`, `is_active`, `subscription_plan_id`, `subscription_plan_active`, `page`, `limit`, `sort_by`, `sort_order`) |
+| `GET` | `/hotels/:id` | Hotel details with owner |
+| `PUT` | `/hotels/:id` | Update details, logo and subscription |
+| `PATCH` | `/hotels/:id/active-status` | Switch a hotel on or off with `{ "is_active": true \| false }` |
+| `DELETE` | `/hotels/:id` | Soft delete the hotel and its users (they can no longer sign in) |
 
 ### Subscription plans
 
@@ -285,6 +302,12 @@ Full request and response examples live in the [Postman collection](#postman-col
 - A room cannot be booked twice for overlapping dates. `CHECKED_OUT`, `CANCELLED` and `NO_SHOW` stays do not block dates.
 - After check-out the room becomes `CLEANING`, then `AVAILABLE` again automatically (see [Scheduled Jobs](#scheduled-jobs)).
 - Deleted rooms still show their number, floor and type on past bookings.
+
+**Hotel active status**
+
+- Every hotel starts with `is_active = true`. A super admin can switch it off with `PATCH /hotels/:id/active-status`.
+- While a hotel is off, all of its users get `403` on login, refresh token, password reset and every protected API (even with a token issued earlier), and their sockets are disconnected. Nothing is deleted.
+- Switching it back on restores access. Super admins are never blocked.
 
 **Billing**
 

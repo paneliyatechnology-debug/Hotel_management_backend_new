@@ -3,6 +3,7 @@
  * Uses consistent snake_case.
  */
 const db = require('../database/knex');
+const { ROLE_CODES } = require('../constants');
 
 /**
  * Find user by ID (excludes soft-deleted)
@@ -164,6 +165,25 @@ const softDeleteUser = (id) => {
 };
 
 /**
+ * Soft delete every user of a hotel, so nobody from it can sign in again.
+ * A super admin is never touched.
+ * @param {number|string} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>} Number of users deleted
+ */
+const softDeleteUsersByHotelId = (hotelId, client = db) => {
+  return client('users')
+    .where({ hotel_id: hotelId })
+    .whereNot('role', ROLE_CODES.SUPER_ADMIN)
+    .whereNull('deleted_at')
+    .update({
+      deleted_at: new Date(),
+      is_active: false,
+      updated_at: new Date(),
+    });
+};
+
+/**
  * Find users with pagination, filters, and search
  * Always excludes soft-deleted users.
  *
@@ -251,6 +271,7 @@ module.exports = {
   createUser,
   updateUser,
   softDeleteUser,
+  softDeleteUsersByHotelId,
   setFailedLoginAttempts,
   clearLockoutAndSetLogin,
   updatePassword,
