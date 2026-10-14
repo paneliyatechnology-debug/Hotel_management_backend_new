@@ -465,29 +465,6 @@ const deleteSubscriptionPlan = async (id) => {
   await subscriptionPlanModel.softDeletePlan(numId);
 };
 
-/**
- * Reset and provision standard 6 enterprise default plans
- * @returns {Promise<void>}
- */
-const resetDefaultPlans = async () => {
-  await db.transaction(async (trx) => {
-    // 1. Soft delete all active plans
-    await trx('subscription_plans')
-      .whereNull('deleted_at')
-      .update({
-        deleted_at: new Date(),
-        is_active: false,
-        updated_at: new Date(),
-      });
-
-    // 2. Insert fresh default plans
-    for (const plan of DEFAULT_PLANS) {
-      const { features, ...planData } = plan;
-      await subscriptionPlanModel.createPlan(planData, features, trx);
-    }
-  });
-};
-
 module.exports = {
   DEFAULT_PLANS,
   sanitizeFeatures,
@@ -497,5 +474,4 @@ module.exports = {
   getSubscriptionPlanById,
   updateSubscriptionPlan,
   deleteSubscriptionPlan,
-  resetDefaultPlans,
 };

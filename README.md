@@ -246,8 +246,6 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 | `POST` | `/subscription-plans` | Create a plan | `SUPER_ADMIN` |
 | `PUT` | `/subscription-plans/:id` | Update a plan | `SUPER_ADMIN` |
 | `DELETE` | `/subscription-plans/:id` | Archive a plan | `SUPER_ADMIN` |
-| `POST` | `/subscription-plans/reset-defaults` | Restore default plans | `SUPER_ADMIN` |
-
 ### Room types and rooms (`HOTEL_ADMIN`, `RECEPTIONIST`)
 
 | Method | Endpoint | Description |

@@ -76,15 +76,4 @@ router.delete(
   subscriptionPlanController.deletePlan
 );
 
-/**
- * POST /api/v1/subscription-plans/reset-defaults
- * Restore standard 6 default plans
- */
-router.post(
-  '/reset-defaults',
-  authenticateUser,
-  requireRole(ROLE_CODES.SUPER_ADMIN),
-  subscriptionPlanController.resetDefaults
-);
-
 module.exports = router;

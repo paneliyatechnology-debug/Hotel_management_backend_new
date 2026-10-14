@@ -519,7 +519,7 @@ Trial, slug, check-in time (\`14:00\`), check-out time (\`12:00\`), timezone \`A
 
 const planFolder = {
   name: '04 Subscription plans',
-  description: `Plan catalog. List and get-one are public. Create, update, delete, and reset are super admin only.
+  description: `Plan catalog. List and get-one are public. Create, update, and delete are super admin only.
 
 Plan JSON uses camelCase. This is different from rooms, bookings, and users, which use snake_case.
 
@@ -667,20 +667,6 @@ Soft-delete. The plan leaves the public list.
 No body.
 
 ${messageOnlyNote()}`,
-    }),
-    item({
-      name: 'Reset default plans',
-      method: 'POST',
-      raw: '{{baseUrl}}/api/v1/subscription-plans/reset-defaults',
-      pathSegments: ['api', 'v1', 'subscription-plans', 'reset-defaults'],
-      description: `### POST /api/v1/subscription-plans/reset-defaults
-${authNote('SUPER_ADMIN only.')}
-
-Restores the standard default plans. No body. No query keys.
-
-Call this only from an admin tool. It rewrites the default catalog.
-
-${messageOnlyNote('Use **List plans** to read the restored plans.')}`,
     }),
   ],
 };

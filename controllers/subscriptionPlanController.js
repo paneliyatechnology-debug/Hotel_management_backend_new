@@ -82,24 +82,10 @@ const deletePlan = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/v1/subscription-plans/reset-defaults
- * Restore standard 6 pre-configured default plans
- */
-const resetDefaults = async (req, res, next) => {
-  try {
-    await subscriptionPlanService.resetDefaultPlans();
-    return successMessage(res, 'Standard 6 Subscription Plans restored successfully.');
-  } catch (err) {
-    next(err);
-  }
-};
-
 module.exports = {
   createPlan,
   getAllPlans,
   getPlanById,
   updatePlan,
   deletePlan,
-  resetDefaults,
 };

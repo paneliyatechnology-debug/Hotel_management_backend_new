@@ -599,7 +599,7 @@
     },
     {
       "name": "04 Subscription plans",
-      "description": "Plan catalog. List and get-one are public. Create, update, delete, and reset are super admin only.\n\nPlan JSON uses camelCase. This is different from rooms, bookings, and users, which use snake_case.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "Plan catalog. List and get-one are public. Create, update, and delete are super admin only.\n\nPlan JSON uses camelCase. This is different from rooms, bookings, and users, which use snake_case.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "List plans",
@@ -840,32 +840,6 @@
               ]
             },
             "description": "### DELETE /api/v1/subscription-plans/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSoft-delete. The plan leaves the public list.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Plan id. |\n\nNo body.\n\n**Response:** only `success` and `message`. There is no `data`."
-          }
-        },
-        {
-          "name": "Reset default plans",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/subscription-plans/reset-defaults",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "subscription-plans",
-                "reset-defaults"
-              ]
-            },
-            "description": "### POST /api/v1/subscription-plans/reset-defaults\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRestores the standard default plans. No body. No query keys.\n\nCall this only from an admin tool. It rewrites the default catalog.\n\n**Response:** only `success` and `message`. There is no `data`. Use **List plans** to read the restored plans."
           }
         }
       ]
