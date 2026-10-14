@@ -180,6 +180,22 @@ const buildPaymentRows = (payments) => {
 };
 
 /**
+ * Methods the guest actually paid with, for example "via Cash, UPI".
+ * Refunds and failed payments are not counted. Returns an empty string when nothing was paid.
+ * @param {Array<Object>} payments
+ * @returns {string}
+ */
+const buildPaidMethods = (payments) => {
+  const methods = [...new Set(
+    [...payments]
+      .reverse()
+      .filter((payment) => Number(payment.amount) > 0 && payment.status !== 'FAILED')
+      .map((payment) => METHOD_LABELS[payment.payment_method] || humanize(payment.payment_method))
+  )];
+  return methods.length ? `<div class="tile-sub">via ${escapeHtml(methods.join(', '))}</div>` : '';
+};
+
+/**
  * Embed a remote file so the PDF does not depend on the browser loading it later.
  * @param {string} url
  * @returns {Promise<string>}
@@ -297,6 +313,7 @@ const buildHtml = async (booking, hotel, payments) => {
     SGST_AMOUNT: money(booking.sgst_amount),
     TOTAL_AMOUNT: money(booking.total_amount),
     PAID_AMOUNT: money(booking.paid_amount),
+    PAID_METHODS: buildPaidMethods(payments),
     DUE_AMOUNT: money(booking.due_amount),
     DUE_CLASS: Number(booking.due_amount) > 0 ? 'open' : 'clear',
     PAYMENT_STATUS: escapeHtml(humanize(booking.payment_status)),

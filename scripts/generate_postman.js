@@ -179,7 +179,7 @@ ${envelope}
 Dates are ISO 8601 strings. Send dates as \`2026-10-14\` or \`2026-10-14T14:00:00.000Z\`.
 
 ## Files
-Image uploads use \`multipart/form-data\`. Allowed types: JPEG, PNG, WebP, GIF, SVG, AVIF. Max 10 MB per file, max 10 files. When there is no file, the same text keys can be sent as JSON.
+Image uploads use \`multipart/form-data\`. Allowed types: JPEG, PNG, WebP, GIF, SVG, AVIF. Max 10 MB per file. There is no limit on the number of files in one request. When there is no file, the same text keys can be sent as JSON.
 `,
     schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
   },
@@ -737,7 +737,7 @@ A category from another hotel returns 403. Missing id returns 404.
         formdata: [
           textField('name', 'Deluxe', 'Required. Category name. Max 150 characters. Unique among active categories in this hotel. Comparison ignores case.'),
           textField('description', 'King bed, city view, free Wi-Fi.', 'Optional. Plain text description.'),
-          fileField('images', 'Optional. Repeat this field for more files, or use images[] / image. Max 10 images, 10 MB each.'),
+          fileField('images', 'Optional. Repeat this field for more files, or use images[] / image. Any number of images, 10 MB each.'),
         ],
       },
       description: `### POST /api/v1/room-types
@@ -1102,7 +1102,6 @@ The room must be free for the scheduled dates. A stay still blocks those dates w
 | \`address\` | string | Guest address. |
 | \`room_id\` | number array | Every room on this stay. Example: \`[12, 15]\`. |
 | \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`status\`, \`room_type_name\`. |
-| \`room\` | object or null | The first room only. Same shape as one item in \`rooms\`. |
 | \`created_by\` | number | User id from the access token. |
 | \`check_in_date\`, \`check_out_date\` | string | Scheduled stay. Not changed by checkout. |
 | \`actual_check_in\` | string | Server time when the booking was created. |
@@ -1126,7 +1125,6 @@ The room must be free for the scheduled dates. A stay still blocks those dates w
 | \`images\`, \`signatures\` | string arrays | URLs of the uploaded files. |
 | \`notes\` | string | Front desk note. |
 | \`hotel\` | object | \`id\`, \`name\`, \`slug\` when joined. |
-| \`room\` | object | \`id\`, \`room_number\`, \`floor\`, \`status\`, \`room_type_name\`. |
 | \`creator\` | object | \`id\`, \`name\`, \`email\`, \`role\` of the staff user. |
 | \`deleted_at\` | null | Null until deleted. |
 | \`created_at\`, \`updated_at\` | string | Timestamps. |`,

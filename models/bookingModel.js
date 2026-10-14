@@ -123,10 +123,9 @@ const formatBooking = (row, relations = {}) => {
     : (row.room_id ? [{ id: row.room_id, room_number: null, floor: null, status: null, room_type_name: null }] : []);
   const rooms = linkedRooms.length > 0 ? linkedRooms : fallbackRoom;
 
-  // room_id is every room on this stay. room is the first one, for older screens.
+  // room_id is every room id on this stay. rooms has the details of each one.
   booking.room_id = rooms.map((room) => room.id);
   booking.rooms = rooms;
-  booking.room = rooms[0] || null;
 
   if (row.created_by_name) {
     booking.creator = {

@@ -558,7 +558,7 @@ const validateBookingPreconditions = async ({
     rooms.push(room);
   }
 
-  return { inDate, outDate, numberOfNights, hotel, rooms, room: rooms[0] };
+  return { inDate, outDate, numberOfNights, hotel, rooms };
 };
 
 /**

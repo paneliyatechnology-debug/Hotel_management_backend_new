@@ -35,8 +35,7 @@ const fileFilter = (_req, file, cb) => {
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB per file
-    files: 10, // Max 10 images at once
+    fileSize: 10 * 1024 * 1024, // 10MB per file. The number of files per request is not limited.
   },
   fileFilter,
 });
@@ -52,11 +51,6 @@ const uploadRoomImages = (req, res, next) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return next(
             new AppError('Image file is too large. Maximum size allowed is 10MB.', HTTP_STATUS.BAD_REQUEST)
-          );
-        }
-        if (err.code === 'LIMIT_FILE_COUNT') {
-          return next(
-            new AppError('Too many files uploaded. Maximum 10 images allowed per request.', HTTP_STATUS.BAD_REQUEST)
           );
         }
         return next(new AppError(`Upload error: ${err.message}`, HTTP_STATUS.BAD_REQUEST));
