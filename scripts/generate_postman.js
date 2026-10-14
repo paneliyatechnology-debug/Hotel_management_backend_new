@@ -1148,6 +1148,7 @@ Bookings for the logged-in hotel. Soft-deleted rows are omitted. Newest first.
 | \`booking_number\` | string | Booking number. |
 | \`primary_guest_name\` | string | Main guest. |
 | \`mobile_number\` | string | Guest mobile. |
+| \`booking_status\` | string | Stay status: PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, or NO_SHOW. |
 | \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`room_type_name\`. |`,
     }),
     item({

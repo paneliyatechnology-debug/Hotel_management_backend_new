@@ -118,6 +118,7 @@ const formatBookingListItem = (row, rooms = []) => ({
   booking_number: row.booking_number,
   primary_guest_name: row.primary_guest_name,
   mobile_number: row.mobile_number,
+  booking_status: row.booking_status,
   rooms,
 });
 
@@ -428,7 +429,8 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
     'bookings.hotel_id',
     'bookings.booking_number',
     'bookings.primary_guest_name',
-    'bookings.mobile_number'
+    'bookings.mobile_number',
+    'bookings.booking_status'
   );
 
   applyFilters(dataQuery);
