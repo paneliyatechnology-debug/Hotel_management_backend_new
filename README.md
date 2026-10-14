@@ -7,7 +7,7 @@ live room status updates.
 - **Runtime:** Node.js 18+ (20 LTS recommended), Express 4
 - **Database:** MySQL 8+ through Knex (migrations and seeds)
 - **Auth:** JWT access and refresh tokens (Bearer header or HTTP-only cookies), role-based access control
-- **Real time:** Socket.IO (`room:status` event)
+- **Real time:** Socket.IO (`room:status` and `room:status_breakdown` events)
 - **Storage:** S3-compatible object storage for images (AWS S3, Cloudflare R2, MinIO)
 - **Email:** Brevo transactional API, BullMQ queue with in-memory fallback
 - **PDF:** Puppeteer renders the booking folio
@@ -410,12 +410,23 @@ const socket = io('http://127.0.0.1:5001', {
 socket.on('room:status', (room) => {
   // { id, hotel_id, room_number, floor, status, is_active, deleted_at, updated_at }
 });
+
+socket.on('room:status_breakdown', (payload) => {
+  // {
+  //   hotel_id,
+  //   room_status_breakdown: {
+  //     AVAILABLE, OCCUPIED, RESERVED, CLEANING, MAINTENANCE, BLOCKED
+  //   }
+  // }
+});
 ```
 
 - Every hotel user joins only the channel of their own hotel (`hotel:<hotel_id>`).
 - `SUPER_ADMIN` must also pass `hotel_id` in `auth`.
 - `room:status` is emitted when a booking is created (`OCCUPIED`), on check-out (`CLEANING`), when the
   status is changed through the API, and when cleaning finishes (`AVAILABLE`).
+- Every `room:status` is followed by `room:status_breakdown` with live counts for that hotel. Use it to
+  refresh dashboard room-status cards without polling.
 - Use Socket.IO client v4. A plain WebSocket client does not work.
 
 ---

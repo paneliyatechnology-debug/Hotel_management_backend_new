@@ -1,12 +1,15 @@
 /**
  * Live room status for one hotel.
  * Clients join only their own hotel. A user from another hotel never receives these events.
+ * Every room:status publish also sends room:status_breakdown so dashboards can refresh counts live.
  */
 const { Server } = require('socket.io');
 const { authenticateUser, validateHotelAccess } = require('../middleware/auth');
+const dashboardModel = require('../models/dashboardModel');
 const { ROLE_CODES } = require('../constants');
 
 const ROOM_STATUS_EVENT = 'room:status';
+const ROOM_STATUS_BREAKDOWN_EVENT = 'room:status_breakdown';
 
 let io = null;
 
@@ -109,7 +112,28 @@ const attachRoomSocket = (httpServer, { isOriginAllowed }) => {
 };
 
 /**
+ * Tell the hotel's connected clients the current room counts by status.
+ * Used by the dashboard so occupancy cards update without polling.
+ * @param {number|string} hotelId
+ * @returns {Promise<void>}
+ */
+const publishRoomStatusBreakdown = async (hotelId) => {
+  if (!io || !hotelId) return;
+
+  try {
+    const roomStatusBreakdown = await dashboardModel.getHotelRoomStatusSummary(hotelId);
+    io.to(hotelChannel(hotelId)).emit(ROOM_STATUS_BREAKDOWN_EVENT, {
+      hotel_id: Number(hotelId),
+      room_status_breakdown: roomStatusBreakdown,
+    });
+  } catch (err) {
+    console.error('[RoomSocket] Failed to publish room status breakdown:', err.message);
+  }
+};
+
+/**
  * Tell the hotel's connected clients that a room status changed.
+ * Also publishes the hotel's room_status_breakdown for live dashboard updates.
  * No-op when the socket server is not running.
  * @param {Object|null} room
  */
@@ -126,6 +150,9 @@ const publishRoomStatus = (room) => {
     deleted_at: room.deleted_at || null,
     updated_at: room.updated_at,
   });
+
+  // Fire-and-forget. Callers of publishRoomStatus stay synchronous.
+  publishRoomStatusBreakdown(room.hotel_id);
 };
 
 /**
@@ -146,6 +173,9 @@ const closeRoomSocket = () => {
 module.exports = {
   attachRoomSocket,
   publishRoomStatus,
+  publishRoomStatusBreakdown,
   disconnectHotel,
   closeRoomSocket,
+  ROOM_STATUS_EVENT,
+  ROOM_STATUS_BREAKDOWN_EVENT,
 };

@@ -828,6 +828,22 @@ Any logged-in hotel role can connect: hotel admin, receptionist, manager, housek
 
 Listen for \`room:status\`. The payload is \`id\`, \`hotel_id\`, \`room_number\`, \`floor\`, \`status\`, \`is_active\`, \`deleted_at\`, \`updated_at\`. It is sent when a room is created, when its status or active flag changes, and when a booking moves the room (occupied, reserved, cleaning, available).
 
+Every \`room:status\` is followed by \`room:status_breakdown\` for the same hotel. Use that for live dashboard cards. Payload:
+
+\`\`\`json
+{
+  "hotel_id": 3,
+  "room_status_breakdown": {
+    "AVAILABLE": 4,
+    "OCCUPIED": 22,
+    "RESERVED": 0,
+    "CLEANING": 2,
+    "MAINTENANCE": 0,
+    "BLOCKED": 0
+  }
+}
+\`\`\`
+
 ${envelope}`,
   item: [
     item({
