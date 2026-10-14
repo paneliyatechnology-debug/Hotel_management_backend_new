@@ -117,10 +117,9 @@ const formatBooking = (row, relations = {}) => {
       id: row.room_id,
       room_number: row.room_number,
       floor: row.room_floor,
-      status: row.room_status,
       room_type_name: row.room_type_name || null,
     }]
-    : (row.room_id ? [{ id: row.room_id, room_number: null, floor: null, status: null, room_type_name: null }] : []);
+    : (row.room_id ? [{ id: row.room_id, room_number: null, floor: null, room_type_name: null }] : []);
   const rooms = linkedRooms.length > 0 ? linkedRooms : fallbackRoom;
 
   // room_id is every room id on this stay. rooms has the details of each one.
@@ -138,6 +137,21 @@ const formatBooking = (row, relations = {}) => {
 
   return booking;
 };
+
+/**
+ * Short shape used by the booking list.
+ * @param {Object} row
+ * @param {Array<Object>} rooms
+ * @returns {Object}
+ */
+const formatBookingListItem = (row, rooms = []) => ({
+  id: row.id,
+  hotel_id: row.hotel_id,
+  booking_number: row.booking_number,
+  primary_guest_name: row.primary_guest_name,
+  mobile_number: row.mobile_number,
+  rooms,
+});
 
 /**
  * Generate a unique booking number safely under concurrent conditions.
@@ -209,7 +223,6 @@ const loadRoomsByBookingIds = async (bookingIds, client = db) => {
       'rooms.id as id',
       'rooms.room_number',
       'rooms.floor',
-      'rooms.status',
       'room_types.name as room_type_name'
     );
 
@@ -221,7 +234,6 @@ const loadRoomsByBookingIds = async (bookingIds, client = db) => {
       id: row.id,
       room_number: row.room_number,
       floor: row.floor,
-      status: row.status,
       room_type_name: row.room_type_name || null,
     });
   }
@@ -336,7 +348,6 @@ const findBookingById = async (id, { includeDeleted = false } = {}, client = db)
       'hotels.slug as hotel_slug',
       'rooms.room_number',
       'rooms.floor as room_floor',
-      'rooms.status as room_status',
       'room_types.name as room_type_name',
       'users.name as created_by_name',
       'users.email as created_by_email',
@@ -443,41 +454,22 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
   const totalResult = await countQuery.count('bookings.id as total').first();
   const total = Number(totalResult?.total || 0);
 
-  // Paginated query
-  let dataQuery = client('bookings')
-    .leftJoin('hotels', 'bookings.hotel_id', 'hotels.id')
-    .leftJoin('rooms', 'bookings.room_id', 'rooms.id')
-    .leftJoin('room_types', 'rooms.room_type_id', 'room_types.id')
-    .leftJoin('users', 'bookings.created_by', 'users.id')
-    .select(
-      'bookings.*',
-      'hotels.name as hotel_name',
-      'hotels.slug as hotel_slug',
-      'rooms.room_number',
-      'rooms.floor as room_floor',
-      'rooms.status as room_status',
-      'room_types.name as room_type_name',
-      'users.name as created_by_name',
-      'users.email as created_by_email',
-      'users.role as created_by_role'
-    );
+  // Paginated query. The list only needs these columns.
+  let dataQuery = client('bookings').select(
+    'bookings.id',
+    'bookings.hotel_id',
+    'bookings.booking_number',
+    'bookings.primary_guest_name',
+    'bookings.mobile_number'
+  );
 
   applyFilters(dataQuery);
   dataQuery = dataQuery.orderBy('bookings.created_at', 'desc').offset(offset).limit(limit);
 
   const rows = await dataQuery;
-  const bookingIds = rows.map((r) => r.id);
+  const roomsMap = await loadRoomsByBookingIds(rows.map((r) => r.id), client);
 
-  const { imagesMap, signaturesMap } = await loadBookingMedia(bookingIds, client);
-  const roomsMap = await loadRoomsByBookingIds(bookingIds, client);
-
-  const bookings = rows.map((row) =>
-    formatBooking(row, {
-      images: imagesMap[row.id] || [],
-      signatures: signaturesMap[row.id] || [],
-      rooms: roomsMap[row.id] || [],
-    })
-  );
+  const bookings = rows.map((row) => formatBookingListItem(row, roomsMap[row.id] || []));
 
   return {
     bookings,

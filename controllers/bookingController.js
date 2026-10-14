@@ -47,11 +47,11 @@ const getBookings = async (req, res, next) => {
 
 /**
  * GET /api/v1/bookings/:id
- * Get full booking details by ID
+ * Get full booking details and payment history by ID
  */
 const getBookingById = async (req, res, next) => {
   try {
-    const data = await bookingService.getBookingById(req.params.id, req.user);
+    const data = await bookingService.getBookingDetails(req.params.id, req.user);
     return success(
       res,
       MESSAGES.BOOKING_RETRIEVED_SUCCESS,
@@ -138,24 +138,6 @@ const updateBookingStatus = async (req, res, next) => {
 };
 
 /**
- * GET /api/v1/bookings/:id/payments
- * Payment history of a booking
- */
-const getBookingPayments = async (req, res, next) => {
-  try {
-    const data = await bookingService.getBookingPayments(req.params.id, req.user);
-    return success(
-      res,
-      MESSAGES.BOOKING_PAYMENTS_RETRIEVED_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
-  } catch (err) {
-    next(err);
-  }
-};
-
-/**
  * DELETE /api/v1/bookings/:id
  * Soft-delete a booking
  */
@@ -181,6 +163,5 @@ module.exports = {
   updateBooking,
   checkOutBooking,
   updateBookingStatus,
-  getBookingPayments,
   deleteBooking,
 };

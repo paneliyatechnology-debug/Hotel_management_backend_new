@@ -51,7 +51,6 @@ const MESSAGES = {
   BOOKING_UPDATED_SUCCESS: 'Booking updated successfully.',
   BOOKING_DELETED_SUCCESS: 'Booking deleted successfully.',
   BOOKING_CHECKED_OUT_SUCCESS: 'Checkout completed successfully. Room is now marked for cleaning.',
-  BOOKING_PAYMENTS_RETRIEVED_SUCCESS: 'Booking payment history retrieved successfully.',
   BOOKING_STATUS_UPDATED_SUCCESS: 'Booking status updated successfully.',
   BOOKING_PDF_GENERATED_SUCCESS: 'Booking folio generated successfully.',
   BOOKING_RETRIEVED_SUCCESS: 'Booking retrieved successfully.',

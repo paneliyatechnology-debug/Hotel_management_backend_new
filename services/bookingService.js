@@ -947,24 +947,16 @@ const updateBookingStatus = async (id, body = {}, reqUser = null) => {
 };
 
 /**
- * Payment history of one booking with its current totals.
+ * One booking with its payment history, newest payment first.
  * @param {number|string} id
  * @param {Object} [reqUser=null]
  * @returns {Promise<Object>}
  */
-const getBookingPayments = async (id, reqUser = null) => {
+const getBookingDetails = async (id, reqUser = null) => {
   const booking = await getBookingById(id, reqUser);
-  const payments = await bookingPaymentModel.findPaymentsByBookingId(booking.id);
+  const paymentHistory = await bookingPaymentModel.findPaymentsByBookingId(booking.id);
 
-  return {
-    booking_id: booking.id,
-    booking_number: booking.booking_number,
-    total_amount: booking.total_amount,
-    paid_amount: booking.paid_amount,
-    due_amount: booking.due_amount,
-    payment_status: booking.payment_status,
-    payments,
-  };
+  return { ...booking, payment_history: paymentHistory };
 };
 
 /**
@@ -986,9 +978,9 @@ module.exports = {
   createBooking,
   getBookings,
   getBookingById,
+  getBookingDetails,
   updateBooking,
   checkOutBooking,
   updateBookingStatus,
-  getBookingPayments,
   deleteBooking,
 };

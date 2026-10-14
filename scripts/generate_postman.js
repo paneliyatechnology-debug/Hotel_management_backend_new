@@ -1101,7 +1101,7 @@ The room must be free for the scheduled dates. A stay still blocks those dates w
 | \`email\` | string or null | Guest email. Not a login email. Null when omitted. |
 | \`address\` | string | Guest address. |
 | \`room_id\` | number array | Every room on this stay. Example: \`[12, 15]\`. |
-| \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`status\`, \`room_type_name\`. |
+| \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`room_type_name\`. |
 | \`created_by\` | number | User id from the access token. |
 | \`check_in_date\`, \`check_out_date\` | string | Scheduled stay. Not changed by checkout. |
 | \`actual_check_in\` | string | Server time when the booking was created. |
@@ -1160,11 +1160,21 @@ Bookings for the logged-in hotel. Soft-deleted rows are omitted. Newest first.
 **Response \`data\`**
 | Key | Type | Meaning |
 | --- | --- | --- |
-| \`bookings\` | array | Booking objects. Same keys as Create booking. |
+| \`bookings\` | array | Short booking objects. Use **Get booking** for the full details. |
 | \`total\` | number | Matching bookings. |
 | \`page\` | number | Current page. |
 | \`limit\` | number | Page size. |
-| \`totalPages\` | number | Page count. |`,
+| \`totalPages\` | number | Page count. |
+
+**Each item in \`bookings\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Booking id. |
+| \`hotel_id\` | number | Hotel id. |
+| \`booking_number\` | string | Booking number. |
+| \`primary_guest_name\` | string | Main guest. |
+| \`mobile_number\` | string | Guest mobile. |
+| \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`room_type_name\`. |`,
     }),
     item({
       name: 'Get booking',
@@ -1180,7 +1190,20 @@ Another hotel's booking returns 403.
 | --- | --- | --- | --- |
 | \`id\` | number | Yes | Booking id. |
 
-**Response \`data\`:** one booking. Same keys as Create booking.`,
+**Response \`data\`:** one booking with the same keys as Create booking, plus \`payment_history\`.
+
+**\`payment_history\`** lists every change to the amount paid, newest first. A row is added when the booking is created with a paid amount, when **Update booking** changes \`paid_amount\`, and when **Check out** collects \`paid_amount\`.
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Payment row id. |
+| \`booking_id\` | number | Booking id. |
+| \`amount\` | number | Money received. Negative when \`paid_amount\` was lowered on an update. |
+| \`payment_method\` | string | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. |
+| \`status\` | string | Status of this payment: \`PAID\` (the bill is fully paid after it), \`PARTIALLY_PAID\` (a balance is left), \`REFUNDED\` (money taken back), or \`FAILED\` (did not go through). The server sets \`PAID\`, \`PARTIALLY_PAID\` and \`REFUNDED\` itself. |
+| \`source\` | string | \`BOOKING\` (create), \`UPDATE\` (booking edit), or \`CHECKOUT\`. |
+| \`received_by\` | object or null | \`id\` and \`name\` of the staff user. |
+| \`received_at\` | string | When it was recorded. |`,
     }),
     item({
       name: 'Generate booking PDF',
@@ -1203,45 +1226,6 @@ Builds the folio from this booking, including the guest signature and every uplo
 | --- | --- | --- |
 | \`url\` | string | Open this address in a browser to view the PDF. |
 | \`file_name\` | string | File name in the uploads folder. |`,
-    }),
-    item({
-      name: 'Booking payment history',
-      method: 'GET',
-      raw: '{{baseUrl}}/api/v1/bookings/{{bookingId}}/payments',
-      pathSegments: ['api', 'v1', 'bookings', ':id', 'payments'],
-      variable: [idVar('id', '{{bookingId}}', 'Required. Booking id.')],
-      description: `### GET /api/v1/bookings/:id/payments
-${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
-
-Lists every change to the amount paid on this booking, newest first. A row is added when the booking is created with a paid amount, when **Update booking** changes \`paid_amount\`, and when **Check out** collects \`paid_amount\`.
-
-**Path keys**
-| Key | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| \`id\` | number | Yes | Booking id. |
-
-**Response \`data\`**
-| Key | Type | Meaning |
-| --- | --- | --- |
-| \`booking_id\` | number | Booking id. |
-| \`booking_number\` | string | Booking number. |
-| \`total_amount\` | number | Bill total. |
-| \`paid_amount\` | number | Total paid so far. |
-| \`due_amount\` | number | Balance still to pay. |
-| \`payment_status\` | string | \`PENDING\`, \`PARTIALLY_PAID\`, or \`PAID\`. |
-| \`payments\` | array | History rows, newest first. |
-
-**Each item in \`payments\`**
-| Key | Type | Meaning |
-| --- | --- | --- |
-| \`id\` | number | Payment row id. |
-| \`booking_id\` | number | Booking id. |
-| \`amount\` | number | Money received. Negative when \`paid_amount\` was lowered on an update. |
-| \`payment_method\` | string | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. |
-| \`status\` | string | Status of this payment: \`PAID\` (the bill is fully paid after it), \`PARTIALLY_PAID\` (a balance is left), \`REFUNDED\` (money taken back), or \`FAILED\` (did not go through). The server sets \`PAID\`, \`PARTIALLY_PAID\` and \`REFUNDED\` itself. |
-| \`source\` | string | \`BOOKING\` (create), \`UPDATE\` (booking edit), or \`CHECKOUT\`. |
-| \`received_by\` | object or null | \`id\` and \`name\` of the staff user. |
-| \`received_at\` | string | When it was recorded. |`,
     }),
     item({
       name: 'Update booking',
