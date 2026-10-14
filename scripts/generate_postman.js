@@ -1320,7 +1320,11 @@ A second checkout, when \`actual_check_out\` is already set, returns 400.
 | \`late_checkout_hours\` | number | No | Hours late. 0 or more. |
 | \`notes\` | string | No | Appended to the existing note. It does not wipe the old note. |
 
-**Response \`data\`:** the booking after checkout. \`booking_status\` is \`CHECKED_OUT\`. Each item in \`rooms\` has \`status\` \`CLEANING\`.`,
+**Response:** only \`success\` and \`message\`. There is no \`data\`. Use **Get booking** to read the booking after checkout.
+
+\`\`\`json
+{ "success": true, "message": "Checkout completed successfully. Room is now marked for cleaning." }
+\`\`\``,
     }),
     item({
       name: 'Update booking status',

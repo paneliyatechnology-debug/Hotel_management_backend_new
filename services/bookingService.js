@@ -840,7 +840,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
  * @param {number|string} id
  * @param {Object} [body={}]
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object>}
+ * @returns {Promise<void>}
  */
 const checkOutBooking = async (id, body = {}, reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
@@ -915,8 +915,6 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
     bookingPaymentStatus: pricing.payment_status,
   }, reqUser);
   await syncRoomForBookingStatus(existing, 'CHECKED_OUT', now);
-
-  return getBookingById(existing.id, reqUser);
 };
 
 /**

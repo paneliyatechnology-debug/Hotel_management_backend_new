@@ -107,13 +107,12 @@ const updateBooking = async (req, res, next) => {
  */
 const checkOutBooking = async (req, res, next) => {
   try {
-    const data = await bookingService.checkOutBooking(req.params.id, req.body, req.user);
-    return success(
-      res,
-      MESSAGES.BOOKING_CHECKED_OUT_SUCCESS,
-      data,
-      HTTP_STATUS.OK
-    );
+    await bookingService.checkOutBooking(req.params.id, req.body, req.user);
+    // Checkout answers with only success and message. No data.
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: MESSAGES.BOOKING_CHECKED_OUT_SUCCESS,
+    });
   } catch (err) {
     next(err);
   }
