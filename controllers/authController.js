@@ -60,7 +60,7 @@ const logout = async (req, res, next) => {
 const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-    const data = await authService.forgotPassword(email);
+    const data = await authService.forgotPassword(email, req.get('origin'));
     return success(
       res,
       'A password reset link has been sent to your email. Please check your inbox or spam folder.',

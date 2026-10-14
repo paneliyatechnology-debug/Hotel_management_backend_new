@@ -185,12 +185,30 @@ const logout = async (res) => {
   return null;
 };
 
+// A frontend running on the developer's machine, on any port.
+const LOCAL_ORIGIN_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+/**
+ * Frontend address the reset link points to.
+ * A caller on localhost gets a link back to its own localhost, so a developer testing against the
+ * live API stays on local. Every other caller gets the address from the server settings.
+ * Only localhost is trusted from the request. Any other origin could be sent by an attacker to
+ * point a victim's reset email at a hostile site.
+ * @param {string} [requestOrigin]
+ * @returns {string}
+ */
+const resolveResetBaseUrl = (requestOrigin) => {
+  if (requestOrigin && LOCAL_ORIGIN_PATTERN.test(requestOrigin)) return requestOrigin;
+  return (process.env.RESET_PASSWORD_URL || process.env.FRONTEND_URL || 'http://localhost:3000').trim();
+};
+
 /**
  * Request password reset link (Generates single-use token & emails reset link)
  * @param {string} email
+ * @param {string} [requestOrigin] - Origin header of the caller. A local frontend gets a link back to itself.
  * @returns {Promise<Object>}
  */
-const forgotPassword = async (email) => {
+const forgotPassword = async (email, requestOrigin) => {
   const user = await userModel.findUserByEmail(email);
 
   if (!user) {
@@ -232,7 +250,7 @@ const forgotPassword = async (email) => {
   });
 
   // Construct secure Reset URL
-  const frontendBase = (process.env.RESET_PASSWORD_URL || process.env.FRONTEND_URL || 'http://localhost:3000').trim();
+  const frontendBase = resolveResetBaseUrl(requestOrigin);
   const resetUrl = frontendBase.includes('/reset-password')
     ? `${frontendBase}?token=${token}`
     : `${frontendBase.replace(/\/+$/, '')}/reset-password?token=${token}`;

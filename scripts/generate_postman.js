@@ -350,6 +350,8 @@ Public. Sends a single-use reset link. The link expires in 30 minutes. Older unu
 
 Unknown email returns 404. A deactivated account returns 403.
 
+**Where the link points.** The server adds \`/reset-password?token=...\` to a frontend address. When the request comes from a frontend on \`localhost\` or \`127.0.0.1\` (any port), the browser sends that address in the \`Origin\` header and the link points back to it, so a developer using the live API stays on their local app. Any other caller, including Postman, gets the address in the server setting \`RESET_PASSWORD_URL\` or \`FRONTEND_URL\`. Only localhost is trusted from the request.
+
 **Body keys**
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
