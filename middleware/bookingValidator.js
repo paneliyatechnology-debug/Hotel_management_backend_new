@@ -269,6 +269,11 @@ const checkOutBookingValidator = [
 
   paymentMethodValidator,
 
+  body('extra_charges_total')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('extra_charges_total cannot be negative.'),
+
   body('late_checkout_charge')
     .optional()
     .isFloat({ min: 0 })

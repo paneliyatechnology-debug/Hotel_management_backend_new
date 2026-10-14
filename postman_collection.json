@@ -1665,26 +1665,6 @@
                   "description": "Optional. Discount. 0 or more. Default 0."
                 },
                 {
-                  "key": "extra_charges_total",
-                  "value": "0",
-                  "type": "text",
-                  "description": "Optional. Extra charges before tax. 0 or more. Default 0."
-                },
-                {
-                  "key": "late_checkout_charge",
-                  "value": "0",
-                  "type": "text",
-                  "description": "Optional. Late fee amount. 0 or more. Usually left 0 until checkout.",
-                  "disabled": true
-                },
-                {
-                  "key": "late_checkout_hours",
-                  "value": "0",
-                  "type": "text",
-                  "description": "Optional. Late hours. 0 or more.",
-                  "disabled": true
-                },
-                {
                   "key": "gst_rate",
                   "value": "18",
                   "type": "text",
@@ -1746,7 +1726,7 @@
                 "bookings"
               ]
             },
-            "description": "### POST /api/v1/bookings\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nDo not send `hotel_id`, `created_by`, `actual_check_in`, `booking_number`, `number_of_nights`, `payment_status`, tax amounts, `total_amount`, or `due_amount`. `created_by` is the user id from the access token. `actual_check_in` is the server time when the booking is created. The server calculates the amounts.\n\nThe room must be free for the scheduled dates. A stay still blocks those dates while `booking_status` is `PENDING`, `CONFIRMED`, or `CHECKED_IN` and `actual_check_out` is empty. Overlap returns 400.\n\n**Body keys** are described on each form row.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Booking id. Saved to `{{bookingId}}`. |\n| `hotel_id` | number | Hotel from the token. |\n| `booking_number` | string | Generated, format `BK-YYYYMMDD-XXXXXX`. |\n| `primary_guest_name` | string | Main guest. |\n| `secondary_guest_name` | string or null | Second guest. |\n| `mobile_number` | string | Guest mobile. |\n| `email` | string or null | Guest email. Not a login email. Null when omitted. |\n| `address` | string | Guest address. |\n| `room_id` | number array | Every room on this stay. Example: `[12, 15]`. |\n| `rooms` | object array | One object per room: `id`, `room_number`, `floor`, `room_type_name`. |\n| `created_by` | number | User id from the access token. |\n| `check_in_date`, `check_out_date` | string | Scheduled stay. Not changed by checkout. |\n| `actual_check_in` | string | Server time when the booking was created. |\n| `actual_check_out` | string or null | Real check-out time. Null until checkout. |\n| `number_of_nights` | number | Calculated from the scheduled dates. Minimum handling is server-side. |\n| `adults`, `children` | number | Guest counts. |\n| `base_amount` | number | Room charge before tax. |\n| `discount_amount` | number | Discount. |\n| `extra_charges_total` | number | Extras. |\n| `late_checkout_charge`, `late_checkout_hours` | number | Late checkout. |\n| `gst_rate` | number | GST percent. |\n| `cgst_rate`, `sgst_rate` | number | Each is half of `gst_rate`. |\n| `taxable_amount` | number | Amount GST is applied to. |\n| `gst_amount`, `cgst_amount`, `sgst_amount` | number | Tax amounts. |\n| `tax_amount` | number | Tax total. |\n| `total_amount` | number | Amount due before payments. |\n| `paid_amount` | number | Collected so far. |\n| `due_amount` | number | `total_amount - paid_amount`. |\n| `payment_status` | string | `PENDING`, `PARTIALLY_PAID`, or `PAID`. |\n| `booking_status` | string | Stay status. |\n| `images`, `signatures` | string arrays | URLs of the uploaded files. |\n| `notes` | string | Front desk note. |\n| `hotel` | object | `id`, `name`, `slug` when joined. |\n| `creator` | object | `id`, `name`, `email`, `role` of the staff user. |\n| `deleted_at` | null | Null until deleted. |\n| `created_at`, `updated_at` | string | Timestamps. |"
+            "description": "### POST /api/v1/bookings\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nDo not send `hotel_id`, `created_by`, `actual_check_in`, `booking_number`, `number_of_nights`, `payment_status`, tax amounts, `total_amount`, `due_amount`, `extra_charges_total`, `late_checkout_charge`, or `late_checkout_hours`. The extra charges and late checkout fields are only set by **Check out**. `created_by` is the user id from the access token. `actual_check_in` is the server time when the booking is created. The server calculates the amounts.\n\nThe room must be free for the scheduled dates. A stay still blocks those dates while `booking_status` is `PENDING`, `CONFIRMED`, or `CHECKED_IN` and `actual_check_out` is empty. Overlap returns 400.\n\n**Body keys** are described on each form row.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Booking id. Saved to `{{bookingId}}`. |\n| `hotel_id` | number | Hotel from the token. |\n| `booking_number` | string | Generated, format `BK-YYYYMMDD-XXXXXX`. |\n| `primary_guest_name` | string | Main guest. |\n| `secondary_guest_name` | string or null | Second guest. |\n| `mobile_number` | string | Guest mobile. |\n| `email` | string or null | Guest email. Not a login email. Null when omitted. |\n| `address` | string | Guest address. |\n| `room_id` | number array | Every room on this stay. Example: `[12, 15]`. |\n| `rooms` | object array | One object per room: `id`, `room_number`, `floor`, `room_type_name`. |\n| `created_by` | number | User id from the access token. |\n| `check_in_date`, `check_out_date` | string | Scheduled stay. Not changed by checkout. |\n| `actual_check_in` | string | Server time when the booking was created. |\n| `actual_check_out` | string or null | Real check-out time. Null until checkout. |\n| `number_of_nights` | number | Calculated from the scheduled dates. Minimum handling is server-side. |\n| `adults`, `children` | number | Guest counts. |\n| `base_amount` | number | Room charge before tax. |\n| `discount_amount` | number | Discount. |\n| `extra_charges_total` | number | Extras. Added to the total with no GST. |\n| `late_checkout_charge`, `late_checkout_hours` | number | Late checkout. The charge is added to the total with no GST. |\n| `gst_rate` | number | GST percent. |\n| `cgst_rate`, `sgst_rate` | number | Each is half of `gst_rate`. |\n| `taxable_amount` | number | Amount GST is applied to: room charge minus discount. Extra charges and the late checkout charge are not included. |\n| `gst_amount`, `cgst_amount`, `sgst_amount` | number | Tax amounts. |\n| `tax_amount` | number | Tax total. |\n| `total_amount` | number | Amount due before payments. |\n| `paid_amount` | number | Collected so far. |\n| `due_amount` | number | `total_amount - paid_amount`. |\n| `payment_status` | string | `PENDING`, `PARTIALLY_PAID`, or `PAID`. |\n| `booking_status` | string | Stay status. |\n| `images`, `signatures` | string arrays | URLs of the uploaded files. |\n| `notes` | string | Front desk note. |\n| `hotel` | object | `id`, `name`, `slug` when joined. |\n| `creator` | object | `id`, `name`, `email`, `role` of the staff user. |\n| `deleted_at` | null | Null until deleted. |\n| `created_at`, `updated_at` | string | Timestamps. |"
           }
         },
         {
@@ -2038,27 +2018,6 @@
                   "disabled": true
                 },
                 {
-                  "key": "extra_charges_total",
-                  "value": "300",
-                  "type": "text",
-                  "description": "Optional. Recalculates pricing.",
-                  "disabled": true
-                },
-                {
-                  "key": "late_checkout_charge",
-                  "value": "0",
-                  "type": "text",
-                  "description": "Optional. Recalculates pricing.",
-                  "disabled": true
-                },
-                {
-                  "key": "late_checkout_hours",
-                  "value": "0",
-                  "type": "text",
-                  "description": "Optional.",
-                  "disabled": true
-                },
-                {
                   "key": "gst_rate",
                   "value": "18",
                   "type": "text",
@@ -2119,7 +2078,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/bookings/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis does not change `booking_status`. Use **Update booking status** or **Check out** for the stay.\n\nSend at least one guest photo file and one signature file on every update. A URL does not count. Missing either file returns 400.\n\nOn this API, `paid_amount` replaces the stored paid amount. On checkout, `paid_amount` is added to what was already paid. Every change to the paid amount is added to the payment history.\n\nChanging room or dates checks overlap again, ignoring this booking.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** are on the form rows. Disabled rows are not sent.\n\n**Response `data`:** the updated booking."
+            "description": "### PUT /api/v1/bookings/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis does not change `booking_status`. Use **Update booking status** or **Check out** for the stay.\n\nSend at least one guest photo file and one signature file on every update. A URL does not count. Missing either file returns 400.\n\n`extra_charges_total`, `late_checkout_charge`, and `late_checkout_hours` are not accepted here. They are only set by **Check out**, and an update keeps the stored values.\n\nOn this API, `paid_amount` replaces the stored paid amount. On checkout, `paid_amount` is added to what was already paid. Every change to the paid amount is added to the payment history.\n\nChanging room or dates checks overlap again, ignoring this booking.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** are on the form rows. Disabled rows are not sent.\n\n**Response `data`:** the updated booking."
           }
         },
         {
@@ -2140,7 +2099,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"paid_amount\": 1500,\n  \"payment_method\": \"UPI\",\n  \"late_checkout_charge\": 500,\n  \"late_checkout_hours\": 2,\n  \"notes\": \"Collected remaining balance at the desk\"\n}",
+              "raw": "{\n  \"paid_amount\": 1500,\n  \"payment_method\": \"UPI\",\n  \"extra_charges_total\": 300,\n  \"late_checkout_charge\": 500,\n  \"late_checkout_hours\": 2,\n  \"notes\": \"Collected remaining balance at the desk\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2167,7 +2126,7 @@
                 }
               ]
             },
-            "description": "### POST /api/v1/bookings/:id/check-out\nSets `booking_status` to `CHECKED_OUT`, sets `actual_check_out`, and marks every room in `room_id` as `CLEANING`. After 20 minutes each room becomes `AVAILABLE` again on its own. You can still change the room status at any time with **Update room status**.\n\nThe payment must equal the due amount exactly. Paying less or more returns 400 and nothing is saved. The due amount includes any late fee and its GST. When nothing is due, send `{}` or `paid_amount: 0`. Any amount collected here is added to the payment history.\n\nScheduled `check_in_date`, `check_out_date`, and `number_of_nights` stay as booked.\n\nA second checkout, when `actual_check_out` is already set, returns 400.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** — all optional. Send `{}` for a checkout with no extra payment.\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `paid_amount` | number | No | Collected now. Added to the existing `paid_amount`. It does not replace it. Must equal the current due amount exactly, or 0 when nothing is due. |\n| `payment_method` | string | No | `CASH`, `ONLINE`, `CARD`, `UPI`, or `BANK_TRANSFER`. Default `CASH`. Saved with the payment. |\n| `late_checkout_charge` | number | No | Late fee. Runs through GST and updates total and due. 0 or more. |\n| `late_checkout_hours` | number | No | Hours late. 0 or more. |\n| `notes` | string | No | Appended to the existing note. It does not wipe the old note. |\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get booking** to read the booking after checkout.\n\n```json\n{ \"success\": true, \"message\": \"Checkout completed successfully. Room is now marked for cleaning.\" }\n```"
+            "description": "### POST /api/v1/bookings/:id/check-out\nSets `booking_status` to `CHECKED_OUT`, sets `actual_check_out`, and marks every room in `room_id` as `CLEANING`. After 20 minutes each room becomes `AVAILABLE` again on its own. You can still change the room status at any time with **Update room status**.\n\nThe payment must equal the due amount exactly. Paying less or more returns 400 and nothing is saved. The due amount includes the extra charges and the late fee. GST is not added on either of them. The 400 message shows the exact due amount to send. When nothing is due, send `{}` or `paid_amount: 0`. Any amount collected here is added to the payment history.\n\nScheduled `check_in_date`, `check_out_date`, and `number_of_nights` stay as booked.\n\nA second checkout, when `actual_check_out` is already set, returns 400.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** — all optional. Send `{}` for a checkout with no extra payment.\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `paid_amount` | number | No | Collected now. Added to the existing `paid_amount`. It does not replace it. Must equal the current due amount exactly, or 0 when nothing is due. |\n| `payment_method` | string | No | `CASH`, `ONLINE`, `CARD`, `UPI`, or `BANK_TRANSFER`. Default `CASH`. Saved with the payment. |\n| `extra_charges_total` | number | No | Extra charges for the whole stay (minibar, laundry, and so on). No GST is added on it. This is the full total, not only the new amount: it replaces the stored `extra_charges_total`. Leave it out to keep the stored value. Updates total and due. 0 or more. |\n| `late_checkout_charge` | number | No | Late fee. Added to the total with no GST, and updates due. 0 or more. |\n| `late_checkout_hours` | number | No | Hours late. 0 or more. |\n| `notes` | string | No | Appended to the existing note. It does not wipe the old note. |\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get booking** to read the booking after checkout.\n\n```json\n{ \"success\": true, \"message\": \"Checkout completed successfully. Room is now marked for cleaning.\" }\n```"
           }
         },
         {

@@ -394,8 +394,8 @@ const calculatePricing = ({
   const lateCheckoutCharge = Math.max(0, Number(late_checkout_charge) || 0);
   const lateCheckoutHours = Math.max(0, Number(late_checkout_hours) || 0);
 
-  // Taxable amount
-  const taxableAmount = Math.max(0, (baseAmount - discountAmount) + extraCharges + lateCheckoutCharge);
+  // Taxable amount. Extra charges and the late checkout charge are added to the total as they are, with no GST.
+  const taxableAmount = Math.max(0, baseAmount - discountAmount);
 
   // GST rates
   const gstRate = gst_rate !== undefined && gst_rate !== null ? Math.max(0, Number(gst_rate)) : 18.00;
@@ -409,7 +409,7 @@ const calculatePricing = ({
   const taxAmount = gstAmount;
 
   // Total
-  const totalAmount = Math.round((taxableAmount + taxAmount) * 100) / 100;
+  const totalAmount = Math.round((taxableAmount + taxAmount + extraCharges + lateCheckoutCharge) * 100) / 100;
 
   // Paid & Due
   const paidAmount = Math.max(0, Number(paid_amount) || 0);
@@ -607,9 +607,6 @@ const createBooking = async (body, files = [], reqUser = null) => {
   const pricing = calculatePricing({
     base_amount: body.base_amount,
     discount_amount: body.discount_amount,
-    extra_charges_total: body.extra_charges_total,
-    late_checkout_charge: body.late_checkout_charge,
-    late_checkout_hours: body.late_checkout_hours,
     gst_rate: body.gst_rate,
     paid_amount: body.paid_amount,
     rooms,
@@ -767,9 +764,10 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   const pricing = calculatePricing({
     base_amount: body.base_amount !== undefined ? body.base_amount : existing.base_amount,
     discount_amount: body.discount_amount !== undefined ? body.discount_amount : existing.discount_amount,
-    extra_charges_total: body.extra_charges_total !== undefined ? body.extra_charges_total : existing.extra_charges_total,
-    late_checkout_charge: body.late_checkout_charge !== undefined ? body.late_checkout_charge : existing.late_checkout_charge,
-    late_checkout_hours: body.late_checkout_hours !== undefined ? body.late_checkout_hours : existing.late_checkout_hours,
+    // Extra charges and the late checkout charge are set only by the checkout API. An update keeps them.
+    extra_charges_total: existing.extra_charges_total,
+    late_checkout_charge: existing.late_checkout_charge,
+    late_checkout_hours: existing.late_checkout_hours,
     gst_rate: body.gst_rate !== undefined ? body.gst_rate : existing.gst_rate,
     paid_amount: body.paid_amount !== undefined ? body.paid_amount : existing.paid_amount,
     rooms,
@@ -835,7 +833,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
  * Check a guest out of a booking.
  * body.paid_amount is added to the amount already paid. It does not replace it.
  * It must equal the due amount exactly: paying less or more is rejected.
- * A late fee is run through the same GST calculation. Scheduled dates and nights stay as booked.
+ * Extra charges and the late fee count toward the due amount with no GST. Scheduled dates and nights stay as booked.
  * The stay becomes CHECKED_OUT and every room on the booking is marked CLEANING.
  * @param {number|string} id
  * @param {Object} [body={}]
@@ -866,15 +864,19 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
   const lateHours = body.late_checkout_hours !== undefined && body.late_checkout_hours !== ''
     ? Number(body.late_checkout_hours)
     : Number(existing.late_checkout_hours) || 0;
+  // Extra charges (minibar, laundry, ...) can be settled at checkout. The value is the full total for the stay.
+  const extraCharges = body.extra_charges_total !== undefined && body.extra_charges_total !== ''
+    ? Number(body.extra_charges_total)
+    : Number(existing.extra_charges_total) || 0;
 
-  if ([collectedNow, lateCharge, lateHours].some((value) => Number.isNaN(value) || value < 0)) {
+  if ([collectedNow, lateCharge, lateHours, extraCharges].some((value) => Number.isNaN(value) || value < 0)) {
     throw new AppError('Checkout amounts cannot be negative.', HTTP_STATUS.BAD_REQUEST);
   }
 
   const pricing = calculatePricing({
     base_amount: existing.base_amount,
     discount_amount: existing.discount_amount,
-    extra_charges_total: existing.extra_charges_total,
+    extra_charges_total: extraCharges,
     late_checkout_charge: lateCharge,
     late_checkout_hours: lateHours,
     gst_rate: existing.gst_rate,

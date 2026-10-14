@@ -404,12 +404,12 @@
         <table class="rows">
           <tr><td class="k">Room charge</td><td class="v num">₹{{BASE_AMOUNT}}</td></tr>
           <tr><td class="k">Discount</td><td class="v num">− ₹{{DISCOUNT_AMOUNT}}</td></tr>
-          <tr><td class="k">Extra charges</td><td class="v num">₹{{EXTRA_CHARGES}}</td></tr>
-          <tr><td class="k">Late checkout ({{LATE_HOURS}} h)</td><td class="v num">₹{{LATE_FEE}}</td></tr>
           <tr><td class="k">Taxable amount</td><td class="v num">₹{{TAXABLE_AMOUNT}}</td></tr>
           <tr><td class="k">GST {{GST_RATE}}%</td><td class="v num">₹{{TAX_AMOUNT}}</td></tr>
           <tr class="sub"><td class="k">CGST {{CGST_RATE}}%</td><td class="v num">₹{{CGST_AMOUNT}}</td></tr>
           <tr class="sub"><td class="k">SGST {{SGST_RATE}}%</td><td class="v num">₹{{SGST_AMOUNT}}</td></tr>
+          <tr><td class="k">Extra charges (no GST)</td><td class="v num">₹{{EXTRA_CHARGES}}</td></tr>
+          <tr><td class="k">Late checkout ({{LATE_HOURS}} h, no GST)</td><td class="v num">₹{{LATE_FEE}}</td></tr>
         </table>
         <div class="totals">
           <div class="tile total">

@@ -1069,9 +1069,6 @@ ${envelope}`,
           textField('children', '0', 'Optional. Integer, 0 or more. Default 0.'),
           textField('base_amount', '7000', 'Optional. Room charge before tax and extras. 0 or more. When omitted, the server adds each room custom price and multiplies by nights.'),
           textField('discount_amount', '0', 'Optional. Discount. 0 or more. Default 0.'),
-          textField('extra_charges_total', '0', 'Optional. Extra charges before tax. 0 or more. Default 0.'),
-          textField('late_checkout_charge', '0', 'Optional. Late fee amount. 0 or more. Usually left 0 until checkout.', true),
-          textField('late_checkout_hours', '0', 'Optional. Late hours. 0 or more.', true),
           textField('gst_rate', '18', 'Optional. GST percent, 0 to 100. Default 18. Split into equal CGST and SGST.'),
           textField('paid_amount', '2000', 'Optional. Amount already collected. 0 or more. Default 0. This sets payment_status.'),
           textField('payment_method', 'CASH', 'Optional. How paid_amount was paid: CASH, ONLINE, CARD, UPI, or BANK_TRANSFER. Default CASH. Saved in the payment history.', true),
@@ -1085,7 +1082,7 @@ ${envelope}`,
       description: `### POST /api/v1/bookings
 ${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
 
-Do not send \`hotel_id\`, \`created_by\`, \`actual_check_in\`, \`booking_number\`, \`number_of_nights\`, \`payment_status\`, tax amounts, \`total_amount\`, or \`due_amount\`. \`created_by\` is the user id from the access token. \`actual_check_in\` is the server time when the booking is created. The server calculates the amounts.
+Do not send \`hotel_id\`, \`created_by\`, \`actual_check_in\`, \`booking_number\`, \`number_of_nights\`, \`payment_status\`, tax amounts, \`total_amount\`, \`due_amount\`, \`extra_charges_total\`, \`late_checkout_charge\`, or \`late_checkout_hours\`. The extra charges and late checkout fields are only set by **Check out**. \`created_by\` is the user id from the access token. \`actual_check_in\` is the server time when the booking is created. The server calculates the amounts.
 
 The room must be free for the scheduled dates. A stay still blocks those dates while \`booking_status\` is \`PENDING\`, \`CONFIRMED\`, or \`CHECKED_IN\` and \`actual_check_out\` is empty. Overlap returns 400.
 
@@ -1112,11 +1109,11 @@ The room must be free for the scheduled dates. A stay still blocks those dates w
 | \`adults\`, \`children\` | number | Guest counts. |
 | \`base_amount\` | number | Room charge before tax. |
 | \`discount_amount\` | number | Discount. |
-| \`extra_charges_total\` | number | Extras. |
-| \`late_checkout_charge\`, \`late_checkout_hours\` | number | Late checkout. |
+| \`extra_charges_total\` | number | Extras. Added to the total with no GST. |
+| \`late_checkout_charge\`, \`late_checkout_hours\` | number | Late checkout. The charge is added to the total with no GST. |
 | \`gst_rate\` | number | GST percent. |
 | \`cgst_rate\`, \`sgst_rate\` | number | Each is half of \`gst_rate\`. |
-| \`taxable_amount\` | number | Amount GST is applied to. |
+| \`taxable_amount\` | number | Amount GST is applied to: room charge minus discount. Extra charges and the late checkout charge are not included. |
 | \`gst_amount\`, \`cgst_amount\`, \`sgst_amount\` | number | Tax amounts. |
 | \`tax_amount\` | number | Tax total. |
 | \`total_amount\` | number | Amount due before payments. |
@@ -1253,9 +1250,6 @@ Builds the folio from this booking, including the guest signature and every uplo
           textField('children', '1', 'Optional. Integer, 0 or more.', true),
           textField('base_amount', '7000', 'Optional. Recalculates tax, total, due, and payment_status.', true),
           textField('discount_amount', '500', 'Optional. Recalculates pricing.', true),
-          textField('extra_charges_total', '300', 'Optional. Recalculates pricing.', true),
-          textField('late_checkout_charge', '0', 'Optional. Recalculates pricing.', true),
-          textField('late_checkout_hours', '0', 'Optional.', true),
           textField('gst_rate', '18', 'Optional. 0 to 100.', true),
           textField('paid_amount', '2000', 'Optional. On this update API, this replaces the stored paid amount. On checkout, paid_amount is added instead.', true),
           textField('payment_method', 'CASH', 'Optional. How the change in paid_amount was paid: CASH, ONLINE, CARD, UPI, or BANK_TRANSFER. Default CASH. Saved in the payment history.', true),
@@ -1270,6 +1264,8 @@ ${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
 This does not change \`booking_status\`. Use **Update booking status** or **Check out** for the stay.
 
 Send at least one guest photo file and one signature file on every update. A URL does not count. Missing either file returns 400.
+
+\`extra_charges_total\`, \`late_checkout_charge\`, and \`late_checkout_hours\` are not accepted here. They are only set by **Check out**, and an update keeps the stored values.
 
 On this API, \`paid_amount\` replaces the stored paid amount. On checkout, \`paid_amount\` is added to what was already paid. Every change to the paid amount is added to the payment history.
 
@@ -1293,6 +1289,7 @@ Changing room or dates checks overlap again, ignoring this booking.
       body: jsonBody({
         paid_amount: 1500,
         payment_method: 'UPI',
+        extra_charges_total: 300,
         late_checkout_charge: 500,
         late_checkout_hours: 2,
         notes: 'Collected remaining balance at the desk',
@@ -1300,7 +1297,7 @@ Changing room or dates checks overlap again, ignoring this booking.
       description: `### POST /api/v1/bookings/:id/check-out
 Sets \`booking_status\` to \`CHECKED_OUT\`, sets \`actual_check_out\`, and marks every room in \`room_id\` as \`CLEANING\`. After 20 minutes each room becomes \`AVAILABLE\` again on its own. You can still change the room status at any time with **Update room status**.
 
-The payment must equal the due amount exactly. Paying less or more returns 400 and nothing is saved. The due amount includes any late fee and its GST. When nothing is due, send \`{}\` or \`paid_amount: 0\`. Any amount collected here is added to the payment history.
+The payment must equal the due amount exactly. Paying less or more returns 400 and nothing is saved. The due amount includes the extra charges and the late fee. GST is not added on either of them. The 400 message shows the exact due amount to send. When nothing is due, send \`{}\` or \`paid_amount: 0\`. Any amount collected here is added to the payment history.
 
 Scheduled \`check_in_date\`, \`check_out_date\`, and \`number_of_nights\` stay as booked.
 
@@ -1316,7 +1313,8 @@ A second checkout, when \`actual_check_out\` is already set, returns 400.
 | --- | --- | --- | --- |
 | \`paid_amount\` | number | No | Collected now. Added to the existing \`paid_amount\`. It does not replace it. Must equal the current due amount exactly, or 0 when nothing is due. |
 | \`payment_method\` | string | No | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. Default \`CASH\`. Saved with the payment. |
-| \`late_checkout_charge\` | number | No | Late fee. Runs through GST and updates total and due. 0 or more. |
+| \`extra_charges_total\` | number | No | Extra charges for the whole stay (minibar, laundry, and so on). No GST is added on it. This is the full total, not only the new amount: it replaces the stored \`extra_charges_total\`. Leave it out to keep the stored value. Updates total and due. 0 or more. |
+| \`late_checkout_charge\` | number | No | Late fee. Added to the total with no GST, and updates due. 0 or more. |
 | \`late_checkout_hours\` | number | No | Hours late. 0 or more. |
 | \`notes\` | string | No | Appended to the existing note. It does not wipe the old note. |
 
