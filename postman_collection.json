@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "hotel-management-api-v1",
     "name": "Hotel Management API",
-    "description": "# Hotel Management API\n\nImport this file in Postman with **File → Import**. No environment file is required. Collection variables are included.\n\n## Start here\n1. Set `baseUrl` if the server is not on `http://localhost:5000`.\n2. Run **Authentication → Login**.\n3. The test script saves `accessToken`, `refreshToken`, `userId`, and `hotelId`.\n4. Protected requests reuse `{{accessToken}}` as a Bearer token.\n\nSeeded platform admin, after `npm run seed`:\n- Email: `admin@hotel.com`\n- Password: `Admin@123`\n- Role: `SUPER_ADMIN`\n\n## Base URL\nUse `{{baseUrl}}/api/v1/...`. The same routes also answer on `{{baseUrl}}/api/...`.\n\nThese pairs hit the same router. This collection uses the plural path:\n| Use this | Same router |\n| --- | --- |\n| `/api/v1/hotels` | `/api/v1/hotel` |\n| `/api/v1/rooms` | `/api/v1/room` |\n| `/api/v1/bookings` | `/api/v1/booking` |\n| `/api/v1/users` | `/api/v1/user` |\n\n## Auth and hotel scope\n- Public routes do not need a token.\n- Protected routes need `Authorization: Bearer <access_token>`.\n- The token carries the user id. The server loads that user and uses `user.hotel_id`.\n- `hotel_id` in a body or query does not switch hotels for a hotel admin or receptionist.\n- Only a super admin may pass `hotel_id` when creating or filtering staff.\n- `requireRole` allows `SUPER_ADMIN` in addition to the roles named on that folder.\n\n## Roles\n| Role | What they can call in this API |\n| --- | --- |\n| `SUPER_ADMIN` | Hotels management (create, list, update, delete), plans write APIs, staff APIs, and the hotel modules |\n| `HOTEL_ADMIN` | Rooms, room categories, bookings, and staff of their hotel |\n| `RECEPTIONIST` | Rooms, room categories, and bookings of their hotel |\n| `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Accounts can be created. These routes return 403 for them |\n\n## Response envelope\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n\n\nDates are ISO 8601 strings. Send dates as `2026-10-14` or `2026-10-14T14:00:00.000Z`.\n\n## Files\nImage uploads use `multipart/form-data`. Allowed types: JPEG, PNG, WebP, GIF, SVG, AVIF. Max 10 MB per file. There is no limit on the number of files in one request. When there is no file, the same text keys can be sent as JSON.\n",
+    "description": "# Hotel Management API\n\nImport this file in Postman with **File → Import**. No environment file is required. Collection variables are included.\n\n## Start here\n1. Set `baseUrl` if the server is not on `http://localhost:5000`.\n2. Run **Authentication → Login**.\n3. The test script saves `accessToken`, `refreshToken`, `userId`, and `hotelId`.\n4. Protected requests reuse `{{accessToken}}` as a Bearer token.\n\nSeeded platform admin, after `npm run seed`:\n- Email: `admin@hotel.com`\n- Password: `Admin@123`\n- Role: `SUPER_ADMIN`\n\n## Base URL\nUse `{{baseUrl}}/api/v1/...`. The same routes also answer on `{{baseUrl}}/api/...`.\n\nThese pairs hit the same router. This collection uses the plural path:\n| Use this | Same router |\n| --- | --- |\n| `/api/v1/hotels` | `/api/v1/hotel` |\n| `/api/v1/rooms` | `/api/v1/room` |\n| `/api/v1/bookings` | `/api/v1/booking` |\n| `/api/v1/users` | `/api/v1/user` |\n\n## Auth and hotel scope\n- Public routes do not need a token.\n- Protected routes need `Authorization: Bearer <access_token>`.\n- The token carries the user id. The server loads that user and uses `user.hotel_id`.\n- `hotel_id` in a body or query does not switch hotels for a hotel admin or receptionist.\n- Only a super admin may pass `hotel_id` when creating or filtering staff.\n- `requireRole` allows `SUPER_ADMIN` in addition to the roles named on that folder.\n\n## Roles\n| Role | What they can call in this API |\n| --- | --- |\n| `SUPER_ADMIN` | Hotels management (create, list, update, delete), plans write APIs, staff APIs, and the hotel modules |\n| `HOTEL_ADMIN` | Rooms, room categories, bookings, and staff of their hotel |\n| `RECEPTIONIST` | Rooms, room categories, and bookings of their hotel |\n| `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Accounts can be created. These routes return 403 for them |\n\n## Response envelope\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n\n\nDates are ISO 8601 strings. Send dates as `2026-10-14` or `2026-10-14T14:00:00.000Z`.\n\n## Files\nImage uploads use `multipart/form-data`. Allowed types: JPEG, PNG, WebP, GIF, SVG, AVIF. Max 10 MB per file. There is no limit on the number of files in one request. When there is no file, the same text keys can be sent as JSON.\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -34,19 +34,19 @@
       "key": "roomTypeId",
       "value": "",
       "type": "string",
-      "description": "Room category id. Create returns no data, so run List room categories to save the first id here."
+      "description": "Room category id. Saved from the create response, or run List room categories to save the first id here."
     },
     {
       "key": "roomId",
       "value": "",
       "type": "string",
-      "description": "Physical room id. Create returns no data, so run List rooms to save the first id here."
+      "description": "Physical room id. Saved from the create response, or run List rooms to save the first id here."
     },
     {
       "key": "bookingId",
       "value": "",
       "type": "string",
-      "description": "Booking id. Create returns no data, so run List bookings to save the first id here."
+      "description": "Booking id. Saved from the create response, or run List bookings to save the first id here."
     },
     {
       "key": "userId",
@@ -58,13 +58,19 @@
       "key": "targetHotelId",
       "value": "",
       "type": "string",
-      "description": "Hotel id used by the super admin Hotels folder. Create returns no data, so run List hotels to save the first id here."
+      "description": "Hotel id used by the super admin Hotels folder. Saved from the create response, or run List hotels to save the first id here."
     },
     {
       "key": "planId",
       "value": "",
       "type": "string",
-      "description": "Subscription plan id. Create returns no data, so run List plans to save the first id here."
+      "description": "Subscription plan id. Saved from the create response, or run List plans to save the first id here."
+    },
+    {
+      "key": "auditLogId",
+      "value": "",
+      "type": "string",
+      "description": "Audit log id. Run List audit logs to save the first id here."
     },
     {
       "key": "resetToken",
@@ -145,7 +151,7 @@
     },
     {
       "name": "02 Authentication",
-      "description": "Login, refresh, logout, password reset, and the current profile.\n\nToken response keys are snake_case: `access_token` and `refresh_token`.\nThe browser cookies are camelCase: `accessToken` and `refreshToken`.\nPostman should use the Bearer token from the JSON body. Login saves it for the rest of this collection.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "Login, refresh, logout, password reset, and the current profile.\n\nToken response keys are snake_case: `access_token` and `refresh_token`.\nThe browser cookies are camelCase: `accessToken` and `refreshToken`.\nPostman should use the Bearer token from the JSON body. Login saves it for the rest of this collection.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "Login",
@@ -416,7 +422,7 @@
     },
     {
       "name": "03 Hotel registration",
-      "description": "Public self-serve onboarding. Creates the hotel, a HOTEL_ADMIN user, a free trial, and returns an access token.\n\nSend multipart/form-data. The logo is a file. A logo URL in the body is ignored.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "Public self-serve onboarding. Creates the hotel, a HOTEL_ADMIN user, a free trial, and returns an access token.\n\nSend multipart/form-data. The logo is a file. A logo URL in the body is ignored.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "Register hotel",
@@ -599,7 +605,7 @@
     },
     {
       "name": "04 Subscription plans",
-      "description": "Plan catalog. List and get-one are public. Create, update, and delete are super admin only.\n\nPlan JSON uses camelCase. This is different from rooms, bookings, and users, which use snake_case.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "Plan catalog. List and get-one are public. Create, update, and delete are super admin only.\n\nPlan JSON uses camelCase. This is different from rooms, bookings, and users, which use snake_case.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "List plans",
@@ -725,6 +731,22 @@
         },
         {
           "name": "Create plan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "let value = body && body.data;",
+                  "if (value) value = value.id;",
+                  "if (value !== undefined && value !== null && value !== '') {",
+                  "    pm.collectionVariables.set('planId', String(value));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -759,7 +781,7 @@
                 "subscription-plans"
               ]
             },
-            "description": "### POST /api/v1/subscription-plans\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `name` | string | Yes | Plan name. Max 150 characters. |\n| `billingCycle` | string | Yes | `MONTHLY` or `ANNUAL`. Stored uppercase. |\n| `price` | number | Yes | Price, 0 or more. |\n| `code` | string | No | Unique-looking code. Letters, numbers, hyphen, underscore. Stored uppercase. Max 100. Server can generate one when omitted. |\n| `discountPercent` | number | No | 0 to 100. |\n| `maxRooms` | number | No | Positive integer room cap. |\n| `description` | string | No | Marketing description. |\n| `badge` | string | No | Short label. Max 100. Example: Popular. |\n| `isPopular` | boolean | No | Highlight flag. |\n| `isActive` | boolean | No | Whether the public list should treat it as active. |\n| `displayOrder` | number | No | Sort position, 0 or more. |\n| `features` | string array, or one string | No | Feature lines. A string may be comma-separated or newline-separated. |\n\n**Response:** only `success` and `message`. There is no `data`. Use **List plans** to read the new plan."
+            "description": "### POST /api/v1/subscription-plans\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `name` | string | Yes | Plan name. Max 150 characters. |\n| `billingCycle` | string | Yes | `MONTHLY` or `ANNUAL`. Stored uppercase. |\n| `price` | number | Yes | Price, 0 or more. |\n| `code` | string | No | Unique-looking code. Letters, numbers, hyphen, underscore. Stored uppercase. Max 100. Server can generate one when omitted. |\n| `discountPercent` | number | No | 0 to 100. |\n| `maxRooms` | number | No | Positive integer room cap. |\n| `description` | string | No | Marketing description. |\n| `badge` | string | No | Short label. Max 100. Example: Popular. |\n| `isPopular` | boolean | No | Highlight flag. |\n| `isActive` | boolean | No | Whether the public list should treat it as active. |\n| `displayOrder` | number | No | Sort position, 0 or more. |\n| `features` | string array, or one string | No | Feature lines. A string may be comma-separated or newline-separated. |\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **List plans** to read the new plan."
           }
         },
         {
@@ -806,7 +828,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/subscription-plans/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys you want to change. When `features` is sent, it replaces the whole feature list.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Plan id. |\n\n**Body keys:** same as Create plan, and every body key is optional on update. An empty `name` is rejected.\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get plan** to read the updated plan."
+            "description": "### PUT /api/v1/subscription-plans/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys you want to change. When `features` is sent, it replaces the whole feature list.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Plan id. |\n\n**Body keys:** same as Create plan, and every body key is optional on update. An empty `name` is rejected.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get plan** to read the updated plan."
           }
         },
         {
@@ -839,14 +861,14 @@
                 }
               ]
             },
-            "description": "### DELETE /api/v1/subscription-plans/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSoft-delete. The plan leaves the public list.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Plan id. |\n\nNo body.\n\n**Response:** only `success` and `message`. There is no `data`."
+            "description": "### DELETE /api/v1/subscription-plans/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSoft-delete. The plan leaves the public list.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Plan id. |\n\nNo body.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record)."
           }
         }
       ]
     },
     {
       "name": "05 Room categories",
-      "description": "Room types for one hotel. Names are unique per hotel among categories that are not deleted. Two hotels may use the same name.\n\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nCategory names must be unique inside that hotel. Soft-deleted names can be reused.\n\nSend JSON when there are no images. Send multipart when uploading images. Field names for files: `images`, `images[]`, or `image`.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "Room types for one hotel. Names are unique per hotel among categories that are not deleted. Two hotels may use the same name.\n\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nCategory names must be unique inside that hotel. Soft-deleted names can be reused.\n\nSend JSON when there are no images. Send multipart when uploading images. Field names for files: `images`, `images[]`, or `image`.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "List room categories",
@@ -925,6 +947,22 @@
         },
         {
           "name": "Create room category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "let value = body && body.data;",
+                  "if (value) value = value.id;",
+                  "if (value !== undefined && value !== null && value !== '') {",
+                  "    pm.collectionVariables.set('roomTypeId', String(value));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -968,7 +1006,7 @@
                 "room-types"
               ]
             },
-            "description": "### POST /api/v1/room-types\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nDo not send `hotel_id`. The server uses the hotel on the token.\n\n**Body keys** are described on each form row.\n\nA duplicate active name in the same hotel returns 409.\n\n**Response:** only `success` and `message`. There is no `data`. Use **List room categories** to read the new category."
+            "description": "### POST /api/v1/room-types\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nDo not send `hotel_id`. The server uses the hotel on the token.\n\n**Body keys** are described on each form row.\n\nA duplicate active name in the same hotel returns 409.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **List room categories** to read the new category."
           }
         },
         {
@@ -1024,7 +1062,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/room-types/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Category id. |\n\n**Body keys** are on the form rows. Send only what changes.\n\nAnother hotel's category returns 403.\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get room category** to read the updated category."
+            "description": "### PUT /api/v1/room-types/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Category id. |\n\n**Body keys** are on the form rows. Send only what changes.\n\nAnother hotel's category returns 403.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get room category** to read the updated category."
           }
         },
         {
@@ -1057,17 +1095,33 @@
                 }
               ]
             },
-            "description": "### DELETE /api/v1/room-types/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSoft-delete. Fails when any physical room still uses this category. Move or delete those rooms first.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Category id. |\n\nNo body.\n\n**Response:** only `success` and `message`. There is no `data`."
+            "description": "### DELETE /api/v1/room-types/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSoft-delete. Fails when any physical room still uses this category. Move or delete those rooms first.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Category id. |\n\nNo body.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record)."
           }
         }
       ]
     },
     {
       "name": "06 Physical rooms",
-      "description": "**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRoom number is unique per hotel and floor. Room 101 on floor 1 and room 101 on floor 2 are both allowed. The same number on the same floor is not.\n\nRoom status values: `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, `BLOCKED`. Send any case. The server stores uppercase.\n\nUse JSON when you are not uploading images. Use multipart when you are. File field names: `images`, `images[]`, or `image`.\n\nOn create, a multipart string `\"false\"` for `is_active` is treated as true because the server uses JavaScript Boolean(). Send room create and update as JSON when you need `is_active: false` and you have no new image.\n\n## Live room status\nConnect a Socket.IO client to `{{baseUrl}}`. Send the access token. The server joins you to your hotel only.\n\n```js\nio(baseUrl, { auth: { token: accessToken }, withCredentials: true })\n```\n\nAny logged-in hotel role can connect: hotel admin, receptionist, manager, housekeeping, and accountant. Each user is joined only to their own hotel. A super admin has no hotel on the token, so also send `auth.hotel_id`. A disabled or inactive account is rejected.\n\nListen for `room:status`. The payload is `id`, `hotel_id`, `room_number`, `floor`, `status`, `is_active`, `deleted_at`, `updated_at`. It is sent when a room is created, when its status or active flag changes, and when a booking moves the room (occupied, reserved, cleaning, available).\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRoom number is unique per hotel and floor. Room 101 on floor 1 and room 101 on floor 2 are both allowed. The same number on the same floor is not.\n\nRoom status values: `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, `BLOCKED`. Send any case. The server stores uppercase.\n\nUse JSON when you are not uploading images. Use multipart when you are. File field names: `images`, `images[]`, or `image`.\n\nOn create, a multipart string `\"false\"` for `is_active` is treated as true because the server uses JavaScript Boolean(). Send room create and update as JSON when you need `is_active: false` and you have no new image.\n\n## Live room status\nConnect a Socket.IO client to `{{baseUrl}}`. Send the access token. The server joins you to your hotel only.\n\n```js\nio(baseUrl, { auth: { token: accessToken }, withCredentials: true })\n```\n\nAny logged-in hotel role can connect: hotel admin, receptionist, manager, housekeeping, and accountant. Each user is joined only to their own hotel. A super admin has no hotel on the token, so also send `auth.hotel_id`. A disabled or inactive account is rejected.\n\nListen for `room:status`. The payload is `id`, `hotel_id`, `room_number`, `floor`, `status`, `is_active`, `deleted_at`, `updated_at`. It is sent when a room is created, when its status or active flag changes, and when a booking moves the room (occupied, reserved, cleaning, available).\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "Create room",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "let value = body && body.data;",
+                  "if (value) value = value.id;",
+                  "if (value !== undefined && value !== null && value !== '') {",
+                  "    pm.collectionVariables.set('roomId', String(value));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -1178,7 +1232,7 @@
                 "rooms"
               ]
             },
-            "description": "### POST /api/v1/rooms\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nDo not send `hotel_id`. The category must already exist in this hotel.\n\nA duplicate `room_number` on the same floor returns 409.\n\n**Body keys** are described on each form row.\n\n**Response:** only `success` and `message`. There is no `data`. Use **List rooms** to read the new room."
+            "description": "### POST /api/v1/rooms\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nDo not send `hotel_id`. The category must already exist in this hotel.\n\nA duplicate `room_number` on the same floor returns 409.\n\n**Body keys** are described on each form row.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **List rooms** to read the new room."
           }
         },
         {
@@ -1447,7 +1501,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/rooms/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys that change. Disabled form rows are not sent until you enable them.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get room** to read the updated room."
+            "description": "### PUT /api/v1/rooms/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys that change. Disabled form rows are not sent until you enable them.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get room** to read the updated room."
           }
         },
         {
@@ -1495,7 +1549,7 @@
                 }
               ]
             },
-            "description": "### PATCH /api/v1/rooms/:id/status\nChanges only `status`. Price, number, floor, and other fields stay as they are.\n\nSetting `CLEANING` starts the cleaning timer. When the room's `cleaning_duration_minutes` have passed, the server sets it to `AVAILABLE`. Checkout uses 20 minutes.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `status` | string | Yes | `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, or `BLOCKED`. |\n\nUnknown status returns 400.\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get room** to read the room with the new status."
+            "description": "### PATCH /api/v1/rooms/:id/status\nChanges only `status`. Price, number, floor, and other fields stay as they are.\n\nSetting `CLEANING` starts the cleaning timer. When the room's `cleaning_duration_minutes` have passed, the server sets it to `AVAILABLE`. Checkout uses 20 minutes.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `status` | string | Yes | `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, or `BLOCKED`. |\n\nUnknown status returns 400.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get room** to read the room with the new status."
           }
         },
         {
@@ -1528,17 +1582,33 @@
                 }
               ]
             },
-            "description": "### DELETE /api/v1/rooms/:id\nSoft-delete. Only a room with status `AVAILABLE` can be deleted. A room that is `OCCUPIED`, `RESERVED`, `CLEANING`, or `MAINTENANCE` returns 400. Change its status first, or wait until it is free.\n\nThe room leaves the list and its room number can be used again on that floor. Past bookings keep the room: `rooms` on those bookings still shows its `room_number`, `floor`, and `room_type_name`.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\nNo body.\n\n**Response:** only `success` and `message`. There is no `data`."
+            "description": "### DELETE /api/v1/rooms/:id\nSoft-delete. Only a room with status `AVAILABLE` can be deleted. A room that is `OCCUPIED`, `RESERVED`, `CLEANING`, or `MAINTENANCE` returns 400. Change its status first, or wait until it is free.\n\nThe room leaves the list and its room number can be used again on that floor. Past bookings keep the room: `rooms` on those bookings still shows its `room_number`, `floor`, and `room_type_name`.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\nNo body.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record)."
           }
         }
       ]
     },
     {
       "name": "07 Bookings",
-      "description": "**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nTwo different statuses:\n| Key | Values | Meaning |\n| --- | --- | --- |\n| `booking_status` | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, `NO_SHOW` | The stay |\n| `payment_status` | `PENDING`, `PARTIALLY_PAID`, `PAID` | The bill. Calculated from amounts. Do not send it. |\n\nCreate stores `CHECKED_IN` when `booking_status` is omitted. `created_by` is the logged-in user. `actual_check_in` is the current time. The room is marked `OCCUPIED`.\n\nWhat each stay status does to the room:\n| booking_status | Room |\n| --- | --- |\n| `CHECKED_IN` | Every room becomes `OCCUPIED`. Sets `actual_check_in` if it was empty. |\n| `CHECKED_OUT` | Allowed only when `due_amount` is 0, otherwise 400. Every room becomes `CLEANING` for 20 minutes, then `AVAILABLE` automatically. Sets `actual_check_out` if it was empty. |\n| `CONFIRMED` | `RESERVED` only when the room is `AVAILABLE` and nobody else is checked in. |\n| `PENDING` | Room stays as it is on create. |\n| `CANCELLED`, `NO_SHOW` | Releases the room when this stay was holding it. Another checked-in stay keeps it `OCCUPIED`. Another confirmed stay keeps it `RESERVED`. Otherwise `AVAILABLE`. `MAINTENANCE`, `BLOCKED`, and `CLEANING` are not cleared. |\n\n`CHECKED_OUT`, `CANCELLED`, and `NO_SHOW` no longer block the dates, so the room can be booked again.\n\nCreate requires at least two guest photos in `images` and one signature. Update requires at least one guest photo and one signature. Send them as form-data files. A URL is ignored. A file field whose name contains `sign` or `signature` is the signature. Any other image file is a guest photo.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nTwo different statuses:\n| Key | Values | Meaning |\n| --- | --- | --- |\n| `booking_status` | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, `NO_SHOW` | The stay |\n| `payment_status` | `PENDING`, `PARTIALLY_PAID`, `PAID` | The bill. Calculated from amounts. Do not send it. |\n\nCreate stores `CHECKED_IN` when `booking_status` is omitted. `created_by` is the logged-in user. `actual_check_in` is the current time. The room is marked `OCCUPIED`.\n\nWhat each stay status does to the room:\n| booking_status | Room |\n| --- | --- |\n| `CHECKED_IN` | Every room becomes `OCCUPIED`. Sets `actual_check_in` if it was empty. |\n| `CHECKED_OUT` | Allowed only when `due_amount` is 0, otherwise 400. Every room becomes `CLEANING` for 20 minutes, then `AVAILABLE` automatically. Sets `actual_check_out` if it was empty. |\n| `CONFIRMED` | `RESERVED` only when the room is `AVAILABLE` and nobody else is checked in. |\n| `PENDING` | Room stays as it is on create. |\n| `CANCELLED`, `NO_SHOW` | Releases the room when this stay was holding it. Another checked-in stay keeps it `OCCUPIED`. Another confirmed stay keeps it `RESERVED`. Otherwise `AVAILABLE`. `MAINTENANCE`, `BLOCKED`, and `CLEANING` are not cleared. |\n\n`CHECKED_OUT`, `CANCELLED`, and `NO_SHOW` no longer block the dates, so the room can be booked again.\n\nCreate requires at least two guest photos in `images` and one signature. Update requires at least one guest photo and one signature. Send them as form-data files. A URL is ignored. A file field whose name contains `sign` or `signature` is the signature. Any other image file is a guest photo.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "Create booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "let value = body && body.data;",
+                  "if (value) value = value.id;",
+                  "if (value !== undefined && value !== null && value !== '') {",
+                  "    pm.collectionVariables.set('bookingId', String(value));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -1695,7 +1765,7 @@
                 "bookings"
               ]
             },
-            "description": "### POST /api/v1/bookings\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nDo not send `hotel_id`, `created_by`, `actual_check_in`, `booking_number`, `number_of_nights`, `payment_status`, tax amounts, `total_amount`, `due_amount`, `extra_charges_total`, `late_checkout_charge`, or `late_checkout_hours`. The extra charges and late checkout fields are only set by **Check out**. `created_by` is the user id from the access token. `actual_check_in` is the server time when the booking is created. The server calculates the amounts.\n\nThe room must be free for the scheduled dates. A stay still blocks those dates while `booking_status` is `PENDING`, `CONFIRMED`, or `CHECKED_IN` and `actual_check_out` is empty. Overlap returns 400.\n\n**Body keys** are described on each form row.\n\n**Response:** only `success` and `message`. There is no `data`. Use **List bookings** to find the new booking and **Get booking** to read it."
+            "description": "### POST /api/v1/bookings\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nDo not send `hotel_id`, `created_by`, `actual_check_in`, `booking_number`, `number_of_nights`, `payment_status`, tax amounts, `total_amount`, `due_amount`, `extra_charges_total`, `late_checkout_charge`, or `late_checkout_hours`. The extra charges and late checkout fields are only set by **Check out**. `created_by` is the user id from the access token. `actual_check_in` is the server time when the booking is created. The server calculates the amounts.\n\nThe room must be free for the scheduled dates. A stay still blocks those dates while `booking_status` is `PENDING`, `CONFIRMED`, or `CHECKED_IN` and `actual_check_out` is empty. Overlap returns 400.\n\n**Body keys** are described on each form row.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **List bookings** to find the new booking and **Get booking** to read it."
           }
         },
         {
@@ -2065,7 +2135,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/bookings/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis does not change `booking_status`. Use **Update booking status** or **Check out** for the stay.\n\nSend at least one guest photo file and one signature file on every update. A URL does not count. Missing either file returns 400.\n\n`extra_charges_total`, `late_checkout_charge`, and `late_checkout_hours` are not accepted here. They are only set by **Check out**, and an update keeps the stored values.\n\nOn this API, `paid_amount` replaces the stored paid amount. On checkout, `paid_amount` is added to what was already paid. Every change to the paid amount is added to the payment history.\n\nChanging room or dates checks overlap again, ignoring this booking.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** are on the form rows. Disabled rows are not sent.\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get booking** to read the updated booking."
+            "description": "### PUT /api/v1/bookings/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis does not change `booking_status`. Use **Update booking status** or **Check out** for the stay.\n\nSend at least one guest photo file and one signature file on every update. A URL does not count. Missing either file returns 400.\n\n`extra_charges_total`, `late_checkout_charge`, and `late_checkout_hours` are not accepted here. They are only set by **Check out**, and an update keeps the stored values.\n\nOn this API, `paid_amount` replaces the stored paid amount. On checkout, `paid_amount` is added to what was already paid. Every change to the paid amount is added to the payment history.\n\nChanging room or dates checks overlap again, ignoring this booking.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** are on the form rows. Disabled rows are not sent.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get booking** to read the updated booking."
           }
         },
         {
@@ -2113,7 +2183,7 @@
                 }
               ]
             },
-            "description": "### POST /api/v1/bookings/:id/check-out\nSets `booking_status` to `CHECKED_OUT`, sets `actual_check_out`, and marks every room in `room_id` as `CLEANING`. After 20 minutes each room becomes `AVAILABLE` again on its own. You can still change the room status at any time with **Update room status**.\n\nThe payment must equal the due amount exactly. Paying less or more returns 400 and nothing is saved. The due amount includes the extra charges and the late fee. GST is not added on either of them. The 400 message shows the exact due amount to send. When nothing is due, send `{}` or `paid_amount: 0`. Any amount collected here is added to the payment history.\n\nScheduled `check_in_date`, `check_out_date`, and `number_of_nights` stay as booked.\n\nA second checkout, when `actual_check_out` is already set, returns 400.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** — all optional. Send `{}` for a checkout with no extra payment.\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `paid_amount` | number | No | Collected now. Added to the existing `paid_amount`. It does not replace it. Must equal the current due amount exactly, or 0 when nothing is due. |\n| `payment_method` | string | No | `CASH`, `ONLINE`, `CARD`, `UPI`, or `BANK_TRANSFER`. Default `CASH`. Saved with the payment. |\n| `extra_charges_total` | number | No | Extra charges for the whole stay (minibar, laundry, and so on). No GST is added on it. This is the full total, not only the new amount: it replaces the stored `extra_charges_total`. Leave it out to keep the stored value. Updates total and due. 0 or more. |\n| `late_checkout_charge` | number | No | Late fee. Added to the total with no GST, and updates due. 0 or more. |\n| `late_checkout_hours` | number | No | Hours late. 0 or more. |\n| `notes` | string | No | Appended to the existing note. It does not wipe the old note. |\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get booking** to read the booking after checkout.\n\n```json\n{ \"success\": true, \"message\": \"Checkout completed successfully. Room is now marked for cleaning.\" }\n```"
+            "description": "### POST /api/v1/bookings/:id/check-out\nSets `booking_status` to `CHECKED_OUT`, sets `actual_check_out`, and marks every room in `room_id` as `CLEANING`. After 20 minutes each room becomes `AVAILABLE` again on its own. You can still change the room status at any time with **Update room status**.\n\nThe payment must equal the due amount exactly. Paying less or more returns 400 and nothing is saved. The due amount includes the extra charges and the late fee. GST is not added on either of them. The 400 message shows the exact due amount to send. When nothing is due, send `{}` or `paid_amount: 0`. Any amount collected here is added to the payment history.\n\nScheduled `check_in_date`, `check_out_date`, and `number_of_nights` stay as booked.\n\nA second checkout, when `actual_check_out` is already set, returns 400.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** — all optional. Send `{}` for a checkout with no extra payment.\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `paid_amount` | number | No | Collected now. Added to the existing `paid_amount`. It does not replace it. Must equal the current due amount exactly, or 0 when nothing is due. |\n| `payment_method` | string | No | `CASH`, `ONLINE`, `CARD`, `UPI`, or `BANK_TRANSFER`. Default `CASH`. Saved with the payment. |\n| `extra_charges_total` | number | No | Extra charges for the whole stay (minibar, laundry, and so on). No GST is added on it. This is the full total, not only the new amount: it replaces the stored `extra_charges_total`. Leave it out to keep the stored value. Updates total and due. 0 or more. |\n| `late_checkout_charge` | number | No | Late fee. Added to the total with no GST, and updates due. 0 or more. |\n| `late_checkout_hours` | number | No | Hours late. 0 or more. |\n| `notes` | string | No | Appended to the existing note. It does not wipe the old note. |\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get booking** to read the booking after checkout.\n\n```json\n{ \"success\": true, \"message\": \"Checkout completed successfully. Room is now marked for cleaning.\" }\n```"
           }
         },
         {
@@ -2161,7 +2231,7 @@
                 }
               ]
             },
-            "description": "### PATCH /api/v1/bookings/:id/status\nChanges only the stay status, then updates every room in `room_id` as described in the folder notes.\n\nGuest, dates, and payment are not changed by this API. `CHECKED_IN` fills `actual_check_in` when it is empty. `CHECKED_OUT` fills `actual_check_out` when it is empty.\n\n`CHECKED_OUT` returns 400 while `due_amount` is above 0. Pay the balance first with **Update booking** or use **Check out** with `paid_amount`. After checkout the rooms are `CLEANING` for 20 minutes and then `AVAILABLE`.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `booking_status` | string | Yes | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, or `NO_SHOW`. |\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get booking** to read the booking and **Get room** to read the room status."
+            "description": "### PATCH /api/v1/bookings/:id/status\nChanges only the stay status, then updates every room in `room_id` as described in the folder notes.\n\nGuest, dates, and payment are not changed by this API. `CHECKED_IN` fills `actual_check_in` when it is empty. `CHECKED_OUT` fills `actual_check_out` when it is empty.\n\n`CHECKED_OUT` returns 400 while `due_amount` is above 0. Pay the balance first with **Update booking** or use **Check out** with `paid_amount`. After checkout the rooms are `CLEANING` for 20 minutes and then `AVAILABLE`.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `booking_status` | string | Yes | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, or `NO_SHOW`. |\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get booking** to read the booking and **Get room** to read the room status."
           }
         },
         {
@@ -2194,17 +2264,33 @@
                 }
               ]
             },
-            "description": "### DELETE /api/v1/bookings/:id\nSoft-delete. The booking leaves the list. Rooms this stay was holding are released, and the dates are no longer blocked.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\nNo body.\n\n**Response:** only `success` and `message`. There is no `data`."
+            "description": "### DELETE /api/v1/bookings/:id\nSoft-delete. The booking leaves the list. Rooms this stay was holding are released, and the dates are no longer blocked.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\nNo body.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record)."
           }
         }
       ]
     },
     {
       "name": "08 Staff users",
-      "description": "**Who can call this:** HOTEL_ADMIN for their own hotel. SUPER_ADMIN can manage any hotel and may send hotel_id.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nA hotel admin can create only `RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, and `ACCOUNTANT`. A hotel admin cannot create `SUPER_ADMIN` or another `HOTEL_ADMIN`.\n\nStaff names are not unique. Login emails are unique among active users.\n\nThe password is never returned.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "**Who can call this:** HOTEL_ADMIN for their own hotel. SUPER_ADMIN can manage any hotel and may send hotel_id.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nA hotel admin can create only `RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, and `ACCOUNTANT`. A hotel admin cannot create `SUPER_ADMIN` or another `HOTEL_ADMIN`.\n\nStaff names are not unique. Login emails are unique among active users.\n\nThe password is never returned.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "Create staff user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "let value = body && body.data;",
+                  "if (value) value = value.id;",
+                  "if (value !== undefined && value !== null && value !== '') {",
+                  "    pm.collectionVariables.set('userId', String(value));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -2239,7 +2325,7 @@
                 "users"
               ]
             },
-            "description": "### POST /api/v1/users\n**Who can call this:** HOTEL_ADMIN or SUPER_ADMIN.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nIf `password` is omitted, the server generates a temporary password, emails a 48-hour setup link, and sets `must_change_password` to true.\n\nA hotel admin's `hotel_id` in the body is ignored. The new user is attached to the admin's hotel. A super admin should send `hotel_id` when the staff member belongs to a property.\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `name` | string | Yes | Display name. 2 to 100 characters. Not unique. |\n| `email` | string | Yes | Login email. Stored lowercase. Unique among active users. An email already stored on a booking is rejected. |\n| `password` | string | No | Minimum 6 characters. Omit to generate a temporary password and email it. |\n| `phone` | string | Yes | 5 to 20 characters. |\n| `role` | string | Yes | `RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, or `ACCOUNTANT` for a hotel admin. A super admin may also send `HOTEL_ADMIN` or `SUPER_ADMIN`. |\n| `hotel_id` | number or null | Super admin only | Hotel to assign. Ignored for a hotel admin. |\n| `is_active` | boolean | No | Default true. `false` blocks login. |\n| `is_disabled` | boolean | No | Default `false`. `true` blocks login and every protected API. Use Update account status to change it later. |\n| `must_change_password` | boolean | No | Default false when a password is sent, true when the server generates one. |\n\nDuplicate email returns 409.\n\n**Response:** only `success` and `message`. There is no `data`. Use **List staff users** to read the new user."
+            "description": "### POST /api/v1/users\n**Who can call this:** HOTEL_ADMIN or SUPER_ADMIN.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nIf `password` is omitted, the server generates a temporary password, emails a 48-hour setup link, and sets `must_change_password` to true.\n\nA hotel admin's `hotel_id` in the body is ignored. The new user is attached to the admin's hotel. A super admin should send `hotel_id` when the staff member belongs to a property.\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `name` | string | Yes | Display name. 2 to 100 characters. Not unique. |\n| `email` | string | Yes | Login email. Stored lowercase. Unique among active users. An email already stored on a booking is rejected. |\n| `password` | string | No | Minimum 6 characters. Omit to generate a temporary password and email it. |\n| `phone` | string | Yes | 5 to 20 characters. |\n| `role` | string | Yes | `RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, or `ACCOUNTANT` for a hotel admin. A super admin may also send `HOTEL_ADMIN` or `SUPER_ADMIN`. |\n| `hotel_id` | number or null | Super admin only | Hotel to assign. Ignored for a hotel admin. |\n| `is_active` | boolean | No | Default true. `false` blocks login. |\n| `is_disabled` | boolean | No | Default `false`. `true` blocks login and every protected API. Use Update account status to change it later. |\n| `must_change_password` | boolean | No | Default false when a password is sent, true when the server generates one. |\n\nDuplicate email returns 409.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **List staff users** to read the new user."
           }
         },
         {
@@ -2416,7 +2502,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/users/:id\n**Who can call this:** HOTEL_ADMIN or SUPER_ADMIN.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys that change. This API does not set a new password. Password changes go through Forgot password and Reset password.\n\nA hotel admin cannot change `hotel_id` to another property, and cannot promote a user to `HOTEL_ADMIN` or `SUPER_ADMIN`.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | User id. |\n\n**Body keys** — all optional\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `name` | string | 2 to 100 characters. |\n| `email` | string | New login email. Must stay unique. |\n| `phone` | string | 5 to 20 characters. |\n| `role` | string | Same role list as create. |\n| `hotel_id` | number or null | Used by super admin. Ignored as a hotel switch for a hotel admin. |\n| `is_active` | boolean | false blocks the next login. |\n| `must_change_password` | boolean | Tell the client to force a password change. |\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get staff user** to read the updated user."
+            "description": "### PUT /api/v1/users/:id\n**Who can call this:** HOTEL_ADMIN or SUPER_ADMIN.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys that change. This API does not set a new password. Password changes go through Forgot password and Reset password.\n\nA hotel admin cannot change `hotel_id` to another property, and cannot promote a user to `HOTEL_ADMIN` or `SUPER_ADMIN`.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | User id. |\n\n**Body keys** — all optional\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `name` | string | 2 to 100 characters. |\n| `email` | string | New login email. Must stay unique. |\n| `phone` | string | 5 to 20 characters. |\n| `role` | string | Same role list as create. |\n| `hotel_id` | number or null | Used by super admin. Ignored as a hotel switch for a hotel admin. |\n| `is_active` | boolean | false blocks the next login. |\n| `must_change_password` | boolean | Tell the client to force a password change. |\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get staff user** to read the updated user."
           }
         },
         {
@@ -2464,7 +2550,7 @@
                 }
               ]
             },
-            "description": "### PATCH /api/v1/users/:id/account-status\n**Who can call this:** HOTEL_ADMIN for staff in their hotel. SUPER_ADMIN for any user except their own account.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis is the API that turns `is_active` and `is_disabled` on or off. Send one key or both. At least one is required.\n\n| Flag | true | false |\n| --- | --- | --- |\n| `is_active` | The user can sign in, unless `is_disabled` is also true. | Login is rejected. The account is deactivated. |\n| `is_disabled` | Login is rejected. A token that was already issued is rejected on every protected API. Forgot password and reset password are also rejected. | The user is not disabled. Default for new users. |\n\nA hotel admin cannot change a hotel admin or a super admin. You cannot change your own flags. The last active super admin cannot be disabled or deactivated.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | User id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `is_active` | boolean | One of the two | `true` or `false`. |\n| `is_disabled` | boolean | One of the two | `true` or `false`. Default on create is `false`. |\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get staff user** to read `is_active` and `is_disabled`."
+            "description": "### PATCH /api/v1/users/:id/account-status\n**Who can call this:** HOTEL_ADMIN for staff in their hotel. SUPER_ADMIN for any user except their own account.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis is the API that turns `is_active` and `is_disabled` on or off. Send one key or both. At least one is required.\n\n| Flag | true | false |\n| --- | --- | --- |\n| `is_active` | The user can sign in, unless `is_disabled` is also true. | Login is rejected. The account is deactivated. |\n| `is_disabled` | Login is rejected. A token that was already issued is rejected on every protected API. Forgot password and reset password are also rejected. | The user is not disabled. Default for new users. |\n\nA hotel admin cannot change a hotel admin or a super admin. You cannot change your own flags. The last active super admin cannot be disabled or deactivated.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | User id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `is_active` | boolean | One of the two | `true` or `false`. |\n| `is_disabled` | boolean | One of the two | `true` or `false`. Default on create is `false`. |\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get staff user** to read `is_active` and `is_disabled`."
           }
         },
         {
@@ -2497,17 +2583,33 @@
                 }
               ]
             },
-            "description": "### DELETE /api/v1/users/:id\nSoft-delete. The email can be registered again. A user cannot delete their own account.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | User id. |\n\nNo body.\n\n**Response:** only `success` and `message`. There is no `data`."
+            "description": "### DELETE /api/v1/users/:id\nSoft-delete. The email can be registered again. A user cannot delete their own account.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | User id. |\n\nNo body.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record)."
           }
         }
       ]
     },
     {
       "name": "09 Hotels (super admin)",
-      "description": "**Who can call this:** SUPER_ADMIN only. A hotel admin or any other role gets 403.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nManage every hotel on the platform. These routes use the same base path as hotel registration: `/api/v1/hotels` (also `/api/v1/hotel`). `POST /hotels/register` stays public.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess without data (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\" }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "**Who can call this:** SUPER_ADMIN only. A hotel admin or any other role gets 403.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nManage every hotel on the platform. These routes use the same base path as hotel registration: `/api/v1/hotels` (also `/api/v1/hotel`). `POST /hotels/register` stays public.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "Create hotel",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "let value = body && body.data;",
+                  "if (value) value = value.id;",
+                  "if (value !== undefined && value !== null && value !== '') {",
+                  "    pm.collectionVariables.set('targetHotelId', String(value));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -2636,7 +2738,7 @@
                 "hotels"
               ]
             },
-            "description": "### POST /api/v1/hotels\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nCreates the hotel as `ACTIVE` with the free trial, creates its `HOTEL_ADMIN` owner, and emails the owner a temporary password and a 48-hour setup link. Nobody is signed in and no token is returned.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON. A duplicate `owner_email` returns 409.\n\n**Body keys** are on the form-data rows. Each row has its own description.\n\n**Response:** only `success` and `message`. There is no `data`. Use **List hotels** to read the new hotel."
+            "description": "### POST /api/v1/hotels\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nCreates the hotel as `ACTIVE` with the free trial, creates its `HOTEL_ADMIN` owner, and emails the owner a temporary password and a 48-hour setup link. Nobody is signed in and no token is returned.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON. A duplicate `owner_email` returns 409.\n\n**Body keys** are on the form-data rows. Each row has its own description.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **List hotels** to read the new hotel."
           }
         },
         {
@@ -2915,7 +3017,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/hotels/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys that change. At least one key is required. The slug and the owner account do not change here. Owner and staff accounts are managed in Staff users. To switch a hotel on or off use Update hotel active status.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. |\n\n**Body keys** — all optional. They are on the form-data rows.\n\nAn unknown `subscription_plan_id` returns 404.\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get hotel** to read the updated hotel."
+            "description": "### PUT /api/v1/hotels/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys that change. At least one key is required. The slug and the owner account do not change here. Owner and staff accounts are managed in Staff users. To switch a hotel on or off use Update hotel active status.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. |\n\n**Body keys** — all optional. They are on the form-data rows.\n\nAn unknown `subscription_plan_id` returns 404.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get hotel** to read the updated hotel."
           }
         },
         {
@@ -2963,7 +3065,7 @@
                 }
               ]
             },
-            "description": "### PATCH /api/v1/hotels/:id/active-status\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis is the only API that switches a hotel on or off. New hotels are `is_active: true`.\n\n| `is_active` | What happens |\n| --- | --- |\n| `false` | Every user of the hotel is blocked at once. Login, refresh token, forgot password and reset password return 403. A token that was already issued returns 403 on every protected API. Connected Socket.IO clients are dropped. Nothing is deleted. |\n| `true` | The hotel works again. Existing users and tokens work as before. |\n\nA super admin is never blocked and can still read and edit a deactivated hotel.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `is_active` | boolean | Yes | `true` or `false`. |\n\n**Blocked users see:** 403 with the message `This hotel has been deactivated. Please contact the platform administrator.`\n\n**Response:** only `success` and `message`. There is no `data`. Use **Get hotel** to read `is_active`."
+            "description": "### PATCH /api/v1/hotels/:id/active-status\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis is the only API that switches a hotel on or off. New hotels are `is_active: true`.\n\n| `is_active` | What happens |\n| --- | --- |\n| `false` | Every user of the hotel is blocked at once. Login, refresh token, forgot password and reset password return 403. A token that was already issued returns 403 on every protected API. Connected Socket.IO clients are dropped. Nothing is deleted. |\n| `true` | The hotel works again. Existing users and tokens work as before. |\n\nA super admin is never blocked and can still read and edit a deactivated hotel.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `is_active` | boolean | Yes | `true` or `false`. |\n\n**Blocked users see:** 403 with the message `This hotel has been deactivated. Please contact the platform administrator.`\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get hotel** to read `is_active`."
           }
         },
         {
@@ -2996,7 +3098,161 @@
                 }
               ]
             },
-            "description": "### DELETE /api/v1/hotels/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSoft-delete. The hotel disappears from every list and its owner and staff can no longer sign in. Their owner email can be registered again. Rooms and bookings stay in the database. Super admins are not affected.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. |\n\nNo body.\n\n**Response:** only `success` and `message`. There is no `data`."
+            "description": "### DELETE /api/v1/hotels/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSoft-delete. The hotel disappears from every list and its owner and staff can no longer sign in. Their owner email can be registered again. Rooms and bookings stay in the database. Super admins are not affected.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. |\n\nNo body.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Audit logs",
+      "description": "**Who can call this:** HOTEL_ADMIN or SUPER_ADMIN. Any other role gets 403.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRead-only history of who did what. Entries are written by the server and cannot be changed or deleted through the API.\n\nA hotel admin sees only the logs of their own hotel. The `hotel_id` filter is ignored for them. A super admin sees every hotel and can filter with `hotel_id`.\n\n**Recorded actions (`action`)**\n| Value | When |\n| --- | --- |\n| `CREATE` | A hotel, user, subscription plan, room category, room, or booking is created. Public hotel registration is included. |\n| `UPDATE` | The same records are edited. `changes` lists only the fields that changed. |\n| `DELETE` | The same records are deleted. |\n| `STATUS_CHANGE` | Hotel active status, user account status, room status, or booking status changes. |\n| `CHECK_OUT` | A booking is checked out. |\n| `LOGIN` | A successful login. |\n| `LOGIN_FAILED` | A wrong password for an existing account. |\n| `PASSWORD_RESET` | A password is set with a reset link. |\n\n**Record types (`entity_type`):** `HOTEL`, `USER`, `SUBSCRIPTION_PLAN`, `ROOM_TYPE`, `ROOM`, `BOOKING`. Login events use `USER`.\n\n**Failed actions.** A change (create, update, delete, status change, check-out) that is rejected or hits an error is also recorded, with `status: \"FAILED\"`. Use it to find who tried what, when, and why it failed. Failed entries carry `status_code` (the HTTP status the caller got), `error_message` (the reason, and for a server error the real cause), and `error_details` (field errors, for example from validation). A completed action has `status: \"SUCCESS\"` and these three keys are null. Only signed-in users are recorded, so unauthenticated calls and read (GET) errors are not. A `LOGIN_FAILED` entry is always `FAILED` and shows why the login was refused (wrong password, disabled, deactivated, locked, or hotel off).\n\nPasswords are never stored in the logs. Logout and automatic server jobs (for example a room becoming available after cleaning) are not recorded.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "item": [
+        {
+          "name": "List audit logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "let value = body && body.data;",
+                  "if (value) value = value.audit_logs;",
+                  "if (value) value = value[0];",
+                  "if (value) value = value.id;",
+                  "if (value !== undefined && value !== null && value !== '') {",
+                  "    pm.collectionVariables.set('auditLogId', String(value));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/audit-logs?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "audit-logs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Optional. Page number, starting at 1. Default 1."
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Optional. Page size, 1 to 100. Default 10."
+                },
+                {
+                  "key": "action",
+                  "value": "UPDATE",
+                  "description": "Optional. CREATE, UPDATE, DELETE, STATUS_CHANGE, CHECK_OUT, LOGIN, LOGIN_FAILED, or PASSWORD_RESET. Case-insensitive.",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "FAILED",
+                  "description": "Optional. SUCCESS or FAILED. FAILED lists the errors only. Case-insensitive.",
+                  "disabled": true
+                },
+                {
+                  "key": "entity_type",
+                  "value": "BOOKING",
+                  "description": "Optional. HOTEL, USER, SUBSCRIPTION_PLAN, ROOM_TYPE, ROOM, or BOOKING. Case-insensitive.",
+                  "disabled": true
+                },
+                {
+                  "key": "entity_id",
+                  "value": "12",
+                  "description": "Optional. Id of the record. Use with entity_type to see one record history.",
+                  "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "3",
+                  "description": "Optional. Only actions done by this user.",
+                  "disabled": true
+                },
+                {
+                  "key": "hotel_id",
+                  "value": "{{targetHotelId}}",
+                  "description": "Optional. SUPER_ADMIN only. Ignored for a hotel admin.",
+                  "disabled": true
+                },
+                {
+                  "key": "from_date",
+                  "value": "2026-10-01",
+                  "description": "Optional. ISO date. Logs on or after this date.",
+                  "disabled": true
+                },
+                {
+                  "key": "to_date",
+                  "value": "2026-10-31",
+                  "description": "Optional. ISO date. Logs on or before this date.",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "Ravi",
+                  "description": "Optional. Partial match on the description or the user name.",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Optional. asc or desc. Default desc (newest first).",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "### GET /api/v1/audit-logs\n**Who can call this:** HOTEL_ADMIN or SUPER_ADMIN.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Query keys** are on the Params tab. Only page and limit are sent until you enable the others.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `audit_logs` | array | Log entries. Keys below. |\n| `total` | number | Matching entries. |\n| `page` | number | Current page. |\n| `limit` | number | Page size. |\n| `total_pages` | number | Page count. |\n\n**Keys of each item in `audit_logs`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Log id. |\n| `hotel_id` | number or null | Hotel the action belongs to. |\n| `user.id`, `user.name`, `user.role` | number, string, string | Who did it. |\n| `action` | string | See the folder note. |\n| `status` | string | `SUCCESS` or `FAILED`. |\n| `status_code` | number or null | HTTP status of a failed action. |\n| `error_message` | string or null | Why a failed action failed. |\n| `error_details` | array or null | Field errors of a failed action, each `{ field, message }`. |\n| `entity_type` | string | Type of record. |\n| `entity_id` | number or null | Id of the record. |\n| `description` | string | Short readable summary. |\n| `changes` | object or null | For `UPDATE` and `STATUS_CHANGE`. Each changed field is `{ \"field\": { \"from\": old, \"to\": new } }`. |\n| `request_data` | object or null | The data the caller sent: body fields, plus `files` (`field_name`, `file_name`, `size`) for uploads. Passwords, tokens and secrets show as `[REDACTED]`. Null when nothing was sent. |\n| `ip_address`, `user_agent` | string or null | Caller details. |\n| `created_at` | string | When it happened. |"
+          }
+        },
+        {
+          "name": "Get audit log",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/audit-logs/{{auditLogId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "audit-logs",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{auditLogId}}",
+                  "description": "Required. Audit log id."
+                }
+              ]
+            },
+            "description": "### GET /api/v1/audit-logs/:id\n**Who can call this:** HOTEL_ADMIN or SUPER_ADMIN.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Audit log id. |\n\nReturns one entry with the keys listed under **List audit logs** in `data`. A log of another hotel returns 403 for a hotel admin. A missing id returns 404."
           }
         }
       ]

@@ -15,24 +15,49 @@ const {
 const {
   sendPasswordResetLinkEmail,
 } = require('./emailService');
+const auditService = require('./auditService');
 const { assertHotelActive } = require('../utils/hotelScope');
 const { AppError } = require('../utils/response');
-const { HTTP_STATUS } = require('../constants');
+const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES, AUDIT_STATUSES } = require('../constants');
 
 /**
- * Login user and issue session tokens in HTTP-only cookies
- * @param {string} email
+ * Write an audit log entry for a security event of one user (login, failed login, password reset).
+ * @param {Object} user - The user the event is about
+ * @param {Object} requestMeta - { ip_address, user_agent } of the caller
+ * @param {string} action - One of AUDIT_ACTIONS
+ * @param {string} description
+ * @param {AppError} [failure] - The refusal, for a failed event. Marks the entry FAILED with its reason.
+ * @returns {Promise<void>}
+ */
+const recordUserEvent = (user, requestMeta, action, description, failure = null) =>
+  auditService.record({
+    actor: {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      hotel_id: user.hotel_id,
+      request_meta: requestMeta,
+    },
+    action,
+    entityType: AUDIT_ENTITIES.USER,
+    entityId: user.id,
+    description,
+    ...(failure && {
+      status: AUDIT_STATUSES.FAILED,
+      statusCode: failure.statusCode,
+      errorMessage: failure.message,
+    }),
+  });
+
+/**
+ * Check the account state and password of an existing user, then issue session tokens.
+ * @param {Object} user
  * @param {string} password
  * @param {import('express').Response} res
+ * @param {Object} [requestMeta] - { ip_address, user_agent } of the caller, for the audit trail
  * @returns {Promise<Object>}
  */
-const login = async (email, password, res) => {
-  const user = await userModel.findUserByEmail(email);
-
-  if (!user) {
-    throw new AppError('Invalid email or password.', HTTP_STATUS.UNAUTHORIZED);
-  }
-
+const verifyAndLogin = async (user, password, res, requestMeta) => {
   if (userModel.isUserDisabled(user)) {
     throw new AppError(
       'Your account has been disabled. Please contact your hotel administrator.',
@@ -97,6 +122,7 @@ const login = async (email, password, res) => {
 
   // Clear lockout and record successful login
   await userModel.clearLockoutAndSetLogin(user.id);
+  await recordUserEvent(user, requestMeta, AUDIT_ACTIONS.LOGIN, `${user.email} logged in.`);
 
   // Generate tokens & set cookies
   const accessToken = generateAccessToken(user.id, user.role, user.hotel_id);
@@ -117,6 +143,39 @@ const login = async (email, password, res) => {
       is_disabled: Boolean(user.is_disabled),
     },
   };
+};
+
+/**
+ * Login user and issue session tokens in HTTP-only cookies.
+ * Every refusal for an existing account (wrong password, disabled, deactivated, locked, hotel off)
+ * is written to the audit trail as LOGIN_FAILED with the reason.
+ * @param {string} email
+ * @param {string} password
+ * @param {import('express').Response} res
+ * @param {Object} [requestMeta] - { ip_address, user_agent } of the caller, for the audit trail
+ * @returns {Promise<Object>}
+ */
+const login = async (email, password, res, requestMeta) => {
+  const user = await userModel.findUserByEmail(email);
+
+  if (!user) {
+    throw new AppError('Invalid email or password.', HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  try {
+    return await verifyAndLogin(user, password, res, requestMeta);
+  } catch (err) {
+    if (err instanceof AppError) {
+      await recordUserEvent(
+        user,
+        requestMeta,
+        AUDIT_ACTIONS.LOGIN_FAILED,
+        `Failed login attempt for ${user.email}.`,
+        err
+      );
+    }
+    throw err;
+  }
 };
 
 /**
@@ -273,9 +332,10 @@ const forgotPassword = async (email, requestOrigin) => {
 /**
  * Reset password using single-use reset token
  * @param {Object} params - { token, password }
+ * @param {Object} [requestMeta] - { ip_address, user_agent } of the caller, for the audit trail
  * @returns {Promise<null>}
  */
-const resetPassword = async ({ token, password }) => {
+const resetPassword = async ({ token, password }, requestMeta) => {
   if (!token || !token.trim()) {
     throw new AppError('Reset token is required.', HTTP_STATUS.BAD_REQUEST);
   }
@@ -313,6 +373,7 @@ const resetPassword = async ({ token, password }) => {
 
   // Invalidate token (single-use enforcement)
   await tokenModel.markTokenUsed(resetRecord.id);
+  await recordUserEvent(user, requestMeta, AUDIT_ACTIONS.PASSWORD_RESET, `Password reset for ${user.email}.`);
 
   return null;
 };

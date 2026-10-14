@@ -4,7 +4,8 @@
  * Standardizes responses using success() helper and routes errors to next(err).
  */
 const hotelService = require('../services/hotelService');
-const { success, successMessage } = require('../utils/response');
+const { success } = require('../utils/response');
+const { getRequestMeta } = require('../utils/requestMeta');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
@@ -13,7 +14,9 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const registerHotel = async (req, res, next) => {
   try {
-    const data = await hotelService.registerHotel(req.body, res, req.files);
+    const data = await hotelService.registerHotel(req.body, res, req.files, {
+      request_meta: getRequestMeta(req),
+    });
     return success(
       res,
       MESSAGES.HOTEL_REGISTERED_SUCCESS,
@@ -31,8 +34,8 @@ const registerHotel = async (req, res, next) => {
  */
 const createHotel = async (req, res, next) => {
   try {
-    await hotelService.createHotel(req.body, req.files);
-    return successMessage(res, MESSAGES.HOTEL_CREATED_SUCCESS, HTTP_STATUS.CREATED);
+    const data = await hotelService.createHotel(req.body, req.files, req.user);
+    return success(res, MESSAGES.HOTEL_CREATED_SUCCESS, data, HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);
   }
@@ -69,8 +72,8 @@ const getHotelById = async (req, res, next) => {
  */
 const updateHotel = async (req, res, next) => {
   try {
-    await hotelService.updateHotel(req.params.id, req.body, req.files);
-    return successMessage(res, MESSAGES.HOTEL_UPDATED_SUCCESS);
+    const data = await hotelService.updateHotel(req.params.id, req.body, req.files, req.user);
+    return success(res, MESSAGES.HOTEL_UPDATED_SUCCESS, data);
   } catch (err) {
     next(err);
   }
@@ -82,8 +85,8 @@ const updateHotel = async (req, res, next) => {
  */
 const updateHotelActiveStatus = async (req, res, next) => {
   try {
-    await hotelService.setHotelActive(req.params.id, req.body.is_active);
-    return successMessage(res, MESSAGES.HOTEL_ACTIVE_STATUS_UPDATED_SUCCESS);
+    const data = await hotelService.setHotelActive(req.params.id, req.body.is_active, req.user);
+    return success(res, MESSAGES.HOTEL_ACTIVE_STATUS_UPDATED_SUCCESS, data);
   } catch (err) {
     next(err);
   }
@@ -95,8 +98,8 @@ const updateHotelActiveStatus = async (req, res, next) => {
  */
 const deleteHotel = async (req, res, next) => {
   try {
-    await hotelService.deleteHotel(req.params.id);
-    return successMessage(res, MESSAGES.HOTEL_DELETED_SUCCESS);
+    const data = await hotelService.deleteHotel(req.params.id, req.user);
+    return success(res, MESSAGES.HOTEL_DELETED_SUCCESS, data);
   } catch (err) {
     next(err);
   }

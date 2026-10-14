@@ -48,7 +48,7 @@ const success = (res, message, data = {}, statusCode = HTTP_STATUS.OK) => {
 
 /**
  * Send a success response that carries only a message and no data.
- * Used by create, update and delete APIs.
+ * Used by logout, reset-password and change-password.
  * @param {import('express').Response} res - Express response
  * @param {string} message - Success message
  * @param {number} [statusCode=200] - HTTP status code

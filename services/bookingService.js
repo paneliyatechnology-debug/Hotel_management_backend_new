@@ -8,6 +8,7 @@ const bookingPaymentModel = require('../models/bookingPaymentModel');
 const roomModel = require('../models/roomModel');
 const hotelModel = require('../models/hotelModel');
 const s3Service = require('./s3Service');
+const auditService = require('./auditService');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
 const { checkEmailExistsGlobally } = require('../utils/emailValidator');
@@ -19,6 +20,8 @@ const {
   NON_BLOCKING_BOOKING_STATUSES,
   CLEANING_DURATION_MINUTES,
   PAYMENT_METHODS,
+  AUDIT_ACTIONS,
+  AUDIT_ENTITIES,
 } = require('../constants');
 
 // Stays that can still hold the room or its dates. Derived so the list cannot drift
@@ -564,7 +567,7 @@ const validateBookingPreconditions = async ({
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const createBooking = async (body, files = [], reqUser = null) => {
   // hotel_id comes from the authenticated user token. Body hotel_id is ignored.
@@ -662,6 +665,17 @@ const createBooking = async (body, files = [], reqUser = null) => {
   if (newBooking.booking_status && newBooking.booking_status !== 'PENDING') {
     await applyBookingStatusEffects(newBooking, newBooking.booking_status);
   }
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.CREATE,
+    entityType: AUDIT_ENTITIES.BOOKING,
+    entityId: newBooking.id,
+    hotelId,
+    description: `Booking ${newBooking.booking_number} created for ${primaryGuestName}.`,
+  });
+
+  return { id: newBooking.id };
 };
 
 /**
@@ -733,7 +747,7 @@ const getBookingById = async (id, reqUser = null) => {
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const updateBooking = async (id, body, files = [], reqUser = null) => {
   const existing = await getBookingById(id, reqUser);
@@ -820,6 +834,22 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   if (addedRoomIds.length > 0 && existing.booking_status && existing.booking_status !== 'PENDING') {
     await syncRoomForBookingStatus(existing, existing.booking_status, new Date(), addedRoomIds);
   }
+
+  // room_ids is the storage form of room_id. Compare room_id as the full list, like the stored booking.
+  const auditFields = { ...updatePayload, room_id: roomIds };
+  delete auditFields.room_ids;
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.UPDATE,
+    entityType: AUDIT_ENTITIES.BOOKING,
+    entityId: existing.id,
+    hotelId,
+    description: `Booking ${existing.booking_number} updated.`,
+    changes: auditService.diffChanges(existing, auditFields),
+  });
+
+  return { id: existing.id };
 };
 
 /**
@@ -831,7 +861,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
  * @param {number|string} id
  * @param {Object} [body={}]
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const checkOutBooking = async (id, body = {}, reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
@@ -910,6 +940,18 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
     bookingPaymentStatus: pricing.payment_status,
   }, reqUser);
   await syncRoomForBookingStatus(existing, 'CHECKED_OUT', now);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.CHECK_OUT,
+    entityType: AUDIT_ENTITIES.BOOKING,
+    entityId: existing.id,
+    hotelId,
+    description: `Booking ${existing.booking_number} checked out.`,
+    changes: auditService.diffChanges(existing, updates),
+  });
+
+  return { id: existing.id };
 };
 
 /**
@@ -919,7 +961,7 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
  * @param {number|string} id
  * @param {Object} body
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const updateBookingStatus = async (id, body = {}, reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
@@ -936,6 +978,18 @@ const updateBookingStatus = async (id, body = {}, reqUser = null) => {
   if (status === 'CHECKED_OUT') assertNoDueForCheckout(existing.due_amount);
 
   await applyBookingStatusEffects(existing, status);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.STATUS_CHANGE,
+    entityType: AUDIT_ENTITIES.BOOKING,
+    entityId: existing.id,
+    hotelId,
+    description: `Booking ${existing.booking_number} status changed to ${status}.`,
+    changes: auditService.diffChanges(existing, { booking_status: status }),
+  });
+
+  return { id: existing.id };
 };
 
 /**
@@ -955,13 +1009,24 @@ const getBookingDetails = async (id, reqUser = null) => {
  * Soft delete a booking setting deleted_at
  * @param {number|string} id
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const deleteBooking = async (id, reqUser = null) => {
   const existing = await getBookingById(id, reqUser);
   // Free rooms this stay was holding before the row is hidden.
   await syncRoomForBookingStatus(existing, 'CANCELLED');
   await bookingModel.softDeleteBooking(existing.id);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.DELETE,
+    entityType: AUDIT_ENTITIES.BOOKING,
+    entityId: existing.id,
+    hotelId: existing.hotel_id,
+    description: `Booking ${existing.booking_number} deleted.`,
+  });
+
+  return { id: existing.id };
 };
 
 module.exports = {

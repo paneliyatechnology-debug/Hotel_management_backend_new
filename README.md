@@ -23,13 +23,14 @@ live room status updates.
 5. [Architecture and Conventions](#architecture-and-conventions)
 6. [Authentication and Roles](#authentication-and-roles)
 7. [API Reference](#api-reference)
-8. [Business Rules](#business-rules)
-9. [Real-time Room Status (Socket.IO)](#real-time-room-status-socketio)
-10. [Scheduled Jobs](#scheduled-jobs)
-11. [Postman Collection](#postman-collection)
-12. [Deployment](#deployment)
-13. [Contributing](#contributing)
-14. [Troubleshooting](#troubleshooting)
+8. [Audit Trail](#audit-trail)
+9. [Business Rules](#business-rules)
+10. [Real-time Room Status (Socket.IO)](#real-time-room-status-socketio)
+11. [Scheduled Jobs](#scheduled-jobs)
+12. [Postman Collection](#postman-collection)
+13. [Deployment](#deployment)
+14. [Contributing](#contributing)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -128,7 +129,7 @@ Notes:
 ├── sockets/                  # Socket.IO server and room status publisher
 ├── queues/  workers/         # Email queue (BullMQ + in-memory fallback) and worker
 ├── templates/                # Email templates and the booking folio HTML
-├── utils/                    # jwt, response/AppError, hotelScope, json, files, password, emailValidator
+├── utils/                    # jwt, response/AppError, hotelScope, requestMeta, json, files, password, emailValidator
 ├── database/
 │   ├── knex.js               # Shared Knex client
 │   ├── migrations/           # Schema history. Never edit an applied migration
@@ -172,11 +173,14 @@ Success with data (read APIs, login, hotel registration):
 { "success": true, "message": "Booking retrieved successfully.", "data": {} }
 ```
 
-Success without data (create, update and delete APIs). Use the list or get API to read the saved record:
+Success with the record id (create, update, delete and status-change APIs). Use the list or get API
+to read the saved record:
 
 ```json
-{ "success": true, "message": "Booking updated successfully." }
+{ "success": true, "message": "Booking updated successfully.", "data": { "id": 12 } }
 ```
+
+Logout, reset-password and change-password return only `success` and `message`.
 
 Error (validation, `AppError` and database errors):
 
@@ -201,8 +205,8 @@ Database constraint errors map to `409 Conflict` (duplicates) or `400` (foreign 
 
 | Role | Access |
 | :--- | :--- |
-| `SUPER_ADMIN` | Platform owner. Manages hotels and subscription plans. |
-| `HOTEL_ADMIN` | Full access to their own hotel: staff, rooms, room types, bookings |
+| `SUPER_ADMIN` | Platform owner. Manages hotels and subscription plans. Reads audit logs of every hotel. |
+| `HOTEL_ADMIN` | Full access to their own hotel: staff, rooms, room types, bookings, audit logs |
 | `RECEPTIONIST` | Rooms, room types and bookings of their own hotel |
 | `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Staff accounts created by a hotel admin (can log in and use real-time updates) |
 
@@ -246,6 +250,7 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 | `POST` | `/subscription-plans` | Create a plan | `SUPER_ADMIN` |
 | `PUT` | `/subscription-plans/:id` | Update a plan | `SUPER_ADMIN` |
 | `DELETE` | `/subscription-plans/:id` | Archive a plan | `SUPER_ADMIN` |
+
 ### Room types and rooms (`HOTEL_ADMIN`, `RECEPTIONIST`)
 
 | Method | Endpoint | Description |
@@ -288,7 +293,46 @@ Payment methods: `CASH`, `ONLINE`, `CARD`, `UPI`, `BANK_TRANSFER`.
 | `GET` / `PUT` / `DELETE` | `/users/:id` | Details / update / soft delete (not yourself) |
 | `PATCH` | `/users/:id/account-status` | Enable or disable an account |
 
+### Audit logs (`HOTEL_ADMIN`, `SUPER_ADMIN`)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/audit-logs` | List (filters: `action`, `status`, `entity_type`, `entity_id`, `user_id`, `hotel_id` (super admin), `from_date`, `to_date`, `search`, `page`, `limit`, `sort_order`) |
+| `GET` | `/audit-logs/:id` | One log entry |
+
 Full request and response examples live in the [Postman collection](#postman-collection).
+
+---
+
+## Audit Trail
+
+Every important change is written to the `audit_logs` table by the service layer. The table is
+append-only. The API is read-only.
+
+| Column | Meaning |
+| :--- | :--- |
+| `hotel_id` | Hotel the action belongs to (null for platform-level actions) |
+| `user_id`, `user_name`, `user_role` | Who did it, stored as a snapshot |
+| `action` | `CREATE`, `UPDATE`, `DELETE`, `STATUS_CHANGE`, `CHECK_OUT`, `LOGIN`, `LOGIN_FAILED`, `PASSWORD_RESET` |
+| `status` | `SUCCESS`, or `FAILED` when the action was rejected or hit an error |
+| `status_code`, `error_message`, `error_details` | For `FAILED` rows: the HTTP status, the reason (the real cause for a server error), and field errors. Null for `SUCCESS` |
+| `entity_type`, `entity_id` | `HOTEL`, `USER`, `SUBSCRIPTION_PLAN`, `ROOM_TYPE`, `ROOM`, `BOOKING` and the record id |
+| `description` | Short readable summary |
+| `changes` | JSON `{ field: { from, to } }` with only the fields that changed |
+| `request_data` | JSON of the data the caller sent (body fields and uploaded file names and sizes). Passwords, tokens and secrets are stored as `[REDACTED]`. `hotel_id` is left out for non-super-admins because it comes from the token. Null when nothing was sent. |
+| `ip_address`, `user_agent` | Caller details |
+
+- A `HOTEL_ADMIN` sees only the logs of their own hotel. A `SUPER_ADMIN` sees every hotel.
+- Failed changes are recorded too. The global error handler writes a `FAILED` row for any POST, PUT,
+  PATCH or DELETE that ends in an error, when the caller is signed in (validation errors, 403, 404,
+  409 and server errors). Failed logins for an existing account are `LOGIN_FAILED` rows with the
+  reason. Unauthenticated calls and GET errors are not recorded, so an anonymous caller cannot fill
+  the table. Filter with `status=FAILED`.
+- Passwords are never stored. Logout and automatic jobs (for example cleaning timers) are not recorded.
+- Recording never breaks the request. If the insert fails, the error is logged and the API still succeeds.
+- To audit a new action, call `auditService.record()` from the service after the change succeeds.
+  Use `auditService.diffChanges(before, updates)` for the `changes` value, and add new action or
+  entity names to `AUDIT_ACTIONS` / `AUDIT_ENTITIES` in `constants/`.
 
 ---
 

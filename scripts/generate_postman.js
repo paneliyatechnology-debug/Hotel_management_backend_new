@@ -73,8 +73,11 @@ const saveTokens = [
   "if (data.hotel && data.hotel.id) pm.collectionVariables.set('hotelId', String(data.hotel.id));",
 ];
 
-// Closing note for create, update and delete requests. These APIs return no data.
+// Closing note for logout and password APIs. These return no data.
 const messageOnlyNote = (hint = '') => `**Response:** only \`success\` and \`message\`. There is no \`data\`.${hint ? ` ${hint}` : ''}`;
+
+// Closing note for create, update and delete requests. These return only the id of the record.
+const idNote = (hint = '') => `**Response:** \`success\`, \`message\`, and \`data.id\` (the id of the created, updated, or deleted record).${hint ? ` ${hint}` : ''}`;
 
 const saveId = (dataPath, variableName) => [
   "const body = pm.response.json();",
@@ -93,9 +96,9 @@ Success with data (read APIs):
 { "success": true, "message": "Human readable message", "data": {} }
 \`\`\`
 
-Success without data (create, update and delete APIs):
+Success with the record id (create, update and delete APIs):
 \`\`\`json
-{ "success": true, "message": "Human readable message" }
+{ "success": true, "message": "Human readable message", "data": { "id": 12 } }
 \`\`\`
 
 Error:
@@ -196,12 +199,13 @@ Image uploads use \`multipart/form-data\`. Allowed types: JPEG, PNG, WebP, GIF, 
     { key: 'accessToken', value: '', type: 'string', description: 'JWT access token. Login and hotel registration save data.access_token here. Send it as Authorization: Bearer {{accessToken}}.' },
     { key: 'refreshToken', value: '', type: 'string', description: 'JWT refresh token from data.refresh_token. Send it as refresh_token in the refresh request body. The cookie name is refreshToken.' },
     { key: 'hotelId', value: '', type: 'string', description: 'Hotel id of the logged-in user. Saved from login or hotel registration. The server reads the hotel from the token, so this is for display and for the super admin staff filter.' },
-    { key: 'roomTypeId', value: '', type: 'string', description: 'Room category id. Create returns no data, so run List room categories to save the first id here.' },
-    { key: 'roomId', value: '', type: 'string', description: 'Physical room id. Create returns no data, so run List rooms to save the first id here.' },
-    { key: 'bookingId', value: '', type: 'string', description: 'Booking id. Create returns no data, so run List bookings to save the first id here.' },
+    { key: 'roomTypeId', value: '', type: 'string', description: 'Room category id. Saved from the create response, or run List room categories to save the first id here.' },
+    { key: 'roomId', value: '', type: 'string', description: 'Physical room id. Saved from the create response, or run List rooms to save the first id here.' },
+    { key: 'bookingId', value: '', type: 'string', description: 'Booking id. Saved from the create response, or run List bookings to save the first id here.' },
     { key: 'userId', value: '', type: 'string', description: 'Staff user id. Saved from login, or run List staff users to save the first id here.' },
-    { key: 'targetHotelId', value: '', type: 'string', description: 'Hotel id used by the super admin Hotels folder. Create returns no data, so run List hotels to save the first id here.' },
-    { key: 'planId', value: '', type: 'string', description: 'Subscription plan id. Create returns no data, so run List plans to save the first id here.' },
+    { key: 'targetHotelId', value: '', type: 'string', description: 'Hotel id used by the super admin Hotels folder. Saved from the create response, or run List hotels to save the first id here.' },
+    { key: 'planId', value: '', type: 'string', description: 'Subscription plan id. Saved from the create response, or run List plans to save the first id here.' },
+    { key: 'auditLogId', value: '', type: 'string', description: 'Audit log id. Run List audit logs to save the first id here.' },
     { key: 'resetToken', value: '', type: 'string', description: 'Password reset token from the email link, or from data.resetUrl in non-production forgot-password responses. Paste the token value only, not the full URL.' },
   ],
   auth: {
@@ -577,6 +581,7 @@ Public.
     item({
       name: 'Create plan',
       method: 'POST',
+      events: testScript(saveId('id', 'planId')),
       raw: '{{baseUrl}}/api/v1/subscription-plans',
       pathSegments: ['api', 'v1', 'subscription-plans'],
       body: jsonBody({
@@ -612,7 +617,7 @@ ${authNote('SUPER_ADMIN only.')}
 | \`displayOrder\` | number | No | Sort position, 0 or more. |
 | \`features\` | string array, or one string | No | Feature lines. A string may be comma-separated or newline-separated. |
 
-${messageOnlyNote('Use **List plans** to read the new plan.')}`,
+${idNote('Use **List plans** to read the new plan.')}`,
     }),
     item({
       name: 'Update plan',
@@ -646,7 +651,7 @@ Send only the keys you want to change. When \`features\` is sent, it replaces th
 
 **Body keys:** same as Create plan, and every body key is optional on update. An empty \`name\` is rejected.
 
-${messageOnlyNote('Use **Get plan** to read the updated plan.')}`,
+${idNote('Use **Get plan** to read the updated plan.')}`,
     }),
     item({
       name: 'Archive plan',
@@ -666,7 +671,7 @@ Soft-delete. The plan leaves the public list.
 
 No body.
 
-${messageOnlyNote()}`,
+${idNote()}`,
     }),
   ],
 };
@@ -723,6 +728,7 @@ A category from another hotel returns 403. Missing id returns 404.
     item({
       name: 'Create room category',
       method: 'POST',
+      events: testScript(saveId('id', 'roomTypeId')),
       headers: acceptHeader(),
       raw: '{{baseUrl}}/api/v1/room-types',
       pathSegments: ['api', 'v1', 'room-types'],
@@ -743,7 +749,7 @@ Do not send \`hotel_id\`. The server uses the hotel on the token.
 
 A duplicate active name in the same hotel returns 409.
 
-${messageOnlyNote('Use **List room categories** to read the new category.')}`,
+${idNote('Use **List room categories** to read the new category.')}`,
     }),
     item({
       name: 'Update room category',
@@ -772,7 +778,7 @@ ${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
 
 Another hotel's category returns 403.
 
-${messageOnlyNote('Use **Get room category** to read the updated category.')}`,
+${idNote('Use **Get room category** to read the updated category.')}`,
     }),
     item({
       name: 'Delete room category',
@@ -792,7 +798,7 @@ Soft-delete. Fails when any physical room still uses this category. Move or dele
 
 No body.
 
-${messageOnlyNote()}`,
+${idNote()}`,
     }),
   ],
 };
@@ -825,6 +831,7 @@ ${envelope}`,
     item({
       name: 'Create room',
       method: 'POST',
+      events: testScript(saveId('id', 'roomId')),
       headers: acceptHeader(),
       raw: '{{baseUrl}}/api/v1/rooms',
       pathSegments: ['api', 'v1', 'rooms'],
@@ -856,7 +863,7 @@ A duplicate \`room_number\` on the same floor returns 409.
 
 **Body keys** are described on each form row.
 
-${messageOnlyNote('Use **List rooms** to read the new room.')}`,
+${idNote('Use **List rooms** to read the new room.')}`,
     }),
     item({
       name: 'List rooms',
@@ -967,7 +974,7 @@ Send only the keys that change. Disabled form rows are not sent until you enable
 | --- | --- | --- | --- |
 | \`id\` | number | Yes | Room id. |
 
-${messageOnlyNote('Use **Get room** to read the updated room.')}`,
+${idNote('Use **Get room** to read the updated room.')}`,
     }),
     item({
       name: 'Update room status',
@@ -995,7 +1002,7 @@ Setting \`CLEANING\` starts the cleaning timer. When the room's \`cleaning_durat
 
 Unknown status returns 400.
 
-${messageOnlyNote('Use **Get room** to read the room with the new status.')}`,
+${idNote('Use **Get room** to read the room with the new status.')}`,
     }),
     item({
       name: 'Delete room',
@@ -1015,7 +1022,7 @@ The room leaves the list and its room number can be used again on that floor. Pa
 
 No body.
 
-${messageOnlyNote()}`,
+${idNote()}`,
     }),
   ],
 };
@@ -1050,6 +1057,7 @@ ${envelope}`,
     item({
       name: 'Create booking',
       method: 'POST',
+      events: testScript(saveId('id', 'bookingId')),
       headers: acceptHeader(),
       raw: '{{baseUrl}}/api/v1/bookings',
       pathSegments: ['api', 'v1', 'bookings'],
@@ -1088,7 +1096,7 @@ The room must be free for the scheduled dates. A stay still blocks those dates w
 
 **Body keys** are described on each form row.
 
-${messageOnlyNote('Use **List bookings** to find the new booking and **Get booking** to read it.')}`,
+${idNote('Use **List bookings** to find the new booking and **Get booking** to read it.')}`,
     }),
     item({
       name: 'List bookings',
@@ -1280,7 +1288,7 @@ Changing room or dates checks overlap again, ignoring this booking.
 
 **Body keys** are on the form rows. Disabled rows are not sent.
 
-${messageOnlyNote('Use **Get booking** to read the updated booking.')}`,
+${idNote('Use **Get booking** to read the updated booking.')}`,
     }),
     item({
       name: 'Check out',
@@ -1320,7 +1328,7 @@ A second checkout, when \`actual_check_out\` is already set, returns 400.
 | \`late_checkout_hours\` | number | No | Hours late. 0 or more. |
 | \`notes\` | string | No | Appended to the existing note. It does not wipe the old note. |
 
-**Response:** only \`success\` and \`message\`. There is no \`data\`. Use **Get booking** to read the booking after checkout.
+${idNote('Use **Get booking** to read the booking after checkout.')}
 
 \`\`\`json
 { "success": true, "message": "Checkout completed successfully. Room is now marked for cleaning." }
@@ -1352,7 +1360,7 @@ Guest, dates, and payment are not changed by this API. \`CHECKED_IN\` fills \`ac
 | --- | --- | --- | --- |
 | \`booking_status\` | string | Yes | \`PENDING\`, \`CONFIRMED\`, \`CHECKED_IN\`, \`CHECKED_OUT\`, \`CANCELLED\`, or \`NO_SHOW\`. |
 
-${messageOnlyNote('Use **Get booking** to read the booking and **Get room** to read the room status.')}`,
+${idNote('Use **Get booking** to read the booking and **Get room** to read the room status.')}`,
     }),
     item({
       name: 'Delete booking',
@@ -1370,7 +1378,7 @@ Soft-delete. The booking leaves the list. Rooms this stay was holding are releas
 
 No body.
 
-${messageOnlyNote()}`,
+${idNote()}`,
     }),
   ],
 };
@@ -1390,6 +1398,7 @@ ${envelope}`,
     item({
       name: 'Create staff user',
       method: 'POST',
+      events: testScript(saveId('id', 'userId')),
       raw: '{{baseUrl}}/api/v1/users',
       pathSegments: ['api', 'v1', 'users'],
       body: jsonBody({
@@ -1425,7 +1434,7 @@ A hotel admin's \`hotel_id\` in the body is ignored. The new user is attached to
 
 Duplicate email returns 409.
 
-${messageOnlyNote('Use **List staff users** to read the new user.')}`,
+${idNote('Use **List staff users** to read the new user.')}`,
     }),
     item({
       name: 'List staff users',
@@ -1526,7 +1535,7 @@ A hotel admin cannot change \`hotel_id\` to another property, and cannot promote
 | \`is_active\` | boolean | false blocks the next login. |
 | \`must_change_password\` | boolean | Tell the client to force a password change. |
 
-${messageOnlyNote('Use **Get staff user** to read the updated user.')}`,
+${idNote('Use **Get staff user** to read the updated user.')}`,
     }),
     item({
       name: 'Update account status',
@@ -1561,7 +1570,7 @@ A hotel admin cannot change a hotel admin or a super admin. You cannot change yo
 | \`is_active\` | boolean | One of the two | \`true\` or \`false\`. |
 | \`is_disabled\` | boolean | One of the two | \`true\` or \`false\`. Default on create is \`false\`. |
 
-${messageOnlyNote('Use **Get staff user** to read \`is_active\` and \`is_disabled\`.')}`,
+${idNote('Use **Get staff user** to read \`is_active\` and \`is_disabled\`.')}`,
     }),
     item({
       name: 'Delete staff user',
@@ -1579,7 +1588,7 @@ Soft-delete. The email can be registered again. A user cannot delete their own a
 
 No body.
 
-${messageOnlyNote()}`,
+${idNote()}`,
     }),
   ],
 };
@@ -1611,6 +1620,7 @@ ${envelope}`,
     item({
       name: 'Create hotel',
       method: 'POST',
+      events: testScript(saveId('id', 'targetHotelId')),
       headers: acceptHeader(),
       raw: '{{baseUrl}}/api/v1/hotels',
       pathSegments: ['api', 'v1', 'hotels'],
@@ -1644,7 +1654,7 @@ Send multipart/form-data. When there is no logo, the same keys can be sent as JS
 
 **Body keys** are on the form-data rows. Each row has its own description.
 
-${messageOnlyNote('Use **List hotels** to read the new hotel.')}`,
+${idNote('Use **List hotels** to read the new hotel.')}`,
     }),
     item({
       name: 'List hotels',
@@ -1753,7 +1763,7 @@ Send multipart/form-data. When there is no logo, the same keys can be sent as JS
 
 An unknown \`subscription_plan_id\` returns 404.
 
-${messageOnlyNote('Use **Get hotel** to read the updated hotel.')}`,
+${idNote('Use **Get hotel** to read the updated hotel.')}`,
     }),
     item({
       name: 'Update hotel active status',
@@ -1788,7 +1798,7 @@ A super admin is never blocked and can still read and edit a deactivated hotel.
 
 **Blocked users see:** 403 with the message \`This hotel has been deactivated. Please contact the platform administrator.\`
 
-${messageOnlyNote('Use **Get hotel** to read \`is_active\`.')}`,
+${idNote('Use **Get hotel** to read \`is_active\`.')}`,
     }),
     item({
       name: 'Delete hotel',
@@ -1808,7 +1818,107 @@ Soft-delete. The hotel disappears from every list and its owner and staff can no
 
 No body.
 
-${messageOnlyNote()}`,
+${idNote()}`,
+    }),
+  ],
+};
+
+const auditFolder = {
+  name: '10 Audit logs',
+  description: `${authNote('HOTEL_ADMIN or SUPER_ADMIN. Any other role gets 403.')}
+
+Read-only history of who did what. Entries are written by the server and cannot be changed or deleted through the API.
+
+A hotel admin sees only the logs of their own hotel. The \`hotel_id\` filter is ignored for them. A super admin sees every hotel and can filter with \`hotel_id\`.
+
+**Recorded actions (\`action\`)**
+| Value | When |
+| --- | --- |
+| \`CREATE\` | A hotel, user, subscription plan, room category, room, or booking is created. Public hotel registration is included. |
+| \`UPDATE\` | The same records are edited. \`changes\` lists only the fields that changed. |
+| \`DELETE\` | The same records are deleted. |
+| \`STATUS_CHANGE\` | Hotel active status, user account status, room status, or booking status changes. |
+| \`CHECK_OUT\` | A booking is checked out. |
+| \`LOGIN\` | A successful login. |
+| \`LOGIN_FAILED\` | A wrong password for an existing account. |
+| \`PASSWORD_RESET\` | A password is set with a reset link. |
+
+**Record types (\`entity_type\`):** \`HOTEL\`, \`USER\`, \`SUBSCRIPTION_PLAN\`, \`ROOM_TYPE\`, \`ROOM\`, \`BOOKING\`. Login events use \`USER\`.
+
+**Failed actions.** A change (create, update, delete, status change, check-out) that is rejected or hits an error is also recorded, with \`status: "FAILED"\`. Use it to find who tried what, when, and why it failed. Failed entries carry \`status_code\` (the HTTP status the caller got), \`error_message\` (the reason, and for a server error the real cause), and \`error_details\` (field errors, for example from validation). A completed action has \`status: "SUCCESS"\` and these three keys are null. Only signed-in users are recorded, so unauthenticated calls and read (GET) errors are not. A \`LOGIN_FAILED\` entry is always \`FAILED\` and shows why the login was refused (wrong password, disabled, deactivated, locked, or hotel off).
+
+Passwords are never stored in the logs. Logout and automatic server jobs (for example a room becoming available after cleaning) are not recorded.
+
+${envelope}`,
+  item: [
+    item({
+      name: 'List audit logs',
+      method: 'GET',
+      events: testScript(saveId('audit_logs.0.id', 'auditLogId')),
+      raw: '{{baseUrl}}/api/v1/audit-logs?page=1&limit=10',
+      pathSegments: ['api', 'v1', 'audit-logs'],
+      query: [
+        queryParam('page', '1', 'Optional. Page number, starting at 1. Default 1.'),
+        queryParam('limit', '10', 'Optional. Page size, 1 to 100. Default 10.'),
+        queryParam('action', 'UPDATE', 'Optional. CREATE, UPDATE, DELETE, STATUS_CHANGE, CHECK_OUT, LOGIN, LOGIN_FAILED, or PASSWORD_RESET. Case-insensitive.', true),
+        queryParam('status', 'FAILED', 'Optional. SUCCESS or FAILED. FAILED lists the errors only. Case-insensitive.', true),
+        queryParam('entity_type', 'BOOKING', 'Optional. HOTEL, USER, SUBSCRIPTION_PLAN, ROOM_TYPE, ROOM, or BOOKING. Case-insensitive.', true),
+        queryParam('entity_id', '12', 'Optional. Id of the record. Use with entity_type to see one record history.', true),
+        queryParam('user_id', '3', 'Optional. Only actions done by this user.', true),
+        queryParam('hotel_id', '{{targetHotelId}}', 'Optional. SUPER_ADMIN only. Ignored for a hotel admin.', true),
+        queryParam('from_date', '2026-10-01', 'Optional. ISO date. Logs on or after this date.', true),
+        queryParam('to_date', '2026-10-31', 'Optional. ISO date. Logs on or before this date.', true),
+        queryParam('search', 'Ravi', 'Optional. Partial match on the description or the user name.', true),
+        queryParam('sort_order', 'desc', 'Optional. asc or desc. Default desc (newest first).', true),
+      ],
+      description: `### GET /api/v1/audit-logs
+${authNote('HOTEL_ADMIN or SUPER_ADMIN.')}
+
+**Query keys** are on the Params tab. Only page and limit are sent until you enable the others.
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`audit_logs\` | array | Log entries. Keys below. |
+| \`total\` | number | Matching entries. |
+| \`page\` | number | Current page. |
+| \`limit\` | number | Page size. |
+| \`total_pages\` | number | Page count. |
+
+**Keys of each item in \`audit_logs\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Log id. |
+| \`hotel_id\` | number or null | Hotel the action belongs to. |
+| \`user.id\`, \`user.name\`, \`user.role\` | number, string, string | Who did it. |
+| \`action\` | string | See the folder note. |
+| \`status\` | string | \`SUCCESS\` or \`FAILED\`. |
+| \`status_code\` | number or null | HTTP status of a failed action. |
+| \`error_message\` | string or null | Why a failed action failed. |
+| \`error_details\` | array or null | Field errors of a failed action, each \`{ field, message }\`. |
+| \`entity_type\` | string | Type of record. |
+| \`entity_id\` | number or null | Id of the record. |
+| \`description\` | string | Short readable summary. |
+| \`changes\` | object or null | For \`UPDATE\` and \`STATUS_CHANGE\`. Each changed field is \`{ "field": { "from": old, "to": new } }\`. |
+| \`request_data\` | object or null | The data the caller sent: body fields, plus \`files\` (\`field_name\`, \`file_name\`, \`size\`) for uploads. Passwords, tokens and secrets show as \`[REDACTED]\`. Null when nothing was sent. |
+| \`ip_address\`, \`user_agent\` | string or null | Caller details. |
+| \`created_at\` | string | When it happened. |`,
+    }),
+    item({
+      name: 'Get audit log',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/audit-logs/{{auditLogId}}',
+      pathSegments: ['api', 'v1', 'audit-logs', ':id'],
+      variable: [idVar('id', '{{auditLogId}}', 'Required. Audit log id.')],
+      description: `### GET /api/v1/audit-logs/:id
+${authNote('HOTEL_ADMIN or SUPER_ADMIN.')}
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Audit log id. |
+
+Returns one entry with the keys listed under **List audit logs** in \`data\`. A log of another hotel returns 403 for a hotel admin. A missing id returns 404.`,
     }),
   ],
 };
@@ -1823,6 +1933,7 @@ collection.item = [
   bookingFolder,
   userFolder,
   hotelAdminFolder,
+  auditFolder,
 ];
 
 const outputPath = path.join(__dirname, '..', 'postman_collection.json');

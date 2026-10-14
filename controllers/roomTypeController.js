@@ -4,7 +4,7 @@
  * Standardizes responses using success() helper and routes errors to next(err).
  */
 const roomTypeService = require('../services/roomTypeService');
-const { success, successMessage } = require('../utils/response');
+const { success } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
@@ -49,8 +49,8 @@ const getRoomTypeById = async (req, res, next) => {
  */
 const createRoomType = async (req, res, next) => {
   try {
-    await roomTypeService.createRoomType(req.body, req.files, req.user);
-    return successMessage(res, MESSAGES.ROOM_TYPE_CREATED_SUCCESS, HTTP_STATUS.CREATED);
+    const data = await roomTypeService.createRoomType(req.body, req.files, req.user);
+    return success(res, MESSAGES.ROOM_TYPE_CREATED_SUCCESS, data, HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);
   }
@@ -62,8 +62,8 @@ const createRoomType = async (req, res, next) => {
  */
 const updateRoomType = async (req, res, next) => {
   try {
-    await roomTypeService.updateRoomType(req.params.id, req.body, req.files, req.user);
-    return successMessage(res, MESSAGES.ROOM_TYPE_UPDATED_SUCCESS);
+    const data = await roomTypeService.updateRoomType(req.params.id, req.body, req.files, req.user);
+    return success(res, MESSAGES.ROOM_TYPE_UPDATED_SUCCESS, data);
   } catch (err) {
     next(err);
   }
@@ -75,8 +75,8 @@ const updateRoomType = async (req, res, next) => {
  */
 const deleteRoomType = async (req, res, next) => {
   try {
-    await roomTypeService.deleteRoomType(req.params.id, req.user);
-    return successMessage(res, MESSAGES.ROOM_TYPE_DELETED_SUCCESS);
+    const data = await roomTypeService.deleteRoomType(req.params.id, req.user);
+    return success(res, MESSAGES.ROOM_TYPE_DELETED_SUCCESS, data);
   } catch (err) {
     next(err);
   }

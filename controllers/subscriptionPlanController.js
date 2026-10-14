@@ -4,7 +4,7 @@
  * Standardizes responses using success() helper and routes errors to next(err).
  */
 const subscriptionPlanService = require('../services/subscriptionPlanService');
-const { success, successMessage } = require('../utils/response');
+const { success } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
@@ -13,8 +13,8 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const createPlan = async (req, res, next) => {
   try {
-    await subscriptionPlanService.createSubscriptionPlan(req.body);
-    return successMessage(res, MESSAGES.PLAN_CREATED_SUCCESS, HTTP_STATUS.CREATED);
+    const data = await subscriptionPlanService.createSubscriptionPlan(req.body, req.user);
+    return success(res, MESSAGES.PLAN_CREATED_SUCCESS, data, HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);
   }
@@ -62,8 +62,8 @@ const getPlanById = async (req, res, next) => {
  */
 const updatePlan = async (req, res, next) => {
   try {
-    await subscriptionPlanService.updateSubscriptionPlan(req.params.id, req.body);
-    return successMessage(res, MESSAGES.PLAN_UPDATED_SUCCESS);
+    const data = await subscriptionPlanService.updateSubscriptionPlan(req.params.id, req.body, req.user);
+    return success(res, MESSAGES.PLAN_UPDATED_SUCCESS, data);
   } catch (err) {
     next(err);
   }
@@ -75,8 +75,8 @@ const updatePlan = async (req, res, next) => {
  */
 const deletePlan = async (req, res, next) => {
   try {
-    await subscriptionPlanService.deleteSubscriptionPlan(req.params.id);
-    return successMessage(res, MESSAGES.PLAN_DELETED_SUCCESS);
+    const data = await subscriptionPlanService.deleteSubscriptionPlan(req.params.id, req.user);
+    return success(res, MESSAGES.PLAN_DELETED_SUCCESS, data);
   } catch (err) {
     next(err);
   }

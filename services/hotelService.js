@@ -12,6 +12,7 @@ const tokenModel = require('../models/tokenModel');
 const systemSettingsModel = require('../models/systemSettingsModel');
 const subscriptionPlanModel = require('../models/subscriptionPlanModel');
 const s3Service = require('./s3Service');
+const auditService = require('./auditService');
 const { checkEmailExistsGlobally } = require('../utils/emailValidator');
 const { queueEmail } = require('../queues/emailQueue');
 const { disconnectHotel } = require('../sockets/roomSocket');
@@ -22,7 +23,7 @@ const {
 } = require('../utils/jwt');
 const { generateSecureTempPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
-const { HTTP_STATUS } = require('../constants');
+const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
 
 /**
  * Generate a clean, URL-safe slug from hotel name with collision handling.
@@ -111,9 +112,12 @@ const uploadHotelLogo = async (files) => {
  *
  * @param {Object} payload - Registration body
  * @param {import('express').Response} [res] - Optional Express response for HTTP-only cookies
+ * @param {Array<Object>} [files=[]] - Uploaded files (logo)
+ * @param {Object} [actor=null] - Super admin creating the hotel. For public registration it carries only
+ *   request_meta, and the new hotel admin is recorded as the actor.
  * @returns {Promise<Object>} Safe response data
  */
-const registerHotel = async (payload, res = null, files = []) => {
+const registerHotel = async (payload, res = null, files = [], actor = null) => {
   const name = (payload.name || '').trim();
   const ownerName = (payload.owner_name || '').trim();
   const ownerEmail = (payload.owner_email || '').trim();
@@ -348,6 +352,23 @@ const registerHotel = async (payload, res = null, files = []) => {
     console.error('[HotelService] Failed to enqueue welcome email:', queueErr.message);
   }
 
+  await auditService.record({
+    actor: actor?.id
+      ? actor
+      : {
+        id: createdAdminUser.id,
+        name: createdAdminUser.name,
+        role: createdAdminUser.role,
+        hotel_id: createdHotel.id,
+        request_meta: actor?.request_meta,
+      },
+    action: AUDIT_ACTIONS.CREATE,
+    entityType: AUDIT_ENTITIES.HOTEL,
+    entityId: createdHotel.id,
+    hotelId: createdHotel.id,
+    description: `Hotel '${createdHotel.name}' ${actor?.id ? 'created' : 'registered'}.`,
+  });
+
   // 7. Generate Authentication Tokens & Set HttpOnly Cookies
   const accessToken = generateAccessToken(createdAdminUser.id, createdAdminUser.role, createdHotel.id);
   const refreshToken = generateRefreshToken(createdAdminUser.id, createdHotel.id);
@@ -387,10 +408,13 @@ const registerHotel = async (payload, res = null, files = []) => {
  * but nobody is signed in and no token is returned.
  * @param {Object} payload
  * @param {Array<Object>} [files=[]]
- * @returns {Promise<void>}
+ * @param {Object} reqUser - Super admin creating the hotel
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
-const createHotel = async (payload, files = []) => {
-  await registerHotel(payload, null, files);
+const createHotel = async (payload, files = [], reqUser) => {
+  const { hotel } = await registerHotel(payload, null, files, reqUser);
+
+  return { id: hotel.id };
 };
 
 /**
@@ -447,10 +471,11 @@ const EDITABLE_TEXT_FIELDS = [
  * @param {number|string} id
  * @param {Object} payload
  * @param {Array<Object>} [files=[]]
- * @returns {Promise<void>}
+ * @param {Object} reqUser - Super admin making the change
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
-const updateHotel = async (id, payload, files = []) => {
-  await getHotelById(id);
+const updateHotel = async (id, payload, files = [], reqUser) => {
+  const existing = await getHotelById(id);
 
   const updates = {};
 
@@ -501,6 +526,25 @@ const updateHotel = async (id, payload, files = []) => {
   }
 
   await hotelModel.updateHotel(id, updates);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.UPDATE,
+    entityType: AUDIT_ENTITIES.HOTEL,
+    entityId: existing.id,
+    hotelId: existing.id,
+    description: `Hotel '${existing.name}' updated.`,
+    changes: auditService.diffChanges(
+      {
+        ...existing,
+        gst_enabled: existing.settings.gst_enabled,
+        auto_renew: existing.subscription.auto_renew,
+      },
+      updates
+    ),
+  });
+
+  return { id: existing.id };
 };
 
 /**
@@ -509,9 +553,10 @@ const updateHotel = async (id, payload, files = []) => {
  * and clients that are already connected are dropped. Nothing is deleted.
  * @param {number|string} id
  * @param {boolean|string} isActive
- * @returns {Promise<void>}
+ * @param {Object} reqUser - Super admin making the change
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
-const setHotelActive = async (id, isActive) => {
+const setHotelActive = async (id, isActive, reqUser) => {
   const hotel = await getHotelById(id);
   const active = toBoolean(isActive);
 
@@ -520,15 +565,28 @@ const setHotelActive = async (id, isActive) => {
   if (!active) {
     disconnectHotel(hotel.id);
   }
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.STATUS_CHANGE,
+    entityType: AUDIT_ENTITIES.HOTEL,
+    entityId: hotel.id,
+    hotelId: hotel.id,
+    description: `Hotel '${hotel.name}' ${active ? 'activated' : 'deactivated'}.`,
+    changes: auditService.diffChanges(hotel, { is_active: active }),
+  });
+
+  return { id: hotel.id };
 };
 
 /**
  * Soft delete a hotel and every user of that hotel, so nobody can sign in to it again.
  * Rooms and bookings stay in the database.
  * @param {number|string} id
- * @returns {Promise<void>}
+ * @param {Object} reqUser - Super admin deleting the hotel
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
-const deleteHotel = async (id) => {
+const deleteHotel = async (id, reqUser) => {
   const hotel = await getHotelById(id);
 
   await db.transaction(async (trx) => {
@@ -537,6 +595,17 @@ const deleteHotel = async (id) => {
   });
 
   disconnectHotel(hotel.id);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.DELETE,
+    entityType: AUDIT_ENTITIES.HOTEL,
+    entityId: hotel.id,
+    hotelId: hotel.id,
+    description: `Hotel '${hotel.name}' deleted.`,
+  });
+
+  return { id: hotel.id };
 };
 
 module.exports = {

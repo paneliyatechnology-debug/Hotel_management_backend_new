@@ -67,6 +67,8 @@ const MESSAGES = {
   USER_DELETED_SUCCESS: 'User deleted successfully.',
   USER_RETRIEVED_SUCCESS: 'User retrieved successfully.',
   USERS_RETRIEVED_SUCCESS: 'Users retrieved successfully.',
+  AUDIT_LOG_RETRIEVED_SUCCESS: 'Audit log retrieved successfully.',
+  AUDIT_LOGS_RETRIEVED_SUCCESS: 'Audit logs retrieved successfully.',
 };
 
 // ==========================================
@@ -129,6 +131,37 @@ const PAYMENT_STATUSES = ['PAID', 'PARTIALLY_PAID', 'FAILED', 'REFUNDED'];
 // A room stays CLEANING this long after checkout, then becomes AVAILABLE again.
 const CLEANING_DURATION_MINUTES = 20;
 
+// ==========================================
+// Audit trail
+// AUDIT_ACTIONS says what happened. AUDIT_ENTITIES says what it happened to.
+// ==========================================
+
+const AUDIT_ACTIONS = {
+  CREATE: 'CREATE',
+  UPDATE: 'UPDATE',
+  DELETE: 'DELETE',
+  STATUS_CHANGE: 'STATUS_CHANGE',
+  CHECK_OUT: 'CHECK_OUT',
+  LOGIN: 'LOGIN',
+  LOGIN_FAILED: 'LOGIN_FAILED',
+  PASSWORD_RESET: 'PASSWORD_RESET',
+};
+
+const AUDIT_ENTITIES = {
+  HOTEL: 'HOTEL',
+  USER: 'USER',
+  SUBSCRIPTION_PLAN: 'SUBSCRIPTION_PLAN',
+  ROOM_TYPE: 'ROOM_TYPE',
+  ROOM: 'ROOM',
+  BOOKING: 'BOOKING',
+};
+
+// SUCCESS: the action was done. FAILED: it was rejected or hit an error, and nothing was saved.
+const AUDIT_STATUSES = {
+  SUCCESS: 'SUCCESS',
+  FAILED: 'FAILED',
+};
+
 module.exports = {
   HTTP_STATUS,
   MESSAGES,
@@ -139,4 +172,7 @@ module.exports = {
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
   CLEANING_DURATION_MINUTES,
+  AUDIT_ACTIONS,
+  AUDIT_ENTITIES,
+  AUDIT_STATUSES,
 };

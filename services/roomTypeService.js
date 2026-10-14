@@ -5,10 +5,11 @@
  */
 const roomTypeModel = require('../models/roomTypeModel');
 const s3Service = require('./s3Service');
+const auditService = require('./auditService');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
 const { extractImageFiles } = require('../utils/files');
-const { HTTP_STATUS } = require('../constants');
+const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
 
 /**
  * Get all active room categories for the authenticated user's hotel.
@@ -54,7 +55,7 @@ const getRoomTypeById = async (id, reqUser = null) => {
  * @param {Object} body - { name, description }
  * @param {Array<Object>} [files=[]] - Uploaded image files
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const createRoomType = async (body, files = [], reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
@@ -96,7 +97,7 @@ const createRoomType = async (body, files = [], reqUser = null) => {
   }
 
   // 4. Create database record and relational image entries
-  await roomTypeModel.createRoomType(
+  const newRoomType = await roomTypeModel.createRoomType(
     {
       hotel_id: hotelId,
       name,
@@ -104,6 +105,17 @@ const createRoomType = async (body, files = [], reqUser = null) => {
     },
     imageRecords
   );
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.CREATE,
+    entityType: AUDIT_ENTITIES.ROOM_TYPE,
+    entityId: newRoomType.id,
+    hotelId,
+    description: `Room category '${name}' created.`,
+  });
+
+  return { id: newRoomType.id };
 };
 
 /**
@@ -112,7 +124,7 @@ const createRoomType = async (body, files = [], reqUser = null) => {
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const updateRoomType = async (id, body, files = [], reqUser = null) => {
   const existing = await roomTypeModel.findRoomTypeById(id);
@@ -170,13 +182,25 @@ const updateRoomType = async (id, body, files = [], reqUser = null) => {
   }
 
   await roomTypeModel.updateRoomType(id, updates, newImageRecords);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.UPDATE,
+    entityType: AUDIT_ENTITIES.ROOM_TYPE,
+    entityId: existing.id,
+    hotelId,
+    description: `Room category '${existing.name}' updated.`,
+    changes: auditService.diffChanges(existing, updates),
+  });
+
+  return { id: existing.id };
 };
 
 /**
  * Safely delete a category only if no physical rooms are assigned to it
  * @param {number|string} id
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const deleteRoomType = async (id, reqUser = null) => {
   const existing = await roomTypeModel.findRoomTypeById(id);
@@ -202,6 +226,17 @@ const deleteRoomType = async (id, reqUser = null) => {
   }
 
   await roomTypeModel.softDeleteRoomType(id);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.DELETE,
+    entityType: AUDIT_ENTITIES.ROOM_TYPE,
+    entityId: existing.id,
+    hotelId,
+    description: `Room category '${existing.name}' deleted.`,
+  });
+
+  return { id: existing.id };
 };
 
 module.exports = {

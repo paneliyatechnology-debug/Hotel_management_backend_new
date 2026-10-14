@@ -15,6 +15,9 @@ const { HTTP_STATUS } = require('./constants');
 
 const app = express();
 
+// Behind the Railway proxy. Makes req.ip the real caller address for the audit trail.
+app.set('trust proxy', 1);
+
 // ==========================================
 // Dynamic Multi-Origin CORS Configuration
 // Supports Localhost (any port), Vercel, Railway, and Production Domains

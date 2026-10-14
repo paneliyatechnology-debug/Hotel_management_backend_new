@@ -5,7 +5,7 @@
  */
 const bookingService = require('../services/bookingService');
 const bookingPdfService = require('../services/bookingPdfService');
-const { success, successMessage } = require('../utils/response');
+const { success } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
@@ -14,8 +14,8 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const createBooking = async (req, res, next) => {
   try {
-    await bookingService.createBooking(req.body, req.files, req.user);
-    return successMessage(res, MESSAGES.BOOKING_CREATED_SUCCESS, HTTP_STATUS.CREATED);
+    const data = await bookingService.createBooking(req.body, req.files, req.user);
+    return success(res, MESSAGES.BOOKING_CREATED_SUCCESS, data, HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);
   }
@@ -83,8 +83,8 @@ const getBookingPdf = async (req, res, next) => {
  */
 const updateBooking = async (req, res, next) => {
   try {
-    await bookingService.updateBooking(req.params.id, req.body, req.files, req.user);
-    return successMessage(res, MESSAGES.BOOKING_UPDATED_SUCCESS);
+    const data = await bookingService.updateBooking(req.params.id, req.body, req.files, req.user);
+    return success(res, MESSAGES.BOOKING_UPDATED_SUCCESS, data);
   } catch (err) {
     next(err);
   }
@@ -96,8 +96,8 @@ const updateBooking = async (req, res, next) => {
  */
 const checkOutBooking = async (req, res, next) => {
   try {
-    await bookingService.checkOutBooking(req.params.id, req.body, req.user);
-    return successMessage(res, MESSAGES.BOOKING_CHECKED_OUT_SUCCESS);
+    const data = await bookingService.checkOutBooking(req.params.id, req.body, req.user);
+    return success(res, MESSAGES.BOOKING_CHECKED_OUT_SUCCESS, data);
   } catch (err) {
     next(err);
   }
@@ -109,8 +109,8 @@ const checkOutBooking = async (req, res, next) => {
  */
 const updateBookingStatus = async (req, res, next) => {
   try {
-    await bookingService.updateBookingStatus(req.params.id, req.body, req.user);
-    return successMessage(res, MESSAGES.BOOKING_STATUS_UPDATED_SUCCESS);
+    const data = await bookingService.updateBookingStatus(req.params.id, req.body, req.user);
+    return success(res, MESSAGES.BOOKING_STATUS_UPDATED_SUCCESS, data);
   } catch (err) {
     next(err);
   }
@@ -122,8 +122,8 @@ const updateBookingStatus = async (req, res, next) => {
  */
 const deleteBooking = async (req, res, next) => {
   try {
-    await bookingService.deleteBooking(req.params.id, req.user);
-    return successMessage(res, MESSAGES.BOOKING_DELETED_SUCCESS);
+    const data = await bookingService.deleteBooking(req.params.id, req.user);
+    return success(res, MESSAGES.BOOKING_DELETED_SUCCESS, data);
   } catch (err) {
     next(err);
   }

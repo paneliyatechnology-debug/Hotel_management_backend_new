@@ -10,6 +10,7 @@ const roomTypeRouter = require('./roomTypeRouter');
 const roomRouter = require('./roomRouter');
 const bookingRouter = require('./bookingRouter');
 const userRouter = require('./userRouter');
+const auditLogRouter = require('./auditLogRouter');
 
 const router = express.Router();
 
@@ -28,5 +29,6 @@ router.use('/bookings', bookingRouter);
 router.use('/booking', bookingRouter);
 router.use('/users', userRouter);
 router.use('/user', userRouter);
+router.use('/audit-logs', auditLogRouter);
 
 module.exports = router;

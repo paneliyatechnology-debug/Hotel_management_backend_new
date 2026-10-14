@@ -3,9 +3,10 @@
  * Core business logic, validation enforcement, feature synchronization, and transactions.
  */
 const subscriptionPlanModel = require('../models/subscriptionPlanModel');
+const auditService = require('./auditService');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
-const { HTTP_STATUS } = require('../constants');
+const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
 
 /**
  * Standard 6 Enterprise default plans
@@ -193,9 +194,10 @@ const generatePlanCode = (billingCycle, name) => {
 /**
  * Create a new subscription plan with features
  * @param {Object} payload
- * @returns {Promise<void>}
+ * @param {Object} [reqUser=null]
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
-const createSubscriptionPlan = async (payload) => {
+const createSubscriptionPlan = async (payload, reqUser = null) => {
   const {
     name,
     billingCycle,
@@ -273,9 +275,19 @@ const createSubscriptionPlan = async (payload) => {
     displayOrder: Number(displayOrder) || 1,
   };
 
-  await db.transaction(async (trx) => {
-    await subscriptionPlanModel.createPlan(planData, cleanedFeatures, trx);
+  const newPlan = await db.transaction(async (trx) => {
+    return subscriptionPlanModel.createPlan(planData, cleanedFeatures, trx);
   });
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.CREATE,
+    entityType: AUDIT_ENTITIES.SUBSCRIPTION_PLAN,
+    entityId: newPlan.id,
+    description: `Subscription plan '${planData.name}' (${planData.code}) created.`,
+  });
+
+  return { id: newPlan.id };
 };
 
 /**
@@ -346,9 +358,10 @@ const getSubscriptionPlanById = async (id) => {
  * Update plan details and synchronize features
  * @param {number|string} id
  * @param {Object} payload
- * @returns {Promise<void>}
+ * @param {Object} [reqUser=null]
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
-const updateSubscriptionPlan = async (id, payload) => {
+const updateSubscriptionPlan = async (id, payload, reqUser = null) => {
   const numId = Number(id);
   if (!id || isNaN(numId) || numId <= 0) {
     throw new AppError('Invalid subscription plan ID.', HTTP_STATUS.BAD_REQUEST);
@@ -444,14 +457,26 @@ const updateSubscriptionPlan = async (id, payload) => {
   await db.transaction(async (trx) => {
     await subscriptionPlanModel.updatePlan(numId, updateData, cleanedFeatures, trx);
   });
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.UPDATE,
+    entityType: AUDIT_ENTITIES.SUBSCRIPTION_PLAN,
+    entityId: existingPlan.id,
+    description: `Subscription plan '${existingPlan.name}' updated.`,
+    changes: auditService.diffChanges(existingPlan, updateData),
+  });
+
+  return { id: existingPlan.id };
 };
 
 /**
  * Soft-delete subscription plan
  * @param {number|string} id
- * @returns {Promise<void>}
+ * @param {Object} [reqUser=null]
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
-const deleteSubscriptionPlan = async (id) => {
+const deleteSubscriptionPlan = async (id, reqUser = null) => {
   const numId = Number(id);
   if (!id || isNaN(numId) || numId <= 0) {
     throw new AppError('Invalid subscription plan ID.', HTTP_STATUS.BAD_REQUEST);
@@ -463,6 +488,16 @@ const deleteSubscriptionPlan = async (id) => {
   }
 
   await subscriptionPlanModel.softDeletePlan(numId);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.DELETE,
+    entityType: AUDIT_ENTITIES.SUBSCRIPTION_PLAN,
+    entityId: existingPlan.id,
+    description: `Subscription plan '${existingPlan.name}' archived.`,
+  });
+
+  return { id: existingPlan.id };
 };
 
 module.exports = {

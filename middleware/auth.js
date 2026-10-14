@@ -6,6 +6,7 @@
 const { verifyAccessToken } = require('../utils/jwt');
 const userModel = require('../models/userModel');
 const { assertHotelActive } = require('../utils/hotelScope');
+const { getRequestMeta } = require('../utils/requestMeta');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, ROLE_CODES } = require('../constants');
 
@@ -96,7 +97,8 @@ const authenticateUser = async (req, res, next) => {
     // A deactivated hotel blocks all of its users on every protected API, even with a valid token.
     await assertHotelActive(user);
 
-    req.user = user;
+    // request_meta (caller address and browser) travels with the user so services can write audit logs.
+    req.user = { ...user, request_meta: getRequestMeta(req) };
     req.hotel_id = user.hotel_id || decoded.hotel_id || null;
 
     // Do not accept hotel_id directly from client parameters or body; enforce token hotel_id

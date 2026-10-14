@@ -6,6 +6,7 @@
  */
 const authService = require('../services/authService');
 const { success, successMessage } = require('../utils/response');
+const { getRequestMeta } = require('../utils/requestMeta');
 const { MESSAGES } = require('../constants');
 
 /**
@@ -15,7 +16,7 @@ const { MESSAGES } = require('../constants');
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    const data = await authService.login(email, password, res);
+    const data = await authService.login(email, password, res, getRequestMeta(req));
     return success(res, MESSAGES.LOGIN_SUCCESS, data);
   } catch (err) {
     next(err);
@@ -77,10 +78,7 @@ const forgotPassword = async (req, res, next) => {
 const resetPassword = async (req, res, next) => {
   try {
     const { token, password } = req.body;
-    await authService.resetPassword({
-      token,
-      password,
-    });
+    await authService.resetPassword({ token, password }, getRequestMeta(req));
     return successMessage(res, MESSAGES.PASSWORD_RESET_SUCCESS);
   } catch (err) {
     next(err);

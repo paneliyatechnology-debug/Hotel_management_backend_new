@@ -4,7 +4,7 @@
  * Standardizes responses using success() helper and routes errors to next(err).
  */
 const userService = require('../services/userService');
-const { success, successMessage } = require('../utils/response');
+const { success } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
@@ -13,8 +13,8 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
  */
 const createUser = async (req, res, next) => {
   try {
-    await userService.createUser(req.body, req.user);
-    return successMessage(res, MESSAGES.USER_CREATED_SUCCESS || 'User created successfully.', HTTP_STATUS.CREATED);
+    const data = await userService.createUser(req.body, req.user);
+    return success(res, MESSAGES.USER_CREATED_SUCCESS || 'User created successfully.', data, HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);
   }
@@ -62,8 +62,8 @@ const getUserById = async (req, res, next) => {
  */
 const updateUser = async (req, res, next) => {
   try {
-    await userService.updateUser(req.params.id, req.body, req.user);
-    return successMessage(res, MESSAGES.USER_UPDATED_SUCCESS || 'User updated successfully.');
+    const data = await userService.updateUser(req.params.id, req.body, req.user);
+    return success(res, MESSAGES.USER_UPDATED_SUCCESS || 'User updated successfully.', data);
   } catch (err) {
     next(err);
   }
@@ -75,8 +75,8 @@ const updateUser = async (req, res, next) => {
  */
 const updateAccountStatus = async (req, res, next) => {
   try {
-    await userService.updateAccountStatus(req.params.id, req.body, req.user);
-    return successMessage(res, MESSAGES.USER_ACCOUNT_STATUS_UPDATED_SUCCESS);
+    const data = await userService.updateAccountStatus(req.params.id, req.body, req.user);
+    return success(res, MESSAGES.USER_ACCOUNT_STATUS_UPDATED_SUCCESS, data);
   } catch (err) {
     next(err);
   }
@@ -88,8 +88,8 @@ const updateAccountStatus = async (req, res, next) => {
  */
 const deleteUser = async (req, res, next) => {
   try {
-    await userService.deleteUser(req.params.id, req.user);
-    return successMessage(res, MESSAGES.USER_DELETED_SUCCESS || 'User deleted successfully.');
+    const data = await userService.deleteUser(req.params.id, req.user);
+    return success(res, MESSAGES.USER_DELETED_SUCCESS || 'User deleted successfully.', data);
   } catch (err) {
     next(err);
   }

@@ -10,10 +10,11 @@ const userModel = require('../models/userModel');
 const bookingModel = require('../models/bookingModel');
 const hotelModel = require('../models/hotelModel');
 const tokenModel = require('../models/tokenModel');
+const auditService = require('./auditService');
 const { queueEmail } = require('../queues/emailQueue');
 const { generateSecureTempPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
-const { HTTP_STATUS, ROLE_CODES } = require('../constants');
+const { HTTP_STATUS, ROLE_CODES, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
 
 // Permitted staff roles that a HOTEL_ADMIN can manage
 const STAFF_ROLES = [
@@ -53,7 +54,7 @@ const formatUserResponse = (user) => {
  * Create a new user with validation, RBAC checks, and secure password hashing
  * @param {Object} payload
  * @param {Object} req_user
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const createUser = async (payload, req_user) => {
   const email = (payload.email || '').toLowerCase();
@@ -212,6 +213,17 @@ const createUser = async (payload, req_user) => {
   } catch (queueErr) {
     console.error('[UserService] Failed to enqueue staff welcome email:', queueErr.message);
   }
+
+  await auditService.record({
+    actor: req_user,
+    action: AUDIT_ACTIONS.CREATE,
+    entityType: AUDIT_ENTITIES.USER,
+    entityId: created_user.id,
+    hotelId: created_user.hotel_id,
+    description: `User ${created_user.email} created with role ${created_user.role}.`,
+  });
+
+  return { id: created_user.id };
 };
 
 /**
@@ -307,7 +319,7 @@ const getUserById = async (id, req_user) => {
  * @param {number|string} id
  * @param {Object} payload
  * @param {Object} req_user
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const updateUser = async (id, payload, req_user) => {
   const existing_user = await userModel.findUserById(id);
@@ -439,6 +451,18 @@ const updateUser = async (id, payload, req_user) => {
   }
 
   await userModel.updateUser(id, updates);
+
+  await auditService.record({
+    actor: req_user,
+    action: AUDIT_ACTIONS.UPDATE,
+    entityType: AUDIT_ENTITIES.USER,
+    entityId: existing_user.id,
+    hotelId: existing_user.hotel_id,
+    description: `User ${existing_user.email} updated.`,
+    changes: auditService.diffChanges(existing_user, updates),
+  });
+
+  return { id: existing_user.id };
 };
 
 /**
@@ -447,7 +471,7 @@ const updateUser = async (id, payload, req_user) => {
  * Guards against self-deletion and deleting the last active Super Admin
  * @param {number|string} id
  * @param {Object} req_user
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const deleteUser = async (id, req_user) => {
   const existing_user = await userModel.findUserById(id);
@@ -497,6 +521,17 @@ const deleteUser = async (id, req_user) => {
   }
 
   await userModel.softDeleteUser(id);
+
+  await auditService.record({
+    actor: req_user,
+    action: AUDIT_ACTIONS.DELETE,
+    entityType: AUDIT_ENTITIES.USER,
+    entityId: existing_user.id,
+    hotelId: existing_user.hotel_id,
+    description: `User ${existing_user.email} deleted.`,
+  });
+
+  return { id: existing_user.id };
 };
 
 /**
@@ -517,7 +552,7 @@ const parseFlag = (value, field) => {
  * @param {number|string} id
  * @param {Object} payload
  * @param {Object} req_user
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const updateAccountStatus = async (id, payload, req_user) => {
   const existing_user = await userModel.findUserById(id);
@@ -573,6 +608,18 @@ const updateAccountStatus = async (id, payload, req_user) => {
   }
 
   await userModel.updateUser(id, updates);
+
+  await auditService.record({
+    actor: req_user,
+    action: AUDIT_ACTIONS.STATUS_CHANGE,
+    entityType: AUDIT_ENTITIES.USER,
+    entityId: existing_user.id,
+    hotelId: existing_user.hotel_id,
+    description: `Account status of user ${existing_user.email} changed.`,
+    changes: auditService.diffChanges(existing_user, updates),
+  });
+
+  return { id: existing_user.id };
 };
 
 module.exports = {

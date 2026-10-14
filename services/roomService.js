@@ -5,17 +5,24 @@
  */
 const roomModel = require('../models/roomModel');
 const s3Service = require('./s3Service');
+const auditService = require('./auditService');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
 const { extractImageFiles } = require('../utils/files');
-const { HTTP_STATUS, ROOM_STATUSES, CLEANING_DURATION_MINUTES } = require('../constants');
+const {
+  HTTP_STATUS,
+  ROOM_STATUSES,
+  CLEANING_DURATION_MINUTES,
+  AUDIT_ACTIONS,
+  AUDIT_ENTITIES,
+} = require('../constants');
 
 /**
  * Create a new physical room
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const createRoom = async (body, files = [], reqUser = null) => {
   // hotel_id comes from the authenticated user token. Body hotel_id is ignored.
@@ -87,7 +94,7 @@ const createRoom = async (body, files = [], reqUser = null) => {
   }
 
   // 5. Create room in database
-  await roomModel.createRoom(
+  const newRoom = await roomModel.createRoom(
     {
       hotel_id: hotelId,
       room_number: roomNumber,
@@ -110,6 +117,17 @@ const createRoom = async (body, files = [], reqUser = null) => {
     },
     imageRecords
   );
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.CREATE,
+    entityType: AUDIT_ENTITIES.ROOM,
+    entityId: newRoom.id,
+    hotelId,
+    description: `Room ${roomNumber} created on floor ${floor}.`,
+  });
+
+  return { id: newRoom.id };
 };
 
 /**
@@ -171,7 +189,7 @@ const getRoomById = async (id, reqUser = null) => {
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const updateRoom = async (id, body, files = [], reqUser = null) => {
   const existing = await roomModel.findRoomById(id);
@@ -267,6 +285,18 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
   }
 
   await roomModel.updateRoom(id, updates, newImageRecords);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.UPDATE,
+    entityType: AUDIT_ENTITIES.ROOM,
+    entityId: existing.id,
+    hotelId,
+    description: `Room ${existing.room_number} updated.`,
+    changes: auditService.diffChanges(existing, updates),
+  });
+
+  return { id: existing.id };
 };
 
 /**
@@ -275,7 +305,7 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
  * @param {number|string} id
  * @param {Object} body - { status }
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const updateRoomStatus = async (id, body = {}, reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
@@ -304,6 +334,18 @@ const updateRoomStatus = async (id, body = {}, reqUser = null) => {
   // Setting CLEANING by hand starts the same cleaning timer that checkout starts.
   const updates = status === 'CLEANING' ? { status, cleaning_started_at: new Date() } : { status };
   await roomModel.updateRoom(id, updates);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.STATUS_CHANGE,
+    entityType: AUDIT_ENTITIES.ROOM,
+    entityId: existing.id,
+    hotelId,
+    description: `Room ${existing.room_number} status changed to ${status}.`,
+    changes: auditService.diffChanges(existing, { status }),
+  });
+
+  return { id: existing.id };
 };
 
 /**
@@ -332,7 +374,7 @@ const releaseCleanedRooms = async (now = new Date()) => {
  * Soft delete a physical room
  * @param {number|string} id
  * @param {Object} [reqUser=null]
- * @returns {Promise<void>}
+ * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const deleteRoom = async (id, reqUser = null) => {
   const existing = await roomModel.findRoomById(id);
@@ -355,6 +397,17 @@ const deleteRoom = async (id, reqUser = null) => {
   }
 
   await roomModel.softDeleteRoom(id);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.DELETE,
+    entityType: AUDIT_ENTITIES.ROOM,
+    entityId: existing.id,
+    hotelId,
+    description: `Room ${existing.room_number} deleted.`,
+  });
+
+  return { id: existing.id };
 };
 
 module.exports = {

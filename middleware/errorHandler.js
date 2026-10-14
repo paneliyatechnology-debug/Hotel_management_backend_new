@@ -2,7 +2,9 @@
  * Global Express error handler.
  *
  * Maps operational AppErrors and MySQL constraint violations to consistent JSON responses.
+ * Failed changes made by a signed-in user are also written to the audit trail.
  */
+const auditService = require('../services/auditService');
 const { HTTP_STATUS } = require('../constants');
 
 /**
@@ -12,7 +14,7 @@ const { HTTP_STATUS } = require('../constants');
  * @param {import('express').Response} res - Express response
  * @param {import('express').NextFunction} _next - Express next (unused)
  */
-const errorHandler = (err, req, res, _next) => {
+const errorHandler = async (err, req, res, _next) => {
   let statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
   let message = err.message || 'Internal server error';
   let errors = err.errors || [];
@@ -72,6 +74,13 @@ const errorHandler = (err, req, res, _next) => {
       message = 'Internal server error';
     }
   }
+
+  // The audit trail keeps the real reason of a server error. Only the response hides it in production.
+  await auditService.recordFailure(req, {
+    statusCode,
+    message: statusCode >= 500 ? err.message || message : message,
+    errors,
+  });
 
   return res.status(statusCode).json({
     success: false,
