@@ -312,8 +312,7 @@ const checkRoomOverlaps = async (
     'bookings.booking_number',
     'bookings.check_in_date',
     'bookings.check_out_date',
-    'bookings.room_id',
-    'rooms.room_number'
+    'bookings.room_id'
   );
 };
 
