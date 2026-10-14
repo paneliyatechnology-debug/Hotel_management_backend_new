@@ -1025,7 +1025,7 @@ Two different statuses:
 | \`booking_status\` | \`PENDING\`, \`CONFIRMED\`, \`CHECKED_IN\`, \`CHECKED_OUT\`, \`CANCELLED\`, \`NO_SHOW\` | The stay |
 | \`payment_status\` | \`PENDING\`, \`PARTIALLY_PAID\`, \`PAID\` | The bill. Calculated from amounts. Do not send it. |
 
-Create stores \`CHECKED_IN\` when \`booking_status\` is omitted. That also sets \`actual_check_in\` and marks the room \`OCCUPIED\`.
+Create stores \`CHECKED_IN\` when \`booking_status\` is omitted. \`created_by\` is the logged-in user. \`actual_check_in\` is the current time. The room is marked \`OCCUPIED\`.
 
 What each stay status does to the room:
 | booking_status | Room |
@@ -1058,10 +1058,8 @@ ${envelope}`,
           textField('email', 'guest@example.com', 'Optional. Guest email. A user or hotel owner login email is rejected.', true),
           textField('address', '12 Lake Road, Pune', 'Optional. Guest address.', true),
           textField('room_id', '[{{roomId}}]', 'Required. Array of room ids in this hotel. Send JSON: [12, 15]. Every room is held for the same dates and receives the same stay status at the same time. One room is still an array: [12].'),
-          textField('created_by', '', 'Optional. User id of the staff member. Defaults to the logged-in user. The user must exist.', true),
           textField('check_in_date', '2026-10-14T14:00:00.000Z', 'Required. Scheduled check-in. ISO date or datetime. Must be before check_out_date.'),
           textField('check_out_date', '2026-10-16T12:00:00.000Z', 'Required. Scheduled check-out. ISO date or datetime. Nights are calculated from these two dates.'),
-          textField('actual_check_in', '', 'Optional. Real check-in time. For CHECKED_IN the server sets this when it is empty.', true),
           textField('actual_check_out', '', 'Optional. Real check-out time. Leave empty on create unless the stay is already finished.', true),
           textField('adults', '2', 'Optional. Integer, minimum 1. Default 1.'),
           textField('children', '0', 'Optional. Integer, 0 or more. Default 0.'),
@@ -1081,7 +1079,7 @@ ${envelope}`,
       description: `### POST /api/v1/bookings
 ${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
 
-Do not send \`hotel_id\`, \`booking_number\`, \`number_of_nights\`, \`payment_status\`, tax amounts, \`total_amount\`, or \`due_amount\`. The server calculates those.
+Do not send \`hotel_id\`, \`created_by\`, \`actual_check_in\`, \`booking_number\`, \`number_of_nights\`, \`payment_status\`, tax amounts, \`total_amount\`, or \`due_amount\`. \`created_by\` is the user id from the access token. \`actual_check_in\` is the server time when the booking is created. The server calculates the amounts.
 
 The room must be free for the scheduled dates. A stay still blocks those dates while \`booking_status\` is \`PENDING\`, \`CONFIRMED\`, or \`CHECKED_IN\` and \`actual_check_out\` is empty. Overlap returns 400.
 
@@ -1101,9 +1099,10 @@ The room must be free for the scheduled dates. A stay still blocks those dates w
 | \`room_id\` | number array | Every room on this stay. Example: \`[12, 15]\`. |
 | \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`status\`, \`room_type_name\`. |
 | \`room\` | object or null | The first room only. Same shape as one item in \`rooms\`. |
-| \`created_by\` | number | Staff user id. |
+| \`created_by\` | number | User id from the access token. |
 | \`check_in_date\`, \`check_out_date\` | string | Scheduled stay. Not changed by checkout. |
-| \`actual_check_in\`, \`actual_check_out\` | string or null | Real in and out times. |
+| \`actual_check_in\` | string | Server time when the booking was created. |
+| \`actual_check_out\` | string or null | Real check-out time. Null until checkout. |
 | \`number_of_nights\` | number | Calculated from the scheduled dates. Minimum handling is server-side. |
 | \`adults\`, \`children\` | number | Guest counts. |
 | \`base_amount\` | number | Room charge before tax. |

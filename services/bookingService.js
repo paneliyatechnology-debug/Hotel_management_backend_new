@@ -7,7 +7,6 @@
 const bookingModel = require('../models/bookingModel');
 const roomModel = require('../models/roomModel');
 const hotelModel = require('../models/hotelModel');
-const userModel = require('../models/userModel');
 const s3Service = require('./s3Service');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
@@ -524,23 +523,9 @@ const createBooking = async (body, files = [], reqUser = null) => {
     ]);
   }
 
-  // Created By user resolution
-  let createdBy = body.created_by ? Number(body.created_by) : reqUser?.id;
+  const createdBy = Number(reqUser?.id);
   if (!createdBy) {
-    const hotel = await hotelModel.findHotelById(hotelId);
-    if (hotel?.ownerId) {
-      createdBy = hotel.ownerId;
-    } else {
-      const firstUser = await db('users').whereNull('deleted_at').first();
-      createdBy = firstUser?.id || 1;
-    }
-  }
-
-  const creatorUser = await userModel.findUserById(createdBy);
-  if (!creatorUser) {
-    throw new AppError(`User (created_by ${createdBy}) does not exist.`, HTTP_STATUS.BAD_REQUEST, [
-      { field: 'created_by', message: `User ID ${createdBy} not found.` },
-    ]);
+    throw new AppError('Authentication required.', HTTP_STATUS.UNAUTHORIZED);
   }
 
   // Preconditions & Overlap check
@@ -581,7 +566,7 @@ const createBooking = async (body, files = [], reqUser = null) => {
     created_by: createdBy,
     check_in_date: inDate,
     check_out_date: outDate,
-    actual_check_in: body.actual_check_in ? new Date(body.actual_check_in) : null,
+    actual_check_in: new Date(),
     actual_check_out: body.actual_check_out ? new Date(body.actual_check_out) : null,
     number_of_nights: numberOfNights,
     adults: Math.max(1, Number(body.adults) || 1),
