@@ -367,6 +367,12 @@ const deleteRoom = async (id, reqUser = null) => {
     );
   }
 
+  // Only a free room can be deleted. A room in use must be freed first.
+  if (existing.status !== 'AVAILABLE') {
+    const message = `Only an AVAILABLE room can be deleted. This room is ${existing.status}.`;
+    throw new AppError(message, HTTP_STATUS.BAD_REQUEST, [{ field: 'id', message }]);
+  }
+
   const deleted = await roomModel.softDeleteRoom(id);
   return deleted;
 };

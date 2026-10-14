@@ -1005,7 +1005,9 @@ Unknown status returns 400.
       pathSegments: ['api', 'v1', 'rooms', ':id'],
       variable: [idVar('id', '{{roomId}}', 'Required. Room id to soft-delete.')],
       description: `### DELETE /api/v1/rooms/:id
-Soft-delete. The room leaves the list. Its room number can be used again on that floor.
+Soft-delete. Only a room with status \`AVAILABLE\` can be deleted. A room that is \`OCCUPIED\`, \`RESERVED\`, \`CLEANING\`, or \`MAINTENANCE\` returns 400. Change its status first, or wait until it is free.
+
+The room leaves the list and its room number can be used again on that floor. Past bookings keep the room: \`rooms\` on those bookings still shows its \`room_number\`, \`floor\`, and \`room_type_name\`.
 
 **Path keys**
 | Key | Type | Required | Meaning |
