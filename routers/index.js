@@ -11,6 +11,7 @@ const roomRouter = require('./roomRouter');
 const bookingRouter = require('./bookingRouter');
 const userRouter = require('./userRouter');
 const auditLogRouter = require('./auditLogRouter');
+const dashboardRouter = require('./dashboardRouter');
 
 const router = express.Router();
 
@@ -30,5 +31,6 @@ router.use('/booking', bookingRouter);
 router.use('/users', userRouter);
 router.use('/user', userRouter);
 router.use('/audit-logs', auditLogRouter);
+router.use('/dashboard', dashboardRouter);
 
 module.exports = router;

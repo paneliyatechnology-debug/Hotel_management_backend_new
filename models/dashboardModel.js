@@ -1,0 +1,500 @@
+/**
+ * Dashboard aggregation queries.
+ * Read-only Knex helpers used by dashboardService. Soft-deleted rows are excluded.
+ */
+const db = require('../database/knex');
+const { money } = require('../utils/dateRange');
+const {
+  ROLE_CODES,
+  ROOM_STATUSES,
+  PAYMENT_METHODS,
+} = require('../constants');
+
+const COLLECTED_PAYMENT_STATUSES = ['PAID', 'PARTIALLY_PAID'];
+
+/**
+ * @param {import('knex').Knex.QueryBuilder} qb
+ * @param {string} column
+ * @param {Date} from
+ * @param {Date} to
+ */
+const whereBetweenDates = (qb, column, from, to) => {
+  qb.where(column, '>=', from).where(column, '<', to);
+};
+
+/**
+ * @param {*} value
+ * @returns {number}
+ */
+const asCount = (value) => Number(value || 0);
+
+/**
+ * Empty room-status map with every known status set to 0.
+ * @returns {Object}
+ */
+const emptyRoomStatusSummary = () =>
+  ROOM_STATUSES.reduce((acc, status) => {
+    acc[status] = 0;
+    return acc;
+  }, {});
+
+/**
+ * Empty payment-method map with every known method set to 0.
+ * @returns {Object}
+ */
+const emptyPaymentMethodSummary = () =>
+  PAYMENT_METHODS.reduce((acc, method) => {
+    acc[method] = 0;
+    return acc;
+  }, {});
+
+/**
+ * Hotels still on the platform (not soft-deleted).
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<{ total: number, active: number, inactive: number }>}
+ */
+const countHotelsByActiveState = async (client = db) => {
+  const rows = await client('hotels')
+    .whereNull('deleted_at')
+    .select('is_active')
+    .count('id as total')
+    .groupBy('is_active');
+
+  let active = 0;
+  let inactive = 0;
+  rows.forEach((row) => {
+    const total = asCount(row.total);
+    if (Boolean(row.is_active)) active += total;
+    else inactive += total;
+  });
+
+  return { total: active + inactive, active, inactive };
+};
+
+/**
+ * Hotels on the free trial plan that are still within their trial window.
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const countTrialHotels = async (client = db) => {
+  const now = new Date();
+  const row = await client('hotels')
+    .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+    .whereNull('hotels.deleted_at')
+    .whereRaw('UPPER(subscription_plans.code) = ?', ['TRIAL'])
+    .where('hotels.subscription_plan_active', true)
+    .andWhere(function () {
+      this.whereNull('hotels.subscription_plan_end_date').orWhere(
+        'hotels.subscription_plan_end_date',
+        '>=',
+        now
+      );
+    })
+    .count('hotels.id as total')
+    .first();
+
+  return asCount(row?.total);
+};
+
+/**
+ * Hotels whose plan is switched off or past its end date.
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const countExpiredHotels = async (client = db) => {
+  const now = new Date();
+  const row = await client('hotels')
+    .whereNull('deleted_at')
+    .whereNotNull('subscription_plan_id')
+    .andWhere(function () {
+      this.where('subscription_plan_active', false).orWhere(
+        'subscription_plan_end_date',
+        '<',
+        now
+      );
+    })
+    .count('id as total')
+    .first();
+
+  return asCount(row?.total);
+};
+
+/**
+ * Estimated monthly recurring revenue from active, unexpired paid hotels.
+ * YEARLY plan prices are divided by 12.
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const estimatePlatformMrr = async (client = db) => {
+  const now = new Date();
+  const rows = await client('hotels')
+    .innerJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+    .whereNull('hotels.deleted_at')
+    .where('hotels.is_active', true)
+    .where('hotels.subscription_plan_active', true)
+    .andWhere(function () {
+      this.whereNull('hotels.subscription_plan_end_date').orWhere(
+        'hotels.subscription_plan_end_date',
+        '>=',
+        now
+      );
+    })
+    .select('subscription_plans.billing_cycle', 'subscription_plans.price');
+
+  const mrr = rows.reduce((sum, row) => {
+    const price = Number(row.price) || 0;
+    const cycle = String(row.billing_cycle || '').toUpperCase();
+    const monthly = cycle === 'YEARLY' ? price / 12 : price;
+    return sum + monthly;
+  }, 0);
+
+  return money(mrr);
+};
+
+/**
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const countPlatformRooms = async (client = db) => {
+  const row = await client('rooms').whereNull('deleted_at').count('id as total').first();
+  return asCount(row?.total);
+};
+
+/**
+ * Staff accounts across the platform (everyone except SUPER_ADMIN).
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const countPlatformStaff = async (client = db) => {
+  const row = await client('users')
+    .whereNull('deleted_at')
+    .whereNot('role', ROLE_CODES.SUPER_ADMIN)
+    .count('id as total')
+    .first();
+
+  return asCount(row?.total);
+};
+
+/**
+ * @param {Date} from
+ * @param {Date} to
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<{ bookings: number, volume: number }>}
+ */
+const sumPlatformBookingsInRange = async (from, to, client = db) => {
+  const row = await client('bookings')
+    .whereNull('deleted_at')
+    .modify((qb) => whereBetweenDates(qb, 'created_at', from, to))
+    .count('id as bookings')
+    .sum('total_amount as volume')
+    .first();
+
+  return {
+    bookings: asCount(row?.bookings),
+    volume: money(row?.volume),
+  };
+};
+
+/**
+ * Active hotels per plan with estimated monthly revenue for that plan.
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object[]>}
+ */
+const getPlanDistribution = async (client = db) => {
+  const now = new Date();
+  const [plans, hotelCounts] = await Promise.all([
+    client('subscription_plans')
+      .whereNull('deleted_at')
+      .where('is_active', true)
+      .orderBy('display_order', 'asc')
+      .orderBy('id', 'asc')
+      .select('id', 'name', 'billing_cycle', 'price'),
+    client('hotels')
+      .whereNull('deleted_at')
+      .where('is_active', true)
+      .where('subscription_plan_active', true)
+      .whereNotNull('subscription_plan_id')
+      .andWhere(function () {
+        this.whereNull('subscription_plan_end_date').orWhere(
+          'subscription_plan_end_date',
+          '>=',
+          now
+        );
+      })
+      .select('subscription_plan_id')
+      .count('id as total')
+      .groupBy('subscription_plan_id'),
+  ]);
+
+  const countByPlan = hotelCounts.reduce((acc, row) => {
+    acc[row.subscription_plan_id] = asCount(row.total);
+    return acc;
+  }, {});
+
+  return plans.map((plan) => {
+    const count = countByPlan[plan.id] || 0;
+    const price = Number(plan.price) || 0;
+    const cycle = String(plan.billing_cycle || '').toUpperCase();
+    const monthly = cycle === 'YEARLY' ? price / 12 : price;
+
+    return {
+      plan_id: plan.id,
+      plan_name: plan.name,
+      active_hotels_count: count,
+      monthly_revenue: money(count * monthly),
+    };
+  });
+};
+
+/**
+ * Hotel header fields for the hotel-admin dashboard.
+ * @param {number} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object|null>}
+ */
+const findHotelDashboardHeader = async (hotelId, client = db) => {
+  const row = await client('hotels')
+    .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+    .where('hotels.id', hotelId)
+    .whereNull('hotels.deleted_at')
+    .select(
+      'hotels.id',
+      'hotels.name',
+      'hotels.slug',
+      'hotels.currency',
+      'hotels.tax_percentage',
+      'hotels.gst_enabled',
+      'hotels.subscription_plan_id',
+      'hotels.subscription_plan_active',
+      'hotels.subscription_plan_start_date',
+      'hotels.subscription_plan_end_date',
+      'subscription_plans.name as plan_name',
+      'subscription_plans.max_rooms as plan_max_rooms'
+    )
+    .first();
+
+  return row || null;
+};
+
+/**
+ * Collected payment total for a hotel between from and to.
+ * @param {number} hotelId
+ * @param {Date} from
+ * @param {Date} to
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const sumHotelCollectionsInRange = async (hotelId, from, to, client = db) => {
+  const row = await client('booking_payments')
+    .where({ hotel_id: hotelId })
+    .whereIn('status', COLLECTED_PAYMENT_STATUSES)
+    .modify((qb) => whereBetweenDates(qb, 'created_at', from, to))
+    .sum('amount as total')
+    .first();
+
+  return money(row?.total);
+};
+
+/**
+ * Outstanding balance across open bookings for a hotel.
+ * @param {number} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const sumHotelOutstandingDue = async (hotelId, client = db) => {
+  const row = await client('bookings')
+    .where({ hotel_id: hotelId })
+    .whereNull('deleted_at')
+    .whereNotIn('booking_status', ['CANCELLED', 'NO_SHOW'])
+    .where('due_amount', '>', 0)
+    .sum('due_amount as total')
+    .first();
+
+  return money(row?.total);
+};
+
+/**
+ * @param {number} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const countHotelRooms = async (hotelId, client = db) => {
+  const row = await client('rooms')
+    .where({ hotel_id: hotelId })
+    .whereNull('deleted_at')
+    .count('id as total')
+    .first();
+
+  return asCount(row?.total);
+};
+
+/**
+ * @param {number} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const countHotelOccupiedRooms = async (hotelId, client = db) => {
+  const row = await client('rooms')
+    .where({ hotel_id: hotelId, status: 'OCCUPIED' })
+    .whereNull('deleted_at')
+    .count('id as total')
+    .first();
+
+  return asCount(row?.total);
+};
+
+/**
+ * Active staff of a hotel (excludes SUPER_ADMIN).
+ * @param {number} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>}
+ */
+const countHotelActiveStaff = async (hotelId, client = db) => {
+  const row = await client('users')
+    .where({ hotel_id: hotelId, is_active: true })
+    .whereNull('deleted_at')
+    .whereNot('role', ROLE_CODES.SUPER_ADMIN)
+    .count('id as total')
+    .first();
+
+  return asCount(row?.total);
+};
+
+/**
+ * Room counts by status for a hotel.
+ * @param {number} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object>}
+ */
+const getHotelRoomStatusSummary = async (hotelId, client = db) => {
+  const summary = emptyRoomStatusSummary();
+  const rows = await client('rooms')
+    .where({ hotel_id: hotelId })
+    .whereNull('deleted_at')
+    .select('status')
+    .count('id as total')
+    .groupBy('status');
+
+  rows.forEach((row) => {
+    const status = String(row.status || '').toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(summary, status)) {
+      summary[status] = asCount(row.total);
+    }
+  });
+
+  return summary;
+};
+
+/**
+ * Collections grouped by payment method for a hotel in a date window.
+ * @param {number} hotelId
+ * @param {Date} from
+ * @param {Date} to
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object>}
+ */
+const getHotelRevenueByPaymentMethod = async (hotelId, from, to, client = db) => {
+  const summary = emptyPaymentMethodSummary();
+  const rows = await client('booking_payments')
+    .where({ hotel_id: hotelId })
+    .whereIn('status', COLLECTED_PAYMENT_STATUSES)
+    .modify((qb) => whereBetweenDates(qb, 'created_at', from, to))
+    .select('payment_method')
+    .sum('amount as total')
+    .groupBy('payment_method');
+
+  rows.forEach((row) => {
+    const method = String(row.payment_method || '').toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(summary, method)) {
+      summary[method] = money(row.total);
+    }
+  });
+
+  return summary;
+};
+
+/**
+ * Today's front-desk pulse for a hotel.
+ * @param {number} hotelId
+ * @param {Date} todayFrom
+ * @param {Date} todayTo
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object>}
+ */
+const getHotelTodayPulse = async (hotelId, todayFrom, todayTo, client = db) => {
+  const [checkedIn, expectedOut, checkedOut, inHouse] = await Promise.all([
+    client('bookings')
+      .where({ hotel_id: hotelId })
+      .whereNull('deleted_at')
+      .modify((qb) => whereBetweenDates(qb, 'actual_check_in', todayFrom, todayTo))
+      .count('id as total')
+      .first(),
+    client('bookings')
+      .where({ hotel_id: hotelId, booking_status: 'CHECKED_IN' })
+      .whereNull('deleted_at')
+      .modify((qb) => whereBetweenDates(qb, 'check_out_date', todayFrom, todayTo))
+      .count('id as total')
+      .first(),
+    client('bookings')
+      .where({ hotel_id: hotelId })
+      .whereNull('deleted_at')
+      .modify((qb) => whereBetweenDates(qb, 'actual_check_out', todayFrom, todayTo))
+      .count('id as total')
+      .first(),
+    client('bookings')
+      .where({ hotel_id: hotelId, booking_status: 'CHECKED_IN' })
+      .whereNull('deleted_at')
+      .select(client.raw('COALESCE(SUM(adults + children), 0) as total'))
+      .first(),
+  ]);
+
+  return {
+    actual_checked_in_today: asCount(checkedIn?.total),
+    expected_check_outs_today: asCount(expectedOut?.total),
+    actual_checked_out_today: asCount(checkedOut?.total),
+    current_in_house_guests: asCount(inHouse?.total),
+  };
+};
+
+/**
+ * Shift collections for today, broken down by payment method.
+ * @param {number} hotelId
+ * @param {Date} todayFrom
+ * @param {Date} todayTo
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object>}
+ */
+const getHotelShiftCollectionsToday = async (hotelId, todayFrom, todayTo, client = db) => {
+  const byMethod = await getHotelRevenueByPaymentMethod(hotelId, todayFrom, todayTo, client);
+
+  return {
+    cash_collected: byMethod.CASH,
+    upi_collected: byMethod.UPI,
+    card_collected: byMethod.CARD,
+    online_collected: byMethod.ONLINE,
+    total_shift_collected: money(
+      byMethod.CASH + byMethod.UPI + byMethod.CARD + byMethod.ONLINE + byMethod.BANK_TRANSFER
+    ),
+  };
+};
+
+module.exports = {
+  countHotelsByActiveState,
+  countTrialHotels,
+  countExpiredHotels,
+  estimatePlatformMrr,
+  countPlatformRooms,
+  countPlatformStaff,
+  sumPlatformBookingsInRange,
+  getPlanDistribution,
+  findHotelDashboardHeader,
+  sumHotelCollectionsInRange,
+  sumHotelOutstandingDue,
+  countHotelRooms,
+  countHotelOccupiedRooms,
+  countHotelActiveStaff,
+  getHotelRoomStatusSummary,
+  getHotelRevenueByPaymentMethod,
+  getHotelTodayPulse,
+  getHotelShiftCollectionsToday,
+};

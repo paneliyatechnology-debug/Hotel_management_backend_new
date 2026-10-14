@@ -210,9 +210,9 @@ Database constraint errors map to `409 Conflict` (duplicates) or `400` (foreign 
 | Role | Access |
 | :--- | :--- |
 | `SUPER_ADMIN` | Platform owner. Manages hotels and subscription plans. Reads audit logs of every hotel. |
-| `HOTEL_ADMIN` | Full access to their own hotel: staff, rooms, room types, bookings, audit logs |
-| `RECEPTIONIST` | Rooms, room types and bookings of their own hotel |
-| `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Staff accounts created by a hotel admin (can log in and use real-time updates) |
+| `HOTEL_ADMIN` | Full access to their own hotel: staff, rooms, room types, bookings, audit logs, hotel dashboard |
+| `RECEPTIONIST` | Rooms, room types, bookings and front-desk dashboard of their own hotel |
+| `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Staff accounts created by a hotel admin (can log in, use real-time updates, and view the front-desk dashboard) |
 
 ---
 
@@ -303,6 +303,18 @@ Payment methods: `CASH`, `ONLINE`, `CARD`, `UPI`, `BANK_TRANSFER`.
 | :--- | :--- | :--- |
 | `GET` | `/audit-logs` | List (filters: `action`, `status`, `entity_type`, `entity_id`, `user_id`, `hotel_id` (super admin), `from_date`, `to_date`, `search`, `page`, `limit`, `sort_order`) |
 | `GET` | `/audit-logs/:id` | One log entry |
+
+### Dashboard (role auto-routing)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/dashboard` | Returns the dashboard for the caller's role. Optional `date_range` (`today`, `this_week`, `this_month`, `this_year`). Super admins may send `hotel_id` to open that hotel's dashboard. |
+
+| Role | Dashboard |
+| :--- | :--- |
+| `SUPER_ADMIN` | Platform KPIs and plan distribution |
+| `HOTEL_ADMIN` | Hotel revenue, occupancy, today's pulse, room status, payment mix, subscription quota |
+| `RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Today's shift collections and room status summary |
 
 Full request and response examples live in the [Postman collection](#postman-collection).
 

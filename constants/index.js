@@ -69,6 +69,7 @@ const MESSAGES = {
   USERS_RETRIEVED_SUCCESS: 'Users retrieved successfully.',
   AUDIT_LOG_RETRIEVED_SUCCESS: 'Audit log retrieved successfully.',
   AUDIT_LOGS_RETRIEVED_SUCCESS: 'Audit logs retrieved successfully.',
+  DASHBOARD_RETRIEVED_SUCCESS: 'Dashboard retrieved successfully.',
 };
 
 // ==========================================

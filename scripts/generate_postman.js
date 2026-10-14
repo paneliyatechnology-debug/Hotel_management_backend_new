@@ -1930,6 +1930,68 @@ Returns one entry with the keys listed under **List audit logs** in \`data\`. A 
   ],
 };
 
+const dashboardFolder = {
+  name: '11 Dashboard',
+  description: `${authNote('Any authenticated hotel role, or SUPER_ADMIN.')}
+
+One endpoint. The server reads the role from the access token and returns the matching dashboard.
+
+| Role | Response |
+| --- | --- |
+| \`SUPER_ADMIN\` | Platform KPIs and plan distribution. Send \`hotel_id\` to open that hotel's admin dashboard instead. |
+| \`HOTEL_ADMIN\` | Hotel KPIs, today's pulse, room status, revenue by payment method, and subscription quota. |
+| \`RECEPTIONIST\`, \`MANAGER\`, \`HOUSEKEEPING\`, \`ACCOUNTANT\` | Today's shift collections and room status summary. |
+
+Optional query \`date_range\`: \`today\`, \`this_week\`, \`this_month\` (default), or \`this_year\`. It scopes platform booking volume / hotel \`month_revenue\` and \`revenue_by_payment_method\`. Today's fields always use the current calendar day.
+
+${envelope}`,
+  item: [
+    item({
+      name: 'Get dashboard',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/dashboard?date_range=this_month',
+      pathSegments: ['api', 'v1', 'dashboard'],
+      query: [
+        queryParam('date_range', 'this_month', 'Optional. today, this_week, this_month, or this_year. Default this_month.'),
+        queryParam('hotel_id', '{{targetHotelId}}', 'Optional. SUPER_ADMIN only. Opens that hotel\'s admin dashboard instead of the platform dashboard.', true),
+        queryParam('floor', '1', 'Optional. Reserved for front-desk room rack filtering. Ignored by the current response shape.', true),
+      ],
+      description: `### GET /api/v1/dashboard
+${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or ACCOUNTANT.')}
+
+**Super admin \`data\`**
+| Key | Meaning |
+| --- | --- |
+| \`kpis.total_hotels\`, \`active_hotels\`, \`inactive_hotels\` | Hotels on the platform (not soft-deleted). |
+| \`kpis.trial_hotels\` | Hotels still inside an active TRIAL plan window. |
+| \`kpis.expired_hotels\` | Hotels whose plan is inactive or past \`subscription_plan_end_date\`. |
+| \`kpis.estimated_mrr\` | Sum of active paid plan prices (YEARLY divided by 12). |
+| \`kpis.total_platform_rooms\`, \`total_staff_users\` | Non-deleted rooms and non-super-admin users. |
+| \`kpis.total_bookings_this_month\`, \`total_platform_booking_volume\` | Booking count and \`total_amount\` sum for \`date_range\`. |
+| \`plan_distribution[]\` | Per plan: \`plan_id\`, \`plan_name\`, \`active_hotels_count\`, \`monthly_revenue\`. |
+
+**Hotel admin \`data\`**
+| Key | Meaning |
+| --- | --- |
+| \`hotel\` | \`id\`, \`name\`, \`slug\`, \`currency\`, \`tax_percentage\`, \`gst_enabled\`. |
+| \`kpis.today_revenue\` | Collections recorded today (\`booking_payments\` PAID / PARTIALLY_PAID). |
+| \`kpis.month_revenue\` | Collections in \`date_range\`. |
+| \`kpis.total_outstanding_due\` | Sum of \`due_amount\` on open bookings. |
+| \`kpis.occupancy_rate_percentage\` | Current OCCUPIED rooms / total rooms. |
+| \`today_pulse\` | Checked in today, expected check-outs today, checked out today, in-house guests. |
+| \`room_status_summary\` | Counts for every room status. |
+| \`revenue_by_payment_method\` | Collections in \`date_range\` by method. |
+| \`subscription_quota\` | Plan limit, rooms used, dates, \`days_left\`, \`is_active\`. |
+
+**Front desk \`data\`**
+| Key | Meaning |
+| --- | --- |
+| \`shift_collections_today\` | Cash / UPI / card / online totals and \`total_shift_collected\` for today. |
+| \`room_status_summary\` | Counts for every room status. |`,
+    }),
+  ],
+};
+
 collection.item = [
   healthFolder,
   authFolder,
@@ -1941,6 +2003,7 @@ collection.item = [
   userFolder,
   hotelAdminFolder,
   auditFolder,
+  dashboardFolder,
 ];
 
 const outputPath = path.join(__dirname, '..', 'postman_collection.json');

@@ -3256,6 +3256,56 @@
           }
         }
       ]
+    },
+    {
+      "name": "11 Dashboard",
+      "description": "**Who can call this:** Any authenticated hotel role, or SUPER_ADMIN.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nOne endpoint. The server reads the role from the access token and returns the matching dashboard.\n\n| Role | Response |\n| --- | --- |\n| `SUPER_ADMIN` | Platform KPIs and plan distribution. Send `hotel_id` to open that hotel's admin dashboard instead. |\n| `HOTEL_ADMIN` | Hotel KPIs, today's pulse, room status, revenue by payment method, and subscription quota. |\n| `RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Today's shift collections and room status summary. |\n\nOptional query `date_range`: `today`, `this_week`, `this_month` (default), or `this_year`. It scopes platform booking volume / hotel `month_revenue` and `revenue_by_payment_method`. Today's fields always use the current calendar day.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "item": [
+        {
+          "name": "Get dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard?date_range=this_month",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "date_range",
+                  "value": "this_month",
+                  "description": "Optional. today, this_week, this_month, or this_year. Default this_month."
+                },
+                {
+                  "key": "hotel_id",
+                  "value": "{{targetHotelId}}",
+                  "description": "Optional. SUPER_ADMIN only. Opens that hotel's admin dashboard instead of the platform dashboard.",
+                  "disabled": true
+                },
+                {
+                  "key": "floor",
+                  "value": "1",
+                  "description": "Optional. Reserved for front-desk room rack filtering. Ignored by the current response shape.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "### GET /api/v1/dashboard\n**Who can call this:** SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or ACCOUNTANT.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Super admin `data`**\n| Key | Meaning |\n| --- | --- |\n| `kpis.total_hotels`, `active_hotels`, `inactive_hotels` | Hotels on the platform (not soft-deleted). |\n| `kpis.trial_hotels` | Hotels still inside an active TRIAL plan window. |\n| `kpis.expired_hotels` | Hotels whose plan is inactive or past `subscription_plan_end_date`. |\n| `kpis.estimated_mrr` | Sum of active paid plan prices (YEARLY divided by 12). |\n| `kpis.total_platform_rooms`, `total_staff_users` | Non-deleted rooms and non-super-admin users. |\n| `kpis.total_bookings_this_month`, `total_platform_booking_volume` | Booking count and `total_amount` sum for `date_range`. |\n| `plan_distribution[]` | Per plan: `plan_id`, `plan_name`, `active_hotels_count`, `monthly_revenue`. |\n\n**Hotel admin `data`**\n| Key | Meaning |\n| --- | --- |\n| `hotel` | `id`, `name`, `slug`, `currency`, `tax_percentage`, `gst_enabled`. |\n| `kpis.today_revenue` | Collections recorded today (`booking_payments` PAID / PARTIALLY_PAID). |\n| `kpis.month_revenue` | Collections in `date_range`. |\n| `kpis.total_outstanding_due` | Sum of `due_amount` on open bookings. |\n| `kpis.occupancy_rate_percentage` | Current OCCUPIED rooms / total rooms. |\n| `today_pulse` | Checked in today, expected check-outs today, checked out today, in-house guests. |\n| `room_status_summary` | Counts for every room status. |\n| `revenue_by_payment_method` | Collections in `date_range` by method. |\n| `subscription_quota` | Plan limit, rooms used, dates, `days_left`, `is_active`. |\n\n**Front desk `data`**\n| Key | Meaning |\n| --- | --- |\n| `shift_collections_today` | Cash / UPI / card / online totals and `total_shift_collected` for today. |\n| `room_status_summary` | Counts for every room status. |"
+          }
+        }
+      ]
     }
   ]
 }
