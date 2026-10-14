@@ -1,6 +1,5 @@
 /**
  * Request validation schemas for User Management.
- * Follows TradeNexa validation pattern using express-validator.
  * Uses consistent snake_case.
  */
 const { body, param, query } = require('express-validator');

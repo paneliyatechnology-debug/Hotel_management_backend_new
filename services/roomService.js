@@ -2,29 +2,13 @@
  * Physical Room Service.
  * Implements business operations, verification of hotel and room types,
  * composite uniqueness per hotel and floor, S3 image uploads, and soft deletion.
- * Follows TradeNexa service architecture.
  */
 const roomModel = require('../models/roomModel');
 const s3Service = require('./s3Service');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
+const { extractImageFiles } = require('../utils/files');
 const { HTTP_STATUS, ROOM_STATUSES, CLEANING_DURATION_MINUTES } = require('../constants');
-
-/**
- * Filter uploaded file array to valid image buffers
- * @param {Array<Object>} files
- * @returns {Array<Object>}
- */
-const extractImageFiles = (files) => {
-  if (!Array.isArray(files) || files.length === 0) return [];
-  return files.filter(
-    (file) =>
-      file &&
-      file.buffer &&
-      (file.mimetype?.startsWith('image/') ||
-        ['images', 'images[]', 'image'].includes(file.fieldname))
-  );
-};
 
 /**
  * Create a new physical room

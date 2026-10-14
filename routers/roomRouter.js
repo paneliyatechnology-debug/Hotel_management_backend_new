@@ -9,7 +9,6 @@
  * 6. DELETE /api/v1/rooms/:id – Soft-delete a room.
  *
  * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
- * Follows TradeNexa router architecture.
  */
 const express = require('express');
 const roomController = require('../controllers/roomController');

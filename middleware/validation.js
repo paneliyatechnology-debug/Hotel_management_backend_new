@@ -1,8 +1,7 @@
 /**
  * Request validation middleware and express-validator rule sets.
- * Modeled after TradeNexa validation pattern.
  */
-const { body, query, validationResult } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS } = require('../constants');
 
@@ -55,20 +54,6 @@ const forgotPasswordValidator = [
     .normalizeEmail(),
 ];
 
-const verifyTokenValidator = [
-  (req, res, next) => {
-    const token = req.query?.token || req.body?.token;
-    if (!token || typeof token !== 'string' || !token.trim()) {
-      return next(
-        new AppError('Reset token is required', HTTP_STATUS.BAD_REQUEST, [
-          { field: 'token', message: 'Reset token is required' },
-        ])
-      );
-    }
-    next();
-  },
-];
-
 const resetPasswordValidator = [
   body('token')
     .trim()
@@ -96,7 +81,6 @@ module.exports = {
   validate,
   loginValidator,
   forgotPasswordValidator,
-  verifyTokenValidator,
   resetPasswordValidator,
   changePasswordValidator,
 };

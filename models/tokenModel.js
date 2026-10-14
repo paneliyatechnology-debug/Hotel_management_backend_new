@@ -1,6 +1,5 @@
 /**
  * Password Reset Token database operations using Knex.
- * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
 

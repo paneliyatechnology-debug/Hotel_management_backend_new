@@ -1,7 +1,6 @@
 /**
  * Hotel service handling business logic, user provisioning,
  * trial calculation, slug generation, and email queuing.
- * Modeled after TradeNexa service layer architecture.
  */
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
@@ -19,18 +18,9 @@ const {
   generateRefreshToken,
   setAuthCookies,
 } = require('../utils/jwt');
+const { generateSecureTempPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS } = require('../constants');
-
-/**
- * Generate a cryptographically secure temporary password.
- * Format: "Temp#" + 8 random hex characters (e.g. Temp#a8f12b0e)
- * Never derived from owner's name.
- */
-const generateSecureTempPassword = () => {
-  const randomSuffix = crypto.randomBytes(4).toString('hex');
-  return `Temp#${randomSuffix}`;
-};
 
 /**
  * Generate a clean, URL-safe slug from hotel name with collision handling.
@@ -384,7 +374,6 @@ const registerHotel = async (payload, res = null, files = []) => {
 };
 
 module.exports = {
-  generateSecureTempPassword,
   generateUniqueHotelSlug,
   calculateTrialDates,
   registerHotel,

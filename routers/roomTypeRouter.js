@@ -8,7 +8,6 @@
  * 5. DELETE /api/v1/room-types/:id – Safely delete a category only if no physical rooms are assigned to it.
  *
  * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
- * Follows TradeNexa router architecture.
  */
 const express = require('express');
 const roomTypeController = require('../controllers/roomTypeController');

@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 
 /**
  * @param { import("knex").Knex } knex
- * @returns { Promise<void> } 
+ * @returns { Promise<void> }
  */
 exports.seed = async function(knex) {
   // Check if admin user already exists

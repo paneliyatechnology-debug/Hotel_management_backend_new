@@ -2,7 +2,6 @@
  * Global Express error handler.
  *
  * Maps operational AppErrors and MySQL constraint violations to consistent JSON responses.
- * Modeled after TradeNexa errorHandler pattern.
  */
 const { HTTP_STATUS } = require('../constants');
 

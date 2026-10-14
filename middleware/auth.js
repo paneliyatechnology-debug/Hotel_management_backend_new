@@ -215,6 +215,5 @@ module.exports = {
   authenticateUser,
   requireRole,
   validateHotelAccess,
-  requireHotelAccess: validateHotelAccess,
   extractTargetHotelId,
 };

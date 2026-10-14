@@ -2,7 +2,6 @@
  * Booking Service.
  * Implements business operations, room validation, date overlap prevention,
  * financial & GST tax calculation, S3 media uploads, and soft deletion.
- * Follows TradeNexa service architecture.
  */
 const bookingModel = require('../models/bookingModel');
 const bookingPaymentModel = require('../models/bookingPaymentModel');
@@ -24,6 +23,10 @@ const {
 
 // Stays that can still hold the room or its dates. Derived so the list cannot drift
 // from BOOKING_STATUSES.
+const OPEN_BOOKING_STATUSES = BOOKING_STATUSES.filter(
+  (status) => !NON_BLOCKING_BOOKING_STATUSES.includes(status)
+);
+
 /**
  * Guest email is optional. A login email from users or hotel owners is rejected.
  * @param {*} value
@@ -42,10 +45,6 @@ const resolveGuestEmail = async (value) => {
   }
   return email;
 };
-
-const OPEN_BOOKING_STATUSES = BOOKING_STATUSES.filter(
-  (status) => !NON_BLOCKING_BOOKING_STATUSES.includes(status)
-);
 
 /**
  * Filter uploaded file array into image files and signature files
@@ -375,14 +374,13 @@ const calculatePricing = ({
   late_checkout_hours = 0,
   gst_rate = 18.00,
   paid_amount = 0,
-  room = null,
-  rooms = null,
+  rooms = [],
   numberOfNights = 1,
 }) => {
   let baseAmount = Number(base_amount);
   if (isNaN(baseAmount) || baseAmount <= 0) {
-    const pricedRooms = Array.isArray(rooms) && rooms.length ? rooms : (room ? [room] : []);
-    const nightlyTotal = pricedRooms.reduce(
+    // No base amount sent: add every room's nightly rate for the whole stay.
+    const nightlyTotal = rooms.reduce(
       (sum, item) => sum + (Number(item?.custom_price_per_night) || 0),
       0
     );

@@ -2,7 +2,6 @@
  * User Management Controller.
  * HTTP interface delegating business operations to userService.
  * Standardizes responses using success() helper and routes errors to next(err).
- * Follows TradeNexa controller architecture.
  */
 const userService = require('../services/userService');
 const { success } = require('../utils/response');

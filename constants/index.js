@@ -77,15 +77,6 @@ const ROLE_CODES = {
 };
 
 // ==========================================
-// Token types
-// ==========================================
-
-const TOKEN_TYPES = {
-  ACCESS: 'ACCESS',
-  REFRESH: 'REFRESH',
-};
-
-// ==========================================
 // Physical room statuses
 // Used by room create, update, list filters, and PATCH /rooms/:id/status.
 // ==========================================
@@ -136,7 +127,6 @@ module.exports = {
   HTTP_STATUS,
   MESSAGES,
   ROLE_CODES,
-  TOKEN_TYPES,
   ROOM_STATUSES,
   BOOKING_STATUSES,
   NON_BLOCKING_BOOKING_STATUSES,

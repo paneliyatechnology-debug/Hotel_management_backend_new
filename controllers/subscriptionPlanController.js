@@ -2,7 +2,6 @@
  * Subscription Plan Controller.
  * HTTP interface delegating business operations to subscriptionPlanService.
  * Standardizes responses using success() helper and routes errors to next(err).
- * Modeled after TradeNexa controller architecture.
  */
 const subscriptionPlanService = require('../services/subscriptionPlanService');
 const { success } = require('../utils/response');

@@ -1,6 +1,5 @@
 /**
  * User database operations using Knex.
- * Follows TradeNexa model layer pattern.
  * Uses consistent snake_case.
  */
 const db = require('../database/knex');

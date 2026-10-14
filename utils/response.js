@@ -2,7 +2,6 @@
  * API response helpers.
  *
  * Operational error class and standardized success response formatter.
- * Modeled after TradeNexa project architecture.
  */
 const { HTTP_STATUS } = require('../constants');
 

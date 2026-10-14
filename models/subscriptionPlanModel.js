@@ -1,6 +1,5 @@
 /**
  * Subscription Plan database operations using Knex.
- * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
 
@@ -347,16 +346,6 @@ const softDeletePlan = async (id, trx) => {
   return formatPlan(row, features);
 };
 
-/**
- * Hard delete (permanent removal) - useful for test cleanup
- * @param {number|string} id
- * @param {import('knex').Knex} [client=db]
- */
-const hardDeletePlan = async (id, client = db) => {
-  await client('subscription_plan_features').where({ plan_id: id }).del();
-  await client('subscription_plans').where({ id }).del();
-};
-
 module.exports = {
   formatPlan,
   getFeaturesByPlanId,
@@ -368,5 +357,4 @@ module.exports = {
   createPlan,
   updatePlan,
   softDeletePlan,
-  hardDeletePlan,
 };

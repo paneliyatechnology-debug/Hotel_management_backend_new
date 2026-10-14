@@ -1,7 +1,6 @@
 /**
  * Subscription Plan Service.
  * Core business logic, validation enforcement, feature synchronization, and transactions.
- * Modeled after TradeNexa service architecture.
  */
 const subscriptionPlanModel = require('../models/subscriptionPlanModel');
 const db = require('../database/knex');

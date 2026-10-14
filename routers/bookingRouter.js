@@ -11,7 +11,6 @@
  * 8. DELETE /api/v1/bookings/:id – Soft-delete a booking.
  *
  * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
- * Follows TradeNexa router architecture.
  */
 const express = require('express');
 const bookingController = require('../controllers/bookingController');

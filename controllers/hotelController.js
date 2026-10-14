@@ -2,7 +2,6 @@
  * Hotel controller.
  * Lean HTTP interface delegating business operations to hotelService.
  * Standardizes responses using success() helper and routes errors to next(err).
- * Modeled after TradeNexa controller architecture.
  */
 const hotelService = require('../services/hotelService');
 const { success } = require('../utils/response');

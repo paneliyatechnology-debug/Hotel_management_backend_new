@@ -1,6 +1,5 @@
 /**
  * Request validation schemas for Physical Rooms.
- * Follows TradeNexa validation pattern using express-validator.
  */
 const { body, param, query } = require('express-validator');
 const { ROOM_STATUSES } = require('../constants');

@@ -1,26 +1,11 @@
 /**
  * Booking database operations using Knex.
- * Follows TradeNexa model layer pattern.
  */
 const crypto = require('crypto');
 const db = require('../database/knex');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');
 const { NON_BLOCKING_BOOKING_STATUSES } = require('../constants');
-
-/**
- * Safe JSON parser helper
- * @param {*} val
- * @param {*} fallback
- */
-const parseJson = (val, fallback) => {
-  if (!val) return fallback;
-  if (typeof val === 'object') return val;
-  try {
-    return JSON.parse(val);
-  } catch (_) {
-    return fallback;
-  }
-};
+const { parseJson } = require('../utils/json');
 
 /**
  * Format raw database row to structured Booking object
@@ -756,18 +741,6 @@ const emailUsedOnBooking = async (email, client = db) => {
   return Boolean(row);
 };
 
-const countBookingsByRoomId = async (roomId, client = db) => {
-  const result = await client('bookings')
-    .whereNull('bookings.deleted_at')
-    .where(function () {
-      whereBookingIncludesRoom(this, Number(roomId));
-    })
-    .count('bookings.id as count')
-    .first();
-
-  return Number(result?.count || 0);
-};
-
 module.exports = {
   formatBooking,
   generateBookingNumber,
@@ -777,6 +750,5 @@ module.exports = {
   createBooking,
   updateBooking,
   softDeleteBooking,
-  countBookingsByRoomId,
   emailUsedOnBooking,
 };

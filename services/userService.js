@@ -3,7 +3,6 @@
  * Implements business operations, validation, password hashing,
  * role-based access control (RBAC), data isolation, self-protection guards,
  * and soft deletion for User Management.
- * Follows TradeNexa service architecture with consistent snake_case.
  */
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
@@ -12,17 +11,9 @@ const bookingModel = require('../models/bookingModel');
 const hotelModel = require('../models/hotelModel');
 const tokenModel = require('../models/tokenModel');
 const { queueEmail } = require('../queues/emailQueue');
+const { generateSecureTempPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, ROLE_CODES } = require('../constants');
-
-/**
- * Generate a cryptographically secure temporary password.
- * Format: "Temp#" + 8 random hex characters (e.g. Temp#a8f12b0e)
- */
-const generateSecureTempPassword = () => {
-  const randomSuffix = crypto.randomBytes(4).toString('hex');
-  return `Temp#${randomSuffix}`;
-};
 
 // Permitted staff roles that a HOTEL_ADMIN can manage
 const STAFF_ROLES = [

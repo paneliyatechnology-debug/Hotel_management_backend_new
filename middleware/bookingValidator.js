@@ -1,6 +1,5 @@
 /**
  * Booking Request Validators using express-validator.
- * Follows TradeNexa validator architecture.
  */
 const { body, param, query } = require('express-validator');
 const { BOOKING_STATUSES, PAYMENT_METHODS } = require('../constants');

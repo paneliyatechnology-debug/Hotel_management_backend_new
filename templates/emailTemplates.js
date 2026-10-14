@@ -79,7 +79,7 @@ const hotelRegisteredWelcomeTemplate = (data) => {
                     <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #64748b; margin-bottom: 12px;">
                       Admin Access Details
                     </div>
-                    
+
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
                       <tr>
                         <td style="color: #64748b; padding: 6px 0; width: 36%;">Portal URL:</td>
@@ -257,7 +257,7 @@ const staffUserWelcomeTemplate = (data) => {
                     <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #64748b; margin-bottom: 12px;">
                       Your Login Credentials
                     </div>
-                    
+
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
                       <tr>
                         <td style="color: #64748b; padding: 6px 0; width: 36%;">Portal URL:</td>

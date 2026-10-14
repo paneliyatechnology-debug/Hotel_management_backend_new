@@ -7,8 +7,6 @@
  * 4. PUT /api/v1/users/:id – Update user details according to permissions.
  * 5. PATCH /api/v1/users/:id/account-status – Set is_active and is_disabled.
  * 6. DELETE /api/v1/users/:id – Soft-delete a user by ID.
- *
- * Follows TradeNexa router architecture.
  */
 const express = require('express');
 const userController = require('../controllers/userController');

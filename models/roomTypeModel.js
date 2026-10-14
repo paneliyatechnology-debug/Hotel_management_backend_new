@@ -1,6 +1,5 @@
 /**
  * Room Type (Category) database operations using Knex.
- * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');

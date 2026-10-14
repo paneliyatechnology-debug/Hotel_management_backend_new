@@ -2,7 +2,6 @@
  * Room Type (Category) Controller.
  * HTTP interface delegating business operations to roomTypeService.
  * Standardizes responses using success() helper and routes errors to next(err).
- * Follows TradeNexa controller architecture.
  */
 const roomTypeService = require('../services/roomTypeService');
 const { success } = require('../utils/response');

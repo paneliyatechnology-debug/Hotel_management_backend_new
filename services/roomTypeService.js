@@ -2,29 +2,13 @@
  * Room Type (Category) Service.
  * Implements business logic for managing room categories, image storage in S3,
  * uniqueness constraints, and physical room assignment deletion checks.
- * Follows TradeNexa service architecture.
  */
 const roomTypeModel = require('../models/roomTypeModel');
 const s3Service = require('./s3Service');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
+const { extractImageFiles } = require('../utils/files');
 const { HTTP_STATUS } = require('../constants');
-
-/**
- * Filter uploaded file array to only valid image buffers
- * @param {Array<Object>} files
- * @returns {Array<Object>}
- */
-const extractImageFiles = (files) => {
-  if (!Array.isArray(files) || files.length === 0) return [];
-  return files.filter(
-    (file) =>
-      file &&
-      file.buffer &&
-      (file.mimetype?.startsWith('image/') ||
-        ['images', 'images[]', 'image'].includes(file.fieldname))
-  );
-};
 
 /**
  * Get all active room categories for the authenticated user's hotel.

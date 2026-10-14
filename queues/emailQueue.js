@@ -201,15 +201,7 @@ const queueEmail = async (type, to, data) => {
   enqueueInMemory(jobData);
 };
 
-const getEmailQueueStatus = () => {
-  return {
-    mode: queueMode,
-    inMemoryPendingCount: memoryQueue.length,
-  };
-};
-
 module.exports = {
   queueEmail,
   initializeEmailQueue,
-  getEmailQueueStatus,
 };

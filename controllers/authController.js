@@ -3,7 +3,6 @@
  *
  * Lean HTTP interface delegating business operations to authService.
  * Standardizes responses using success() helper and routes errors to next(err).
- * Modeled after TradeNexa controller architecture.
  */
 const authService = require('../services/authService');
 const { success } = require('../utils/response');

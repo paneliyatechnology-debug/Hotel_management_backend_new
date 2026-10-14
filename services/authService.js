@@ -1,6 +1,5 @@
 /**
  * Authentication service handling business logic and database orchestration.
- * Follows TradeNexa service layer architecture.
  */
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');

@@ -1,6 +1,5 @@
 /**
  * Request validation schemas for Subscription Plans.
- * Follows TradeNexa validation pattern using express-validator.
  */
 const { body, param, query } = require('express-validator');
 

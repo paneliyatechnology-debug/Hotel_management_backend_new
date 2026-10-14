@@ -1,26 +1,10 @@
 /**
  * Physical Room database operations using Knex.
- * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
 const { publishRoomStatus } = require('../sockets/roomSocket');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');
-
-/**
- * Safe JSON parser helper
- * @param {any} val
- * @param {any} fallback
- * @returns {any}
- */
-const parseJson = (val, fallback = []) => {
-  if (!val) return fallback;
-  if (typeof val === 'object') return val;
-  try {
-    return JSON.parse(val);
-  } catch (_) {
-    return fallback;
-  }
-};
+const { parseJson } = require('../utils/json');
 
 /**
  * Format raw database row to structured Room object.

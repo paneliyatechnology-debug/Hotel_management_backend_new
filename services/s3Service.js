@@ -1,7 +1,6 @@
 /**
  * S3 Object Storage Service.
  * Manages uploading and deleting room category images in S3-compatible storage.
- * Follows TradeNexa service pattern.
  */
 require('dotenv').config();
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
@@ -206,16 +205,6 @@ const deleteFile = async (s3KeyOrUrl) => {
   }
 };
 
-/**
- * Delete multiple objects from S3
- * @param {Array<string>} keysOrUrls
- * @returns {Promise<void>}
- */
-const deleteFiles = async (keysOrUrls) => {
-  if (!Array.isArray(keysOrUrls) || keysOrUrls.length === 0) return;
-  await Promise.all(keysOrUrls.map((k) => deleteFile(k)));
-};
-
 module.exports = {
   s3Client,
   buildImageUrl,
@@ -223,5 +212,4 @@ module.exports = {
   uploadFile,
   uploadFiles,
   deleteFile,
-  deleteFiles,
 };

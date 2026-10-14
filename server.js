@@ -1,7 +1,6 @@
 /**
  * Server entry point.
  * Verifies database connectivity via Knex, then starts the HTTP server.
- * Modeled after TradeNexa server bootstrap.
  */
 require('dotenv').config();
 

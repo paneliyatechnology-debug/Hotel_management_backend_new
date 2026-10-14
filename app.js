@@ -2,7 +2,6 @@
  * Express application setup.
  *
  * Configures middleware, API routes, and global error handling.
- * Modeled after TradeNexa project architecture.
  */
 require('dotenv').config();
 const path = require('path');

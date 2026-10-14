@@ -1,6 +1,5 @@
 /**
  * System Settings database operations using Knex.
- * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
 

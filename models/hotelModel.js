@@ -1,9 +1,9 @@
 /**
  * Hotel database operations using Knex.
- * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');
+const { parseJson } = require('../utils/json');
 
 /**
  * Format raw database row to structured Hotel object
@@ -12,17 +12,6 @@ const { buildImageUrl, deleteFile } = require('../services/s3Service');
  */
 const formatHotel = (row) => {
   if (!row) return null;
-
-  // Safe JSON parser for columns that might be stored as string or already parsed by mysql2
-  const parseJson = (val, fallback) => {
-    if (!val) return fallback;
-    if (typeof val === 'object') return val;
-    try {
-      return JSON.parse(val);
-    } catch (_) {
-      return fallback;
-    }
-  };
 
   const hotelObj = {
     id: row.id,

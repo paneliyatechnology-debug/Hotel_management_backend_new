@@ -1,6 +1,5 @@
 /**
  * Request validation schemas for Room Categories (Room Types).
- * Follows TradeNexa validation pattern using express-validator.
  */
 const { body, param } = require('express-validator');
 

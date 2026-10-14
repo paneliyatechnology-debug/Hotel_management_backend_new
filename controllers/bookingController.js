@@ -2,7 +2,6 @@
  * Booking Controller.
  * HTTP interface delegating business operations to bookingService.
  * Standardizes responses using success() helper and routes errors to next(err).
- * Follows TradeNexa controller architecture.
  */
 const bookingService = require('../services/bookingService');
 const bookingPdfService = require('../services/bookingPdfService');

@@ -2,7 +2,6 @@
  * Physical Room Controller.
  * HTTP interface delegating business operations to roomService.
  * Standardizes responses using success() helper and routes errors to next(err).
- * Follows TradeNexa controller architecture.
  */
 const roomService = require('../services/roomService');
 const { success } = require('../utils/response');
