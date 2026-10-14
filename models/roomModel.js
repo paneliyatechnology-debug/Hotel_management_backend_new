@@ -3,6 +3,7 @@
  * Follows TradeNexa model layer pattern.
  */
 const db = require('../database/knex');
+const { publishRoomStatus } = require('../sockets/roomSocket');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');
 
 /**
@@ -357,7 +358,10 @@ const createRoom = async (roomData, imageRecords = [], trx) => {
   if (trx) {
     return execute(trx);
   }
-  return db.transaction(execute);
+
+  const room = await db.transaction(execute);
+  publishRoomStatus(room);
+  return room;
 };
 
 /**
@@ -437,7 +441,12 @@ const updateRoom = async (id, updates, newImageRecords = [], trx) => {
   if (trx) {
     return execute(trx);
   }
-  return db.transaction(execute);
+
+  const room = await db.transaction(execute);
+  if (updates.status !== undefined || updates.is_active !== undefined) {
+    publishRoomStatus(room);
+  }
+  return room;
 };
 
 /**
@@ -458,7 +467,9 @@ const softDeleteRoom = async (id, trx) => {
       updated_at: now,
     });
 
-  return findRoomById(id, { includeDeleted: true }, client);
+  const room = await findRoomById(id, { includeDeleted: true }, client);
+  if (!trx) publishRoomStatus(room);
+  return room;
 };
 
 module.exports = {

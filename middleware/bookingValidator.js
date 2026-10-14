@@ -36,6 +36,42 @@ const readRoomIds = (value) => {
 };
 
 /**
+ * Count uploaded files. A field name containing "sign" or "signature" is a signature.
+ * @param {Array<Object>} files
+ * @param {'image'|'signature'} kind
+ * @returns {number}
+ */
+const fileCount = (files, kind) => {
+  if (!Array.isArray(files)) return 0;
+  return files.filter((file) => {
+    if (!file || !file.buffer) return false;
+    const fieldName = (file.fieldname || '').toLowerCase();
+    const isSignature = fieldName.includes('signature') || fieldName.includes('sign');
+    return kind === 'signature' ? isSignature : !isSignature;
+  }).length;
+};
+
+/**
+ * Create and update need one guest photo and one signature.
+ * Both are form-data files. A URL or JSON array does not count.
+ * @param {'image'|'signature'} kind
+ * @returns {import('express-validator').ValidationChain}
+ */
+const requireMedia = (kind) => {
+  const field = kind === 'signature' ? 'signatures' : 'images';
+  const message = kind === 'signature'
+    ? 'At least one signature is required.'
+    : 'At least one image is required.';
+
+  return body(field).custom((_value, { req }) => {
+    if (fileCount(req.files, kind) < 1) {
+      throw new Error(message);
+    }
+    return true;
+  });
+};
+
+/**
  * @param {*} value
  * @param {boolean} required
  */
@@ -133,6 +169,9 @@ const createBookingValidator = [
     .toUpperCase()
     .isIn(BOOKING_STATUSES)
     .withMessage(`booking_status must be one of: ${BOOKING_STATUSES.join(', ')}.`),
+
+  requireMedia('image'),
+  requireMedia('signature'),
 ];
 
 /**
@@ -187,6 +226,9 @@ const updateBookingValidator = [
     .optional()
     .isFloat({ min: 0 })
     .withMessage('paid_amount cannot be negative.'),
+
+  requireMedia('image'),
+  requireMedia('signature'),
 ];
 
 /**

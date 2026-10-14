@@ -8,6 +8,7 @@ require('dotenv').config();
 const http = require('http');
 const app = require('./app');
 const db = require('./database/knex');
+const { attachRoomSocket, closeRoomSocket } = require('./sockets/roomSocket');
 
 const PORT = process.env.PORT || 5001;
 const APP_NAME = process.env.APP_NAME || 'Hotel Management Backend';
@@ -18,6 +19,7 @@ const start = async () => {
     await db.raw('SELECT 1');
 
     const server = http.createServer(app);
+    attachRoomSocket(server, { isOriginAllowed: app.isOriginAllowed });
 
     server.listen(PORT, '0.0.0.0', () => {
       console.log('----------------------------------------------------');
@@ -26,11 +28,13 @@ const start = async () => {
       console.log(`📦 Environment: ${NODE_ENV}`);
       console.log(`🔌 Database: MySQL connected via Knex`);
       console.log(`🩺 Health check: /api/health`);
+      console.log(`📡 Room socket: /socket.io`);
       console.log('----------------------------------------------------');
     });
 
     const shutdown = (signal) => {
       console.log(`\n[Server] Received ${signal}. Closing gracefully...`);
+      closeRoomSocket();
       server.close(async () => {
         try {
           await db.destroy();

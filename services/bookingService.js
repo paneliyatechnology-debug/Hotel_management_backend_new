@@ -565,29 +565,10 @@ const createBooking = async (body, files = [], reqUser = null) => {
     numberOfNights,
   });
 
-  // Upload S3 images & signatures
+  // Guest photos and signatures arrive only as form-data files.
   const { imageFiles, signatureFiles } = categorizeUploadedFiles(files);
   const uploadedImages = await s3Service.uploadFiles(imageFiles, 'bookings/images');
   const uploadedSignatures = await s3Service.uploadFiles(signatureFiles, 'bookings/signatures');
-
-  // Parse any client-provided URL arrays
-  let clientSignatures = [];
-  if (body.signatures) {
-    if (typeof body.signatures === 'string') {
-      try { clientSignatures = JSON.parse(body.signatures); } catch (_) { clientSignatures = [body.signatures]; }
-    } else if (Array.isArray(body.signatures)) {
-      clientSignatures = body.signatures;
-    }
-  }
-
-  let clientImages = [];
-  if (body.images) {
-    if (typeof body.images === 'string') {
-      try { clientImages = JSON.parse(body.images); } catch (_) { clientImages = [body.images]; }
-    } else if (Array.isArray(body.images)) {
-      clientImages = body.images;
-    }
-  }
 
   const bookingData = {
     hotel_id: hotelId,
@@ -606,8 +587,6 @@ const createBooking = async (body, files = [], reqUser = null) => {
     adults: Math.max(1, Number(body.adults) || 1),
     children: Math.max(0, Number(body.children) || 0),
     ...pricing,
-    signatures: clientSignatures,
-    images: clientImages,
     notes: body.notes ? String(body.notes).trim() : '',
     // Front desk create checks the guest in unless booking_status is sent.
     // payment_status in the pricing fields is still derived only from the amount paid.
@@ -761,24 +740,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   if (body.children !== undefined) updatePayload.children = Math.max(0, Number(body.children) || 0);
   if (body.notes !== undefined) updatePayload.notes = body.notes ? String(body.notes).trim() : '';
 
-  // Parse client-provided URL arrays if provided in update
-  if (body.signatures !== undefined) {
-    if (typeof body.signatures === 'string') {
-      try { updatePayload.signatures = JSON.parse(body.signatures); } catch (_) { updatePayload.signatures = [body.signatures]; }
-    } else if (Array.isArray(body.signatures)) {
-      updatePayload.signatures = body.signatures;
-    }
-  }
-
-  if (body.images !== undefined) {
-    if (typeof body.images === 'string') {
-      try { updatePayload.images = JSON.parse(body.images); } catch (_) { updatePayload.images = [body.images]; }
-    } else if (Array.isArray(body.images)) {
-      updatePayload.images = body.images;
-    }
-  }
-
-  // Upload new images and signatures
+  // Guest photos and signatures arrive only as form-data files.
   const { imageFiles, signatureFiles } = categorizeUploadedFiles(files);
   const uploadedImages = await s3Service.uploadFiles(imageFiles, 'bookings/images');
   const uploadedSignatures = await s3Service.uploadFiles(signatureFiles, 'bookings/signatures');

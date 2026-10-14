@@ -17,7 +17,7 @@ const router = express.Router();
 /**
  * POST /register (Mounted under /api/v1/hotel and /api/v1/hotels)
  * Register new hotel property and hotel admin
- * Supports multipart/form-data for logo file upload and JSON
+ * Other fields may be JSON. The logo is a form-data file.
  */
 router.post('/register', uploadRoomImages, registerHotelValidator, validate, hotelController.registerHotel);
 

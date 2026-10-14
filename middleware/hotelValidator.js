@@ -146,10 +146,6 @@ const registerHotelValidator = [
       return true;
     }),
 
-  body('logo')
-    .optional()
-    .trim(),
-
   body('subscription_plan_id')
     .optional({ checkFalsy: true })
     .isInt({ min: 1 })

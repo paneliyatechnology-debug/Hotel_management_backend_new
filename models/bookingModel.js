@@ -508,19 +508,22 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
     // 1. Generate unique booking number if not provided
     const bookingNumber = bookingData.booking_number || (await generateBookingNumber(trx));
 
-    // 2. Prepare JSON fields for storage
-    const storedSignatures = [
-      ...(bookingData.signatures || []),
-      ...signatureRecords.map((s) => s.image_url || s.imageUrl),
-    ].filter(Boolean);
+    // Stored URLs come from the uploaded files only.
+    const storedSignatures = signatureRecords
+      .map((s) => s.image_url || s.imageUrl)
+      .filter(Boolean);
 
-    const storedImages = [
-      ...(bookingData.images || []),
-      ...imageRecords.map((i) => i.image_url || i.imageUrl),
-    ].filter(Boolean);
+    const storedImages = imageRecords
+      .map((i) => i.image_url || i.imageUrl)
+      .filter(Boolean);
 
     const roomIds = Array.isArray(bookingData.room_ids) ? bookingData.room_ids : [];
-    const { room_ids: _roomIds, ...bookingColumns } = bookingData;
+    const {
+      room_ids: _roomIds,
+      images: _clientImages,
+      signatures: _clientSignatures,
+      ...bookingColumns
+    } = bookingData;
 
     const insertPayload = {
       ...bookingColumns,
@@ -601,11 +604,11 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
     const existing = await trx('bookings').where({ id }).whereNull('deleted_at').first();
     if (!existing) return null;
 
-    // Handle signatures & images JSON sync
-    let finalSignatures = updateData.signatures;
-    let finalImages = updateData.images;
+    // A new file replaces the stored signature. A URL in the body is ignored.
+    let finalSignatures;
+    let finalImages;
 
-    if (signatureRecords.length > 0 || updateData.signatures !== undefined) {
+    if (signatureRecords.length > 0) {
       // 1. Fetch old signature rows for this booking
       const oldSigRows = await trx('images')
         .where({ booking_id: id, is_signature: 1 })
@@ -627,14 +630,12 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
       // 3. Delete old signature rows from database
       await trx('images').where({ booking_id: id, is_signature: 1 }).delete();
 
-      const newSigs = [
-        ...(Array.isArray(updateData.signatures) ? updateData.signatures : []),
-        ...signatureRecords.map((s) => s.image_url || s.imageUrl),
-      ].filter(Boolean);
-      finalSignatures = JSON.stringify(newSigs);
+      finalSignatures = JSON.stringify(
+        signatureRecords.map((s) => s.image_url || s.imageUrl).filter(Boolean)
+      );
     }
 
-    if (imageRecords.length > 0 || updateData.images !== undefined) {
+    if (imageRecords.length > 0) {
       // 1. Fetch old photo rows for this booking
       const oldImageRows = await trx('images')
         .where({ booking_id: id, is_signature: 0 })
@@ -656,15 +657,18 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
       // 3. Delete old photo rows from database
       await trx('images').where({ booking_id: id, is_signature: 0 }).delete();
 
-      const newImgs = [
-        ...(Array.isArray(updateData.images) ? updateData.images : []),
-        ...imageRecords.map((i) => i.image_url || i.imageUrl),
-      ].filter(Boolean);
-      finalImages = JSON.stringify(newImgs);
+      finalImages = JSON.stringify(
+        imageRecords.map((i) => i.image_url || i.imageUrl).filter(Boolean)
+      );
     }
 
     const roomIds = Array.isArray(updateData.room_ids) ? updateData.room_ids : null;
-    const { room_ids: _roomIds, ...columnUpdates } = updateData;
+    const {
+      room_ids: _roomIds,
+      images: _clientImages,
+      signatures: _clientSignatures,
+      ...columnUpdates
+    } = updateData;
 
     const payload = {
       ...columnUpdates,

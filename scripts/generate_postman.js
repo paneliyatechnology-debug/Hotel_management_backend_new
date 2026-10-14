@@ -415,7 +415,7 @@ const hotelFolder = {
   name: '03 Hotel registration',
   description: `Public self-serve onboarding. Creates the hotel, a HOTEL_ADMIN user, a free trial, and returns an access token.
 
-Send JSON when there is no logo file. Send multipart/form-data when uploading a logo. The text keys are the same in both cases.
+Send multipart/form-data. The logo is a file. A logo URL in the body is ignored.
 
 ${envelope}`,
   item: [
@@ -445,8 +445,7 @@ ${envelope}`,
           textField('hotel_type', 'Boutique Hotel', 'Optional. Free text, max 100 characters. Example: Boutique Hotel, Resort, Lodge.'),
           textField('upi_id', 'seaside@upi', 'Optional. UPI id shown for payments. Stored in hotel settings.'),
           textField('website', 'https://seaside.example', 'Optional. Valid URL. A missing http:// is accepted and treated as https.'),
-          textField('logo', '', 'Optional. Existing logo URL. Leave empty when you upload a file in the logo field below.', true),
-          fileField('logo', 'Optional file. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB. Replaces the logo URL when sent.'),
+          fileField('logo', 'Optional file. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB.'),
           textField('subscription_plan_id', '', 'Optional. Plan id from Subscription Plans. Empty starts the default trial plan selection on the server.', true),
           textField('subscription_plan_active', 'true', 'Optional. true or false. Defaults to true.', true),
           textField('subscription_plan_start_date', '', 'Optional. ISO date. Defaults to the trial start (now).', true),
@@ -812,6 +811,17 @@ Use JSON when you are not uploading images. Use multipart when you are. File fie
 
 On create, a multipart string \`"false"\` for \`is_active\` is treated as true because the server uses JavaScript Boolean(). Send room create and update as JSON when you need \`is_active: false\` and you have no new image.
 
+## Live room status
+Connect a Socket.IO client to \`{{baseUrl}}\`. Send the access token. The server joins you to your hotel only.
+
+\`\`\`js
+io(baseUrl, { auth: { token: accessToken }, withCredentials: true })
+\`\`\`
+
+Any logged-in hotel role can connect: hotel admin, receptionist, manager, housekeeping, and accountant. Each user is joined only to their own hotel. A super admin has no hotel on the token, so also send \`auth.hotel_id\`. A disabled or inactive account is rejected.
+
+Listen for \`room:status\`. The payload is \`id\`, \`hotel_id\`, \`room_number\`, \`floor\`, \`status\`, \`is_active\`, \`deleted_at\`, \`updated_at\`. It is sent when a room is created, when its status or active flag changes, and when a booking moves the room (occupied, reserved, cleaning, available).
+
 ${envelope}`,
   item: [
     item({
@@ -1028,7 +1038,7 @@ What each stay status does to the room:
 
 \`CHECKED_OUT\`, \`CANCELLED\`, and \`NO_SHOW\` no longer block the dates, so the room can be booked again.
 
-Use multipart when uploading ID photos or a signature. A file field whose name contains \`sign\` or \`signature\` is stored as a signature. Any other image field is a guest document photo. You can also send existing URLs in \`images\` and \`signatures\` as a JSON array string.
+Create and update each require at least one guest photo and one signature. Send them as form-data files. A URL or a JSON array is ignored. A file field whose name contains \`sign\` or \`signature\` is the signature. Any other image file is the guest photo.
 
 ${envelope}`,
   item: [
@@ -1064,10 +1074,8 @@ ${envelope}`,
           textField('paid_amount', '2000', 'Optional. Amount already collected. 0 or more. Default 0. This sets payment_status.'),
           textField('notes', 'Late arrival after 10 pm', 'Optional. Front desk note.'),
           textField('booking_status', 'CHECKED_IN', 'Optional. PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, or NO_SHOW. When omitted, the server stores CHECKED_IN.'),
-          textField('images', '[]', 'Optional. JSON array of existing image URLs. Example: ["https://cdn.example/id.jpg"]. Uploaded files are added as well.', true),
-          textField('signatures', '[]', 'Optional. JSON array of existing signature URLs.', true),
-          fileField('images', 'Optional ID or document photos. Any file field that is not a signature.'),
-          fileField('signatures', 'Optional signature image. The field name must contain "sign" or "signature".'),
+          fileField('images', 'Required. At least one guest photo. Repeat the field for more files.'),
+          fileField('signatures', 'Required. At least one signature image.'),
         ],
       },
       description: `### POST /api/v1/bookings
@@ -1112,7 +1120,7 @@ The room must be free for the scheduled dates. A stay still blocks those dates w
 | \`due_amount\` | number | \`total_amount - paid_amount\`. |
 | \`payment_status\` | string | \`PENDING\`, \`PARTIALLY_PAID\`, or \`PAID\`. |
 | \`booking_status\` | string | Stay status. |
-| \`images\`, \`signatures\` | string arrays | Full URLs. |
+| \`images\`, \`signatures\` | string arrays | URLs of the uploaded files. |
 | \`notes\` | string | Front desk note. |
 | \`hotel\` | object | \`id\`, \`name\`, \`slug\` when joined. |
 | \`room\` | object | \`id\`, \`room_number\`, \`floor\`, \`status\`, \`room_type_name\`. |
@@ -1203,16 +1211,16 @@ Another hotel's booking returns 403.
           textField('gst_rate', '18', 'Optional. 0 to 100.', true),
           textField('paid_amount', '2000', 'Optional. On this update API, this replaces the stored paid amount. On checkout, paid_amount is added instead.', true),
           textField('notes', 'Guest requested an extra bed', 'Optional. Replaces the note.', true),
-          textField('images', '[]', 'Optional. JSON array of image URLs. Replaces the stored URL list. New files are uploaded in addition.', true),
-          textField('signatures', '[]', 'Optional. JSON array of signature URLs.', true),
-          fileField('images', 'Optional new document photos.'),
-          fileField('signatures', 'Optional new signature image. Field name must contain sign or signature.'),
+          fileField('images', 'Required. At least one guest photo. Replaces the stored photos.'),
+          fileField('signatures', 'Required. At least one signature image. Replaces the stored signature.'),
         ],
       },
       description: `### PUT /api/v1/bookings/:id
 ${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
 
 This does not change \`booking_status\`. Use **Update booking status** or **Check out** for the stay.
+
+Send at least one guest photo file and one signature file on every update. A URL does not count. Missing either file returns 400.
 
 On this API, \`paid_amount\` replaces the stored paid amount. On checkout, \`paid_amount\` is added to what was already paid.
 

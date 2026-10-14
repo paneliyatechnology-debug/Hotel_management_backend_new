@@ -112,11 +112,10 @@ const registerHotel = async (payload, res = null, files = []) => {
   const totalRooms = payload.total_rooms !== undefined ? payload.total_rooms : 0;
   const hotelType = payload.hotel_type;
   const website = payload.website;
-  const logo = payload.logo;
   const password = payload.password;
 
-  // Handle logo upload to S3 if provided via multipart files
-  let uploadedLogoUrl = logo ? String(logo).trim() : null;
+  // The logo arrives only as a form-data file.
+  let uploadedLogoUrl = null;
   const logoFile = Array.isArray(files)
     ? files.find((f) => f.fieldname === 'logo' || f.fieldname === 'logo_image' || f.fieldname === 'file')
     : (files && (files.logo?.[0] || files.logo_image?.[0] || files.file?.[0]));
