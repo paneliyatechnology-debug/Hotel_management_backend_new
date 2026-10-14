@@ -450,6 +450,19 @@ const updateRoom = async (id, updates, newImageRecords = [], trx) => {
 };
 
 /**
+ * Rooms that are CLEANING and have a start time, across all hotels.
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Array<{ id: number, cleaning_started_at: Date, cleaning_duration_minutes: number }>>}
+ */
+const findCleaningRooms = async (client = db) => {
+  return client('rooms')
+    .whereNull('deleted_at')
+    .where('status', 'CLEANING')
+    .whereNotNull('cleaning_started_at')
+    .select('id', 'cleaning_started_at', 'cleaning_duration_minutes');
+};
+
+/**
  * Soft delete a physical room
  * @param {number|string} id
  * @param {import('knex').Knex.Transaction} [trx]
@@ -482,5 +495,6 @@ module.exports = {
   findRooms,
   createRoom,
   updateRoom,
+  findCleaningRooms,
   softDeleteRoom,
 };

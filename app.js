@@ -5,6 +5,7 @@
  * Modeled after TradeNexa project architecture.
  */
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -110,6 +111,16 @@ app.get('/health', (_req, res) => {
 app.get('/api/health', (_req, res) => {
   return success(res, 'Server is running', { status: 'UP' });
 });
+
+// Generated booking folios. Opening the URL shows the PDF in the browser.
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.toLowerCase().endsWith('.pdf')) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+    }
+  },
+}));
 
 // ==========================================
 // API Routes

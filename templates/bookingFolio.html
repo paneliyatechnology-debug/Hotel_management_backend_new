@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Booking folio {{BOOKING_NUMBER}}</title>
+  <style>
+    {{FONT_FACE}}
+
+    :root {
+      --page: #ffffff;
+      --panel: #f8fafc;
+      --line: #e2e8f0;
+      --line-soft: #eef2f7;
+      --brand: #1e3a8a;
+      --ink: #0f172a;
+      --body: #334155;
+      --muted: #64748b;
+      --faint: #94a3b8;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    @page { size: A4 portrait; margin: 0; }
+    html, body { background: var(--page); }
+    /* The sheet carries the page margin itself (cloned on every page).
+       The bottom padding keeps room for the footer that is fixed to the foot of every page. */
+    .sheet {
+      padding: 12mm 12mm 26mm 12mm;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+    body {
+      font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+      font-size: 12.5px;
+      font-weight: 400;
+      line-height: 1.5;
+      color: var(--body);
+      font-variant-numeric: tabular-nums;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .stack > * + * { margin-top: 14px; }
+
+    /* Cards */
+    .card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      break-inside: avoid;
+    }
+    .card.flow { break-inside: auto; }
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      break-after: avoid;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .card-body { padding: 14px 20px; }
+
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; }
+    .two > .card { height: 100%; }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+    .badge-info { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .badge-ok { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .badge-warn { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .badge-bad { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .badge-muted { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+
+    /* Header */
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      padding: 18px 24px 16px 24px;
+      border-top: 4px solid var(--brand);
+    }
+    .hotel-name {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: 0.3px;
+      color: var(--brand);
+    }
+    .hotel-type {
+      margin-top: 2px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .hotel-line { margin-top: 8px; font-size: 12px; color: var(--muted); max-width: 360px; }
+    .hotel-tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 3px 8px;
+    }
+    .tag b { font-weight: 500; color: var(--muted); margin-right: 4px; }
+    .hero-side { text-align: right; flex-shrink: 0; }
+    .doc-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .doc-number {
+      margin: 4px 0 10px 0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: var(--ink);
+    }
+    .doc-dates { margin-top: 10px; font-size: 11px; line-height: 1.6; color: var(--muted); }
+    .doc-dates b { font-weight: 500; color: var(--body); }
+
+    /* Summary strip */
+    .strip {
+      display: grid;
+      grid-template-columns: 1.15fr 1.15fr 0.7fr 1.35fr 0.7fr 1.1fr;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      break-inside: avoid;
+    }
+    .strip-cell { padding: 12px 14px; border-left: 1px solid var(--line); }
+    .strip-cell:first-child { border-left: none; }
+    .strip-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .strip-value { margin-top: 4px; font-size: 14px; font-weight: 700; line-height: 1.25; color: var(--ink); }
+    .strip-sub { margin-top: 2px; font-size: 11px; color: var(--muted); }
+    .strip-cell .badge { margin-top: 3px; }
+
+    /* Key / value rows */
+    .rows { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .rows td { padding: 4px 0; vertical-align: top; border-bottom: 1px solid var(--line-soft); }
+    .rows tr:last-child td { border-bottom: none; padding-bottom: 0; }
+    .rows tr:first-child td { padding-top: 0; }
+    .rows td.k { color: var(--muted); width: 38%; padding-right: 12px; }
+    .rows td.v { color: var(--ink); font-weight: 500; }
+    .rows td.num { text-align: right; white-space: nowrap; }
+    .rows tr.sub td { font-size: 11.5px; padding-top: 3px; padding-bottom: 3px; border-bottom: none; }
+    .rows tr.sub td.k { padding-left: 14px; }
+    .rows tr.sub td.v { font-weight: 400; color: var(--body); }
+
+    /* Data tables */
+    table.list { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    table.list thead { display: table-header-group; }
+    table.list tr { break-inside: avoid; }
+    table.list th {
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      text-align: left;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+    table.list tr.title-row th { padding-top: 10px; padding-bottom: 4px; border-bottom: none; font-size: 11px; letter-spacing: 0.8px; }
+    table.list tr.cols th { padding-top: 4px; padding-bottom: 7px; }
+    table.list td {
+      padding: 9px 20px;
+      color: var(--ink);
+      border-bottom: 1px solid var(--line-soft);
+      vertical-align: middle;
+    }
+    table.list tbody tr:last-child td { border-bottom: none; }
+    table.list td.strong { font-weight: 500; }
+    table.list th.num, table.list td.num { text-align: right; white-space: nowrap; }
+    table.list td.empty { text-align: center; color: var(--muted); padding: 22px 20px; }
+    .cell-sub { margin-top: 1px; font-size: 11px; color: var(--muted); }
+    .refund { color: #b91c1c; font-weight: 500; }
+
+    /* Charges */
+    .charges { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; align-items: start; }
+    .totals { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .tile {
+      padding: 10px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .tile-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .tile-value { margin-top: 4px; font-size: 19px; font-weight: 700; line-height: 1.2; color: var(--ink); white-space: nowrap; }
+    .tile.total { background: #eff6ff; border-color: #bfdbfe; }
+    .tile.total .tile-label { color: #1d4ed8; }
+    .tile.total .tile-value { color: var(--brand); }
+    .tile.paid { background: #ecfdf5; border-color: #a7f3d0; }
+    .tile.paid .tile-label { color: #047857; }
+    .tile.paid .tile-value { color: #047857; }
+    .tile.due.open { background: #fef2f2; border-color: #fecaca; }
+    .tile.due.open .tile-label, .tile.due.open .tile-value { color: #b91c1c; }
+    .tile.due.clear { background: #ecfdf5; border-color: #a7f3d0; }
+    .tile.due.clear .tile-label, .tile.due.clear .tile-value { color: #047857; }
+
+    .note { font-size: 12.5px; color: var(--body); line-height: 1.6; white-space: pre-wrap; }
+
+    /* ID proofs */
+    .proofs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .proof {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      break-inside: avoid;
+    }
+    .proof img {
+      display: block;
+      width: 100%;
+      height: 150px;
+      object-fit: contain;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    .proof figcaption { margin-top: 8px; font-size: 11px; color: var(--muted); text-align: center; }
+
+    /* Signature + footer stay together */
+    .closing { break-inside: avoid; }
+    .sign-row { display: flex; justify-content: flex-end; align-items: flex-end; gap: 24px; }
+    .sign { width: 260px; break-inside: avoid; }
+    .sign-box {
+      min-height: 84px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .sign-box img { max-height: 70px; max-width: 220px; object-fit: contain; }
+    .sign-caption {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* Fixed elements repeat on every printed page, so this sits at the bottom of each one. */
+    .footer {
+      position: fixed;
+      left: 12mm;
+      right: 12mm;
+      bottom: 9mm;
+      padding-top: 10px;
+      background: #ffffff;
+      border-top: 1px solid var(--line);
+      text-align: center;
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--faint);
+    }
+
+    /* Payment history always starts on a fresh page. */
+    .page-break { break-before: page; }
+    .footer p + p { margin-top: 2px; }
+    .footer strong { font-weight: 500; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+  <div class="stack">
+    <header class="card hero">
+      <div class="hero-main">
+        <div class="hotel-name">{{HOTEL_NAME}}</div>
+        <div class="hotel-type">{{HOTEL_TYPE}}</div>
+        <div class="hotel-line">{{HOTEL_ADDRESS}}</div>
+        <div class="hotel-tags">{{HOTEL_META}}</div>
+      </div>
+      <div class="hero-side">
+        <div class="doc-label">Booking folio</div>
+        <div class="doc-number">{{BOOKING_NUMBER}}</div>
+        <span class="badge {{STATUS_TONE}}">{{BOOKING_STATUS}}</span>
+        <div class="doc-dates">
+          Created <b>{{CREATED_AT}}</b><br>
+          Printed <b>{{PRINTED_AT}}</b><br>
+          Prepared by <b>{{PREPARED_BY}}</b>
+        </div>
+      </div>
+    </header>
+
+    <section class="strip">
+      <div class="strip-cell">
+        <div class="strip-label">Check-in</div>
+        <div class="strip-value">{{CHECK_IN_DATE}}</div>
+        <div class="strip-sub">{{CHECK_IN_TIME}}</div>
+      </div>
+      <div class="strip-cell">
+        <div class="strip-label">Check-out</div>
+        <div class="strip-value">{{CHECK_OUT_DATE}}</div>
+        <div class="strip-sub">{{CHECK_OUT_TIME}}</div>
+      </div>
+      <div class="strip-cell">
+        <div class="strip-label">Nights</div>
+        <div class="strip-value">{{NIGHTS}}</div>
+      </div>
+      <div class="strip-cell">
+        <div class="strip-label">Guests</div>
+        <div class="strip-value">{{GUEST_TOTAL}}</div>
+        <div class="strip-sub">{{ADULTS}} adult(s), {{CHILDREN}} child(ren)</div>
+      </div>
+      <div class="strip-cell">
+        <div class="strip-label">Rooms</div>
+        <div class="strip-value">{{ROOM_COUNT}}</div>
+      </div>
+      <div class="strip-cell">
+        <div class="strip-label">Payment</div>
+        <span class="badge {{PAYMENT_TONE}}">{{PAYMENT_STATUS}}</span>
+      </div>
+    </section>
+
+    <section class="two">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Guest details</div></div>
+        <div class="card-body">
+          <table class="rows">
+            <tr><td class="k">Name</td><td class="v">{{GUEST_NAME}}</td></tr>
+            <tr><td class="k">Companion</td><td class="v">{{SECONDARY_GUEST}}</td></tr>
+            <tr><td class="k">Mobile</td><td class="v">{{GUEST_MOBILE}}</td></tr>
+            <tr><td class="k">Email</td><td class="v">{{GUEST_EMAIL}}</td></tr>
+            <tr><td class="k">Address</td><td class="v">{{GUEST_ADDRESS}}</td></tr>
+            <tr><td class="k">Guests</td><td class="v">{{ADULTS}} adult(s), {{CHILDREN}} child(ren)</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Stay details</div></div>
+        <div class="card-body">
+          <table class="rows">
+            <tr><td class="k">Scheduled in</td><td class="v">{{CHECK_IN}}</td></tr>
+            <tr><td class="k">Scheduled out</td><td class="v">{{CHECK_OUT}}</td></tr>
+            <tr><td class="k">Checked in</td><td class="v">{{ACTUAL_CHECK_IN}}</td></tr>
+            <tr><td class="k">Checked out</td><td class="v">{{ACTUAL_CHECK_OUT}}</td></tr>
+            <tr><td class="k">Nights</td><td class="v">{{NIGHTS}}</td></tr>
+            <tr><td class="k">Hotel times</td><td class="v">In {{HOUSE_CHECK_IN}}, out {{HOUSE_CHECK_OUT}}</td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="card flow">
+      <table class="list">
+        <thead>
+          <tr class="title-row"><th colspan="3">Rooms</th></tr>
+          <tr class="cols">
+            <th>Room</th>
+            <th>Floor</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+        <tbody>{{ROOM_ROWS}}</tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><div class="card-title">Charges and payment</div></div>
+      <div class="card-body charges">
+        <table class="rows">
+          <tr><td class="k">Room charge</td><td class="v num">₹{{BASE_AMOUNT}}</td></tr>
+          <tr><td class="k">Discount</td><td class="v num">− ₹{{DISCOUNT_AMOUNT}}</td></tr>
+          <tr><td class="k">Extra charges</td><td class="v num">₹{{EXTRA_CHARGES}}</td></tr>
+          <tr><td class="k">Late checkout ({{LATE_HOURS}} h)</td><td class="v num">₹{{LATE_FEE}}</td></tr>
+          <tr><td class="k">Taxable amount</td><td class="v num">₹{{TAXABLE_AMOUNT}}</td></tr>
+          <tr><td class="k">GST {{GST_RATE}}%</td><td class="v num">₹{{TAX_AMOUNT}}</td></tr>
+          <tr class="sub"><td class="k">CGST {{CGST_RATE}}%</td><td class="v num">₹{{CGST_AMOUNT}}</td></tr>
+          <tr class="sub"><td class="k">SGST {{SGST_RATE}}%</td><td class="v num">₹{{SGST_AMOUNT}}</td></tr>
+        </table>
+        <div class="totals">
+          <div class="tile total">
+            <div class="tile-label">Total</div>
+            <div class="tile-value">₹{{TOTAL_AMOUNT}}</div>
+          </div>
+          <div class="tile paid">
+            <div class="tile-label">Paid</div>
+            <div class="tile-value">₹{{PAID_AMOUNT}}</div>
+          </div>
+          <div class="tile due {{DUE_CLASS}}">
+            <div class="tile-label">Balance due</div>
+            <div class="tile-value">₹{{DUE_AMOUNT}}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card flow page-break">
+      <table class="list">
+        <thead>
+          <tr class="title-row"><th colspan="5">Payment history</th></tr>
+          <tr class="cols">
+            <th>Date &amp; time</th>
+            <th>Method</th>
+            <th>Status</th>
+            <th>Received by</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>{{PAYMENT_ROWS}}</tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><div class="card-title">Notes</div></div>
+      <div class="card-body"><p class="note">{{NOTES}}</p></div>
+    </section>
+
+    <section class="card flow">
+      <div class="card-head"><div class="card-title">ID proofs</div></div>
+      <div class="card-body"><div class="proofs">{{ID_PROOFS}}</div></div>
+    </section>
+
+    <div class="closing">
+      <section class="sign-row">
+        <div class="sign">
+          <div class="sign-box">{{SIGNATURE}}</div>
+          <div class="sign-caption">Guest signature</div>
+        </div>
+      </section>
+    </div>
+  </div>
+  </div>
+
+  <footer class="footer">
+    <p>&copy; {{YEAR}} <strong>{{HOTEL_NAME}}</strong>. Powered by MYOWNPMS.</p>
+  </footer>
+</body>
+</html>

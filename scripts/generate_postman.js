@@ -982,6 +982,8 @@ Send only the keys that change. Disabled form rows are not sent until you enable
       description: `### PATCH /api/v1/rooms/:id/status
 Changes only \`status\`. Price, number, floor, and other fields stay as they are.
 
+Setting \`CLEANING\` starts the cleaning timer. When the room's \`cleaning_duration_minutes\` have passed, the server sets it to \`AVAILABLE\`. Checkout uses 20 minutes.
+
 **Path keys**
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
@@ -1031,14 +1033,14 @@ What each stay status does to the room:
 | booking_status | Room |
 | --- | --- |
 | \`CHECKED_IN\` | Every room becomes \`OCCUPIED\`. Sets \`actual_check_in\` if it was empty. |
-| \`CHECKED_OUT\` | Every room becomes \`CLEANING\`. Sets \`actual_check_out\` if it was empty. |
+| \`CHECKED_OUT\` | Allowed only when \`due_amount\` is 0, otherwise 400. Every room becomes \`CLEANING\` for 20 minutes, then \`AVAILABLE\` automatically. Sets \`actual_check_out\` if it was empty. |
 | \`CONFIRMED\` | \`RESERVED\` only when the room is \`AVAILABLE\` and nobody else is checked in. |
 | \`PENDING\` | Room stays as it is on create. |
 | \`CANCELLED\`, \`NO_SHOW\` | Releases the room when this stay was holding it. Another checked-in stay keeps it \`OCCUPIED\`. Another confirmed stay keeps it \`RESERVED\`. Otherwise \`AVAILABLE\`. \`MAINTENANCE\`, \`BLOCKED\`, and \`CLEANING\` are not cleared. |
 
 \`CHECKED_OUT\`, \`CANCELLED\`, and \`NO_SHOW\` no longer block the dates, so the room can be booked again.
 
-Create and update each require at least one guest photo and one signature. Send them as form-data files. A URL or a JSON array is ignored. A file field whose name contains \`sign\` or \`signature\` is the signature. Any other image file is the guest photo.
+Create requires at least two guest photos in \`images\` and one signature. Update requires at least one guest photo and one signature. Send them as form-data files. A URL is ignored. A file field whose name contains \`sign\` or \`signature\` is the signature. Any other image file is a guest photo.
 
 ${envelope}`,
   item: [
@@ -1070,9 +1072,11 @@ ${envelope}`,
           textField('late_checkout_hours', '0', 'Optional. Late hours. 0 or more.', true),
           textField('gst_rate', '18', 'Optional. GST percent, 0 to 100. Default 18. Split into equal CGST and SGST.'),
           textField('paid_amount', '2000', 'Optional. Amount already collected. 0 or more. Default 0. This sets payment_status.'),
+          textField('payment_method', 'CASH', 'Optional. How paid_amount was paid: CASH, ONLINE, CARD, UPI, or BANK_TRANSFER. Default CASH. Saved in the payment history.', true),
           textField('notes', 'Late arrival after 10 pm', 'Optional. Front desk note.'),
           textField('booking_status', 'CHECKED_IN', 'Optional. PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, or NO_SHOW. When omitted, the server stores CHECKED_IN.'),
-          fileField('images', 'Required. At least one guest photo. Repeat the field for more files.'),
+          fileField('images', 'Required. At least two guest photos. Repeat this field for the second photo.'),
+          fileField('images', 'Required. Second guest photo. Add more rows if you need more than two.'),
           fileField('signatures', 'Required. At least one signature image.'),
         ],
       },
@@ -1181,6 +1185,67 @@ Another hotel's booking returns 403.
 **Response \`data\`:** one booking. Same keys as Create booking.`,
     }),
     item({
+      name: 'Generate booking PDF',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/bookings/{{bookingId}}/pdf',
+      pathSegments: ['api', 'v1', 'bookings', ':id', 'pdf'],
+      variable: [idVar('id', '{{bookingId}}', 'Required. Booking id.')],
+      description: `### GET /api/v1/bookings/:id/pdf
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+Builds the folio from this booking, including the guest signature and every uploaded image under ID proofs. The file is saved under uploads/pdfs and removed every 3 hours.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Booking id. |
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`url\` | string | Open this address in a browser to view the PDF. |
+| \`file_name\` | string | File name in the uploads folder. |`,
+    }),
+    item({
+      name: 'Booking payment history',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/bookings/{{bookingId}}/payments',
+      pathSegments: ['api', 'v1', 'bookings', ':id', 'payments'],
+      variable: [idVar('id', '{{bookingId}}', 'Required. Booking id.')],
+      description: `### GET /api/v1/bookings/:id/payments
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+Lists every change to the amount paid on this booking, newest first. A row is added when the booking is created with a paid amount, when **Update booking** changes \`paid_amount\`, and when **Check out** collects \`paid_amount\`.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Booking id. |
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`booking_id\` | number | Booking id. |
+| \`booking_number\` | string | Booking number. |
+| \`total_amount\` | number | Bill total. |
+| \`paid_amount\` | number | Total paid so far. |
+| \`due_amount\` | number | Balance still to pay. |
+| \`payment_status\` | string | \`PENDING\`, \`PARTIALLY_PAID\`, or \`PAID\`. |
+| \`payments\` | array | History rows, newest first. |
+
+**Each item in \`payments\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Payment row id. |
+| \`booking_id\` | number | Booking id. |
+| \`amount\` | number | Money received. Negative when \`paid_amount\` was lowered on an update. |
+| \`payment_method\` | string | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. |
+| \`status\` | string | Status of this payment: \`PAID\` (the bill is fully paid after it), \`PARTIALLY_PAID\` (a balance is left), \`REFUNDED\` (money taken back), or \`FAILED\` (did not go through). The server sets \`PAID\`, \`PARTIALLY_PAID\` and \`REFUNDED\` itself. |
+| \`source\` | string | \`BOOKING\` (create), \`UPDATE\` (booking edit), or \`CHECKOUT\`. |
+| \`received_by\` | object or null | \`id\` and \`name\` of the staff user. |
+| \`received_at\` | string | When it was recorded. |`,
+    }),
+    item({
       name: 'Update booking',
       method: 'PUT',
       headers: acceptHeader(),
@@ -1209,6 +1274,7 @@ Another hotel's booking returns 403.
           textField('late_checkout_hours', '0', 'Optional.', true),
           textField('gst_rate', '18', 'Optional. 0 to 100.', true),
           textField('paid_amount', '2000', 'Optional. On this update API, this replaces the stored paid amount. On checkout, paid_amount is added instead.', true),
+          textField('payment_method', 'CASH', 'Optional. How the change in paid_amount was paid: CASH, ONLINE, CARD, UPI, or BANK_TRANSFER. Default CASH. Saved in the payment history.', true),
           textField('notes', 'Guest requested an extra bed', 'Optional. Replaces the note.', true),
           fileField('images', 'Required. At least one guest photo. Replaces the stored photos.'),
           fileField('signatures', 'Required. At least one signature image. Replaces the stored signature.'),
@@ -1221,7 +1287,7 @@ This does not change \`booking_status\`. Use **Update booking status** or **Chec
 
 Send at least one guest photo file and one signature file on every update. A URL does not count. Missing either file returns 400.
 
-On this API, \`paid_amount\` replaces the stored paid amount. On checkout, \`paid_amount\` is added to what was already paid.
+On this API, \`paid_amount\` replaces the stored paid amount. On checkout, \`paid_amount\` is added to what was already paid. Every change to the paid amount is added to the payment history.
 
 Changing room or dates checks overlap again, ignoring this booking.
 
@@ -1242,12 +1308,15 @@ Changing room or dates checks overlap again, ignoring this booking.
       variable: [idVar('id', '{{bookingId}}', 'Required. Booking id to check out.')],
       body: jsonBody({
         paid_amount: 1500,
+        payment_method: 'UPI',
         late_checkout_charge: 500,
         late_checkout_hours: 2,
         notes: 'Collected remaining balance at the desk',
       }),
       description: `### POST /api/v1/bookings/:id/check-out
-Sets \`booking_status\` to \`CHECKED_OUT\`, sets \`actual_check_out\`, and marks every room in \`room_id\` as \`CLEANING\`.
+Sets \`booking_status\` to \`CHECKED_OUT\`, sets \`actual_check_out\`, and marks every room in \`room_id\` as \`CLEANING\`. After 20 minutes each room becomes \`AVAILABLE\` again on its own. You can still change the room status at any time with **Update room status**.
+
+The payment must equal the due amount exactly. Paying less or more returns 400 and nothing is saved. The due amount includes any late fee and its GST. When nothing is due, send \`{}\` or \`paid_amount: 0\`. Any amount collected here is added to the payment history.
 
 Scheduled \`check_in_date\`, \`check_out_date\`, and \`number_of_nights\` stay as booked.
 
@@ -1261,7 +1330,8 @@ A second checkout, when \`actual_check_out\` is already set, returns 400.
 **Body keys** — all optional. Send \`{}\` for a checkout with no extra payment.
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| \`paid_amount\` | number | No | Collected now. Added to the existing \`paid_amount\`. It does not replace it. 0 or more. |
+| \`paid_amount\` | number | No | Collected now. Added to the existing \`paid_amount\`. It does not replace it. Must equal the current due amount exactly, or 0 when nothing is due. |
+| \`payment_method\` | string | No | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. Default \`CASH\`. Saved with the payment. |
 | \`late_checkout_charge\` | number | No | Late fee. Runs through GST and updates total and due. 0 or more. |
 | \`late_checkout_hours\` | number | No | Hours late. 0 or more. |
 | \`notes\` | string | No | Appended to the existing note. It does not wipe the old note. |
@@ -1281,6 +1351,8 @@ A second checkout, when \`actual_check_out\` is already set, returns 400.
 Changes only the stay status, then updates every room in \`room_id\` as described in the folder notes.
 
 Guest, dates, and payment are not changed by this API. \`CHECKED_IN\` fills \`actual_check_in\` when it is empty. \`CHECKED_OUT\` fills \`actual_check_out\` when it is empty.
+
+\`CHECKED_OUT\` returns 400 while \`due_amount\` is above 0. Pay the balance first with **Update booking** or use **Check out** with \`paid_amount\`. After checkout the rooms are \`CLEANING\` for 20 minutes and then \`AVAILABLE\`.
 
 **Path keys**
 | Key | Type | Required | Meaning |

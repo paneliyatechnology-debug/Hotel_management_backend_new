@@ -9,6 +9,8 @@ const http = require('http');
 const app = require('./app');
 const db = require('./database/knex');
 const { attachRoomSocket, closeRoomSocket } = require('./sockets/roomSocket');
+const { startCronJobs } = require('./routers/cronRouter');
+const { closePdfBrowser } = require('./services/bookingPdfService');
 
 const PORT = process.env.PORT || 5001;
 const APP_NAME = process.env.APP_NAME || 'Hotel Management Backend';
@@ -20,6 +22,7 @@ const start = async () => {
 
     const server = http.createServer(app);
     attachRoomSocket(server, { isOriginAllowed: app.isOriginAllowed });
+    startCronJobs();
 
     server.listen(PORT, '0.0.0.0', () => {
       console.log('----------------------------------------------------');
@@ -32,9 +35,10 @@ const start = async () => {
       console.log('----------------------------------------------------');
     });
 
-    const shutdown = (signal) => {
+    const shutdown = async (signal) => {
       console.log(`\n[Server] Received ${signal}. Closing gracefully...`);
       closeRoomSocket();
+      await closePdfBrowser();
       server.close(async () => {
         try {
           await db.destroy();

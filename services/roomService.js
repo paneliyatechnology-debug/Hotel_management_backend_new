@@ -8,7 +8,7 @@ const roomModel = require('../models/roomModel');
 const s3Service = require('./s3Service');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
-const { HTTP_STATUS, ROOM_STATUSES } = require('../constants');
+const { HTTP_STATUS, ROOM_STATUSES, CLEANING_DURATION_MINUTES } = require('../constants');
 
 /**
  * Filter uploaded file array to valid image buffers
@@ -320,7 +320,31 @@ const updateRoomStatus = async (id, body = {}, reqUser = null) => {
     );
   }
 
-  return roomModel.updateRoom(id, { status });
+  // Setting CLEANING by hand starts the same cleaning timer that checkout starts.
+  const updates = status === 'CLEANING' ? { status, cleaning_started_at: new Date() } : { status };
+  return roomModel.updateRoom(id, updates);
+};
+
+/**
+ * Make rooms AVAILABLE once their cleaning time has passed.
+ * Rooms without a cleaning start time are left alone.
+ * @param {Date} [now]
+ * @returns {Promise<number>} Number of rooms released
+ */
+const releaseCleanedRooms = async (now = new Date()) => {
+  const rooms = await roomModel.findCleaningRooms();
+  let released = 0;
+
+  for (const room of rooms) {
+    const minutes = Number(room.cleaning_duration_minutes) || CLEANING_DURATION_MINUTES;
+    const readyAt = new Date(room.cleaning_started_at).getTime() + minutes * 60 * 1000;
+    if (readyAt > now.getTime()) continue;
+
+    await roomModel.updateRoom(room.id, { status: 'AVAILABLE', cleaning_started_at: null });
+    released += 1;
+  }
+
+  return released;
 };
 
 /**
@@ -353,5 +377,6 @@ module.exports = {
   getRoomById,
   updateRoom,
   updateRoomStatus,
+  releaseCleanedRooms,
   deleteRoom,
 };

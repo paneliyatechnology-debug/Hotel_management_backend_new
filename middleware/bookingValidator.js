@@ -3,7 +3,15 @@
  * Follows TradeNexa validator architecture.
  */
 const { body, param, query } = require('express-validator');
-const { BOOKING_STATUSES } = require('../constants');
+const { BOOKING_STATUSES, PAYMENT_METHODS } = require('../constants');
+
+// Optional. Says how paid_amount was paid. The service stores CASH when it is omitted.
+const paymentMethodValidator = body('payment_method')
+  .optional({ checkFalsy: true })
+  .trim()
+  .toUpperCase()
+  .isIn(PAYMENT_METHODS)
+  .withMessage(`payment_method must be one of: ${PAYMENT_METHODS.join(', ')}.`);
 
 /**
  * room_id is an array of room ids. A JSON string or one id is accepted.
@@ -52,19 +60,21 @@ const fileCount = (files, kind) => {
 };
 
 /**
- * Create and update need one guest photo and one signature.
- * Both are form-data files. A URL or JSON array does not count.
+ * Guest photos and the signature are form-data files. A URL does not count.
  * @param {'image'|'signature'} kind
+ * @param {number} [minimum=1]
  * @returns {import('express-validator').ValidationChain}
  */
-const requireMedia = (kind) => {
+const requireMedia = (kind, minimum = 1) => {
   const field = kind === 'signature' ? 'signatures' : 'images';
   const message = kind === 'signature'
     ? 'At least one signature is required.'
-    : 'At least one image is required.';
+    : (minimum === 1
+      ? 'At least one image is required.'
+      : `At least ${minimum} images are required.`);
 
   return body(field).custom((_value, { req }) => {
-    if (fileCount(req.files, kind) < 1) {
+    if (fileCount(req.files, kind) < minimum) {
       throw new Error(message);
     }
     return true;
@@ -157,6 +167,8 @@ const createBookingValidator = [
     .isFloat({ min: 0 })
     .withMessage('paid_amount cannot be negative.'),
 
+  paymentMethodValidator,
+
   body('gst_rate')
     .optional()
     .isFloat({ min: 0, max: 100 })
@@ -170,7 +182,7 @@ const createBookingValidator = [
     .isIn(BOOKING_STATUSES)
     .withMessage(`booking_status must be one of: ${BOOKING_STATUSES.join(', ')}.`),
 
-  requireMedia('image'),
+  requireMedia('image', 2),
   requireMedia('signature'),
 ];
 
@@ -227,6 +239,8 @@ const updateBookingValidator = [
     .isFloat({ min: 0 })
     .withMessage('paid_amount cannot be negative.'),
 
+  paymentMethodValidator,
+
   requireMedia('image'),
   requireMedia('signature'),
 ];
@@ -252,6 +266,8 @@ const checkOutBookingValidator = [
     .optional()
     .isFloat({ min: 0 })
     .withMessage('paid_amount collected at checkout cannot be negative.'),
+
+  paymentMethodValidator,
 
   body('late_checkout_charge')
     .optional()

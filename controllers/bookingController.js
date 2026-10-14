@@ -5,6 +5,7 @@
  * Follows TradeNexa controller architecture.
  */
 const bookingService = require('../services/bookingService');
+const bookingPdfService = require('../services/bookingPdfService');
 const { success } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
@@ -54,6 +55,26 @@ const getBookingById = async (req, res, next) => {
     return success(
       res,
       MESSAGES.BOOKING_RETRIEVED_SUCCESS,
+      data,
+      HTTP_STATUS.OK
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/v1/bookings/:id/pdf
+ * Generate the booking folio and return a URL that opens the PDF.
+ */
+const getBookingPdf = async (req, res, next) => {
+  try {
+    const proto = req.get('x-forwarded-proto') || req.protocol;
+    const baseUrl = `${proto}://${req.get('host')}`;
+    const data = await bookingPdfService.generateBookingPdf(req.params.id, req.user, baseUrl);
+    return success(
+      res,
+      MESSAGES.BOOKING_PDF_GENERATED_SUCCESS,
       data,
       HTTP_STATUS.OK
     );
@@ -117,6 +138,24 @@ const updateBookingStatus = async (req, res, next) => {
 };
 
 /**
+ * GET /api/v1/bookings/:id/payments
+ * Payment history of a booking
+ */
+const getBookingPayments = async (req, res, next) => {
+  try {
+    const data = await bookingService.getBookingPayments(req.params.id, req.user);
+    return success(
+      res,
+      MESSAGES.BOOKING_PAYMENTS_RETRIEVED_SUCCESS,
+      data,
+      HTTP_STATUS.OK
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * DELETE /api/v1/bookings/:id
  * Soft-delete a booking
  */
@@ -138,8 +177,10 @@ module.exports = {
   createBooking,
   getBookings,
   getBookingById,
+  getBookingPdf,
   updateBooking,
   checkOutBooking,
   updateBookingStatus,
+  getBookingPayments,
   deleteBooking,
 };

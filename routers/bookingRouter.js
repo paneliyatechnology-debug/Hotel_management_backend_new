@@ -4,10 +4,12 @@
  * 1. POST /api/v1/bookings – Create a booking. room_id is an array, and every room is occupied together.
  * 2. GET /api/v1/bookings – List bookings with pagination and filters (hotel, room, booking number, guest, mobile, status, dates).
  * 3. GET /api/v1/bookings/:id – Get complete booking details.
- * 4. PUT /api/v1/bookings/:id – Update booking details and relations.
- * 5. POST /api/v1/bookings/:id/check-out – Check out a booking and mark the room for cleaning.
- * 6. PATCH /api/v1/bookings/:id/status – Update only the booking stay status.
- * 7. DELETE /api/v1/bookings/:id – Soft-delete a booking.
+ * 4. GET /api/v1/bookings/:id/pdf – Generate a folio PDF and return its URL.
+ * 5. GET /api/v1/bookings/:id/payments – Payment history of a booking.
+ * 6. PUT /api/v1/bookings/:id – Update booking details and relations.
+ * 7. POST /api/v1/bookings/:id/check-out – Check out a booking (balance must be paid) and mark the room for cleaning.
+ * 8. PATCH /api/v1/bookings/:id/status – Update only the booking stay status.
+ * 9. DELETE /api/v1/bookings/:id – Soft-delete a booking.
  *
  * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
  * Follows TradeNexa router architecture.
@@ -72,6 +74,28 @@ router.get(
   getBookingByIdValidator,
   validate,
   bookingController.getBookingById
+);
+
+/**
+ * GET /api/v1/bookings/:id/pdf
+ * Generate the folio and return a URL that opens the PDF.
+ */
+router.get(
+  '/:id/pdf',
+  getBookingByIdValidator,
+  validate,
+  bookingController.getBookingPdf
+);
+
+/**
+ * GET /api/v1/bookings/:id/payments
+ * Payment history of a booking
+ */
+router.get(
+  '/:id/payments',
+  getBookingByIdValidator,
+  validate,
+  bookingController.getBookingPayments
 );
 
 /**

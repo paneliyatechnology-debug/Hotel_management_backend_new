@@ -1,4 +1,5 @@
 node_modules/
+uploads/pdfs/*.pdf
 .env
 *.log
 Hotel_backend_link

@@ -1510,7 +1510,7 @@
                 }
               ]
             },
-            "description": "### PATCH /api/v1/rooms/:id/status\nChanges only `status`. Price, number, floor, and other fields stay as they are.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `status` | string | Yes | `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, or `BLOCKED`. |\n\nUnknown status returns 400.\n\n**Response `data`:** the room object with the new status."
+            "description": "### PATCH /api/v1/rooms/:id/status\nChanges only `status`. Price, number, floor, and other fields stay as they are.\n\nSetting `CLEANING` starts the cleaning timer. When the room's `cleaning_duration_minutes` have passed, the server sets it to `AVAILABLE`. Checkout uses 20 minutes.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `status` | string | Yes | `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, or `BLOCKED`. |\n\nUnknown status returns 400.\n\n**Response `data`:** the room object with the new status."
           }
         },
         {
@@ -1550,7 +1550,7 @@
     },
     {
       "name": "07 Bookings",
-      "description": "**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nTwo different statuses:\n| Key | Values | Meaning |\n| --- | --- | --- |\n| `booking_status` | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, `NO_SHOW` | The stay |\n| `payment_status` | `PENDING`, `PARTIALLY_PAID`, `PAID` | The bill. Calculated from amounts. Do not send it. |\n\nCreate stores `CHECKED_IN` when `booking_status` is omitted. `created_by` is the logged-in user. `actual_check_in` is the current time. The room is marked `OCCUPIED`.\n\nWhat each stay status does to the room:\n| booking_status | Room |\n| --- | --- |\n| `CHECKED_IN` | Every room becomes `OCCUPIED`. Sets `actual_check_in` if it was empty. |\n| `CHECKED_OUT` | Every room becomes `CLEANING`. Sets `actual_check_out` if it was empty. |\n| `CONFIRMED` | `RESERVED` only when the room is `AVAILABLE` and nobody else is checked in. |\n| `PENDING` | Room stays as it is on create. |\n| `CANCELLED`, `NO_SHOW` | Releases the room when this stay was holding it. Another checked-in stay keeps it `OCCUPIED`. Another confirmed stay keeps it `RESERVED`. Otherwise `AVAILABLE`. `MAINTENANCE`, `BLOCKED`, and `CLEANING` are not cleared. |\n\n`CHECKED_OUT`, `CANCELLED`, and `NO_SHOW` no longer block the dates, so the room can be booked again.\n\nCreate and update each require at least one guest photo and one signature. Send them as form-data files. A URL or a JSON array is ignored. A file field whose name contains `sign` or `signature` is the signature. Any other image file is the guest photo.\n\n\nEvery response uses the same envelope.\n\nSuccess:\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nTwo different statuses:\n| Key | Values | Meaning |\n| --- | --- | --- |\n| `booking_status` | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, `NO_SHOW` | The stay |\n| `payment_status` | `PENDING`, `PARTIALLY_PAID`, `PAID` | The bill. Calculated from amounts. Do not send it. |\n\nCreate stores `CHECKED_IN` when `booking_status` is omitted. `created_by` is the logged-in user. `actual_check_in` is the current time. The room is marked `OCCUPIED`.\n\nWhat each stay status does to the room:\n| booking_status | Room |\n| --- | --- |\n| `CHECKED_IN` | Every room becomes `OCCUPIED`. Sets `actual_check_in` if it was empty. |\n| `CHECKED_OUT` | Allowed only when `due_amount` is 0, otherwise 400. Every room becomes `CLEANING` for 20 minutes, then `AVAILABLE` automatically. Sets `actual_check_out` if it was empty. |\n| `CONFIRMED` | `RESERVED` only when the room is `AVAILABLE` and nobody else is checked in. |\n| `PENDING` | Room stays as it is on create. |\n| `CANCELLED`, `NO_SHOW` | Releases the room when this stay was holding it. Another checked-in stay keeps it `OCCUPIED`. Another confirmed stay keeps it `RESERVED`. Otherwise `AVAILABLE`. `MAINTENANCE`, `BLOCKED`, and `CLEANING` are not cleared. |\n\n`CHECKED_OUT`, `CANCELLED`, and `NO_SHOW` no longer block the dates, so the room can be booked again.\n\nCreate requires at least two guest photos in `images` and one signature. Update requires at least one guest photo and one signature. Send them as form-data files. A URL is ignored. A file field whose name contains `sign` or `signature` is the signature. Any other image file is a guest photo.\n\n\nEvery response uses the same envelope.\n\nSuccess:\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "Create booking",
@@ -1697,6 +1697,13 @@
                   "description": "Optional. Amount already collected. 0 or more. Default 0. This sets payment_status."
                 },
                 {
+                  "key": "payment_method",
+                  "value": "CASH",
+                  "type": "text",
+                  "description": "Optional. How paid_amount was paid: CASH, ONLINE, CARD, UPI, or BANK_TRANSFER. Default CASH. Saved in the payment history.",
+                  "disabled": true
+                },
+                {
                   "key": "notes",
                   "value": "Late arrival after 10 pm",
                   "type": "text",
@@ -1712,7 +1719,13 @@
                   "key": "images",
                   "type": "file",
                   "src": [],
-                  "description": "Required. At least one guest photo. Repeat the field for more files."
+                  "description": "Required. At least two guest photos. Repeat this field for the second photo."
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Required. Second guest photo. Add more rows if you need more than two."
                 },
                 {
                   "key": "signatures",
@@ -1879,6 +1892,74 @@
           }
         },
         {
+          "name": "Generate booking PDF",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bookings/{{bookingId}}/pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bookings",
+                ":id",
+                "pdf"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{bookingId}}",
+                  "description": "Required. Booking id."
+                }
+              ]
+            },
+            "description": "### GET /api/v1/bookings/:id/pdf\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nBuilds the folio from this booking, including the guest signature and every uploaded image under ID proofs. The file is saved under uploads/pdfs and removed every 3 hours.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `url` | string | Open this address in a browser to view the PDF. |\n| `file_name` | string | File name in the uploads folder. |"
+          }
+        },
+        {
+          "name": "Booking payment history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bookings/{{bookingId}}/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bookings",
+                ":id",
+                "payments"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{bookingId}}",
+                  "description": "Required. Booking id."
+                }
+              ]
+            },
+            "description": "### GET /api/v1/bookings/:id/payments\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nLists every change to the amount paid on this booking, newest first. A row is added when the booking is created with a paid amount, when **Update booking** changes `paid_amount`, and when **Check out** collects `paid_amount`.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `booking_id` | number | Booking id. |\n| `booking_number` | string | Booking number. |\n| `total_amount` | number | Bill total. |\n| `paid_amount` | number | Total paid so far. |\n| `due_amount` | number | Balance still to pay. |\n| `payment_status` | string | `PENDING`, `PARTIALLY_PAID`, or `PAID`. |\n| `payments` | array | History rows, newest first. |\n\n**Each item in `payments`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Payment row id. |\n| `booking_id` | number | Booking id. |\n| `amount` | number | Money received. Negative when `paid_amount` was lowered on an update. |\n| `payment_method` | string | `CASH`, `ONLINE`, `CARD`, `UPI`, or `BANK_TRANSFER`. |\n| `status` | string | Status of this payment: `PAID` (the bill is fully paid after it), `PARTIALLY_PAID` (a balance is left), `REFUNDED` (money taken back), or `FAILED` (did not go through). The server sets `PAID`, `PARTIALLY_PAID` and `REFUNDED` itself. |\n| `source` | string | `BOOKING` (create), `UPDATE` (booking edit), or `CHECKOUT`. |\n| `received_by` | object or null | `id` and `name` of the staff user. |\n| `received_at` | string | When it was recorded. |"
+          }
+        },
+        {
           "name": "Update booking",
           "request": {
             "method": "PUT",
@@ -2026,6 +2107,13 @@
                   "disabled": true
                 },
                 {
+                  "key": "payment_method",
+                  "value": "CASH",
+                  "type": "text",
+                  "description": "Optional. How the change in paid_amount was paid: CASH, ONLINE, CARD, UPI, or BANK_TRANSFER. Default CASH. Saved in the payment history.",
+                  "disabled": true
+                },
+                {
                   "key": "notes",
                   "value": "Guest requested an extra bed",
                   "type": "text",
@@ -2065,7 +2153,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/bookings/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis does not change `booking_status`. Use **Update booking status** or **Check out** for the stay.\n\nSend at least one guest photo file and one signature file on every update. A URL does not count. Missing either file returns 400.\n\nOn this API, `paid_amount` replaces the stored paid amount. On checkout, `paid_amount` is added to what was already paid.\n\nChanging room or dates checks overlap again, ignoring this booking.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** are on the form rows. Disabled rows are not sent.\n\n**Response `data`:** the updated booking."
+            "description": "### PUT /api/v1/bookings/:id\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis does not change `booking_status`. Use **Update booking status** or **Check out** for the stay.\n\nSend at least one guest photo file and one signature file on every update. A URL does not count. Missing either file returns 400.\n\nOn this API, `paid_amount` replaces the stored paid amount. On checkout, `paid_amount` is added to what was already paid. Every change to the paid amount is added to the payment history.\n\nChanging room or dates checks overlap again, ignoring this booking.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** are on the form rows. Disabled rows are not sent.\n\n**Response `data`:** the updated booking."
           }
         },
         {
@@ -2086,7 +2174,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"paid_amount\": 1500,\n  \"late_checkout_charge\": 500,\n  \"late_checkout_hours\": 2,\n  \"notes\": \"Collected remaining balance at the desk\"\n}",
+              "raw": "{\n  \"paid_amount\": 1500,\n  \"payment_method\": \"UPI\",\n  \"late_checkout_charge\": 500,\n  \"late_checkout_hours\": 2,\n  \"notes\": \"Collected remaining balance at the desk\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2113,7 +2201,7 @@
                 }
               ]
             },
-            "description": "### POST /api/v1/bookings/:id/check-out\nSets `booking_status` to `CHECKED_OUT`, sets `actual_check_out`, and marks every room in `room_id` as `CLEANING`.\n\nScheduled `check_in_date`, `check_out_date`, and `number_of_nights` stay as booked.\n\nA second checkout, when `actual_check_out` is already set, returns 400.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** — all optional. Send `{}` for a checkout with no extra payment.\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `paid_amount` | number | No | Collected now. Added to the existing `paid_amount`. It does not replace it. 0 or more. |\n| `late_checkout_charge` | number | No | Late fee. Runs through GST and updates total and due. 0 or more. |\n| `late_checkout_hours` | number | No | Hours late. 0 or more. |\n| `notes` | string | No | Appended to the existing note. It does not wipe the old note. |\n\n**Response `data`:** the booking after checkout. `booking_status` is `CHECKED_OUT`. Each item in `rooms` has `status` `CLEANING`."
+            "description": "### POST /api/v1/bookings/:id/check-out\nSets `booking_status` to `CHECKED_OUT`, sets `actual_check_out`, and marks every room in `room_id` as `CLEANING`. After 20 minutes each room becomes `AVAILABLE` again on its own. You can still change the room status at any time with **Update room status**.\n\nThe payment must equal the due amount exactly. Paying less or more returns 400 and nothing is saved. The due amount includes any late fee and its GST. When nothing is due, send `{}` or `paid_amount: 0`. Any amount collected here is added to the payment history.\n\nScheduled `check_in_date`, `check_out_date`, and `number_of_nights` stay as booked.\n\nA second checkout, when `actual_check_out` is already set, returns 400.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys** — all optional. Send `{}` for a checkout with no extra payment.\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `paid_amount` | number | No | Collected now. Added to the existing `paid_amount`. It does not replace it. Must equal the current due amount exactly, or 0 when nothing is due. |\n| `payment_method` | string | No | `CASH`, `ONLINE`, `CARD`, `UPI`, or `BANK_TRANSFER`. Default `CASH`. Saved with the payment. |\n| `late_checkout_charge` | number | No | Late fee. Runs through GST and updates total and due. 0 or more. |\n| `late_checkout_hours` | number | No | Hours late. 0 or more. |\n| `notes` | string | No | Appended to the existing note. It does not wipe the old note. |\n\n**Response `data`:** the booking after checkout. `booking_status` is `CHECKED_OUT`. Each item in `rooms` has `status` `CLEANING`."
           }
         },
         {
@@ -2161,7 +2249,7 @@
                 }
               ]
             },
-            "description": "### PATCH /api/v1/bookings/:id/status\nChanges only the stay status, then updates every room in `room_id` as described in the folder notes.\n\nGuest, dates, and payment are not changed by this API. `CHECKED_IN` fills `actual_check_in` when it is empty. `CHECKED_OUT` fills `actual_check_out` when it is empty.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `booking_status` | string | Yes | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, or `NO_SHOW`. |\n\n**Response `data`:** the booking, including the room status after the change."
+            "description": "### PATCH /api/v1/bookings/:id/status\nChanges only the stay status, then updates every room in `room_id` as described in the folder notes.\n\nGuest, dates, and payment are not changed by this API. `CHECKED_IN` fills `actual_check_in` when it is empty. `CHECKED_OUT` fills `actual_check_out` when it is empty.\n\n`CHECKED_OUT` returns 400 while `due_amount` is above 0. Pay the balance first with **Update booking** or use **Check out** with `paid_amount`. After checkout the rooms are `CLEANING` for 20 minutes and then `AVAILABLE`.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Body keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `booking_status` | string | Yes | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, or `NO_SHOW`. |\n\n**Response `data`:** the booking, including the room status after the change."
           }
         },
         {

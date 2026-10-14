@@ -5,6 +5,7 @@
  * Follows TradeNexa service architecture.
  */
 const bookingModel = require('../models/bookingModel');
+const bookingPaymentModel = require('../models/bookingPaymentModel');
 const roomModel = require('../models/roomModel');
 const hotelModel = require('../models/hotelModel');
 const s3Service = require('./s3Service');
@@ -17,6 +18,8 @@ const {
   ROLE_CODES,
   BOOKING_STATUSES,
   NON_BLOCKING_BOOKING_STATUSES,
+  CLEANING_DURATION_MINUTES,
+  PAYMENT_METHODS,
 } = require('../constants');
 
 // Stays that can still hold the room or its dates. Derived so the list cannot drift
@@ -256,6 +259,7 @@ const syncOneRoomForBookingStatus = async (booking, roomId, status, now) => {
     await roomModel.updateRoom(room.id, {
       status: 'CLEANING',
       cleaning_started_at: now,
+      cleaning_duration_minutes: CLEANING_DURATION_MINUTES,
     });
     return;
   }
@@ -272,6 +276,68 @@ const syncOneRoomForBookingStatus = async (booking, roomId, status, now) => {
   if (releasedStatus) {
     await roomModel.updateRoom(room.id, { status: releasedStatus });
   }
+};
+
+/**
+ * A guest cannot be checked out while any amount is still due.
+ * @param {number} dueAmount
+ */
+const assertNoDueForCheckout = (dueAmount) => {
+  if (Number(dueAmount) > 0) {
+    const message = `Due amount of ${dueAmount} must be paid before checkout.`;
+    throw new AppError(message, HTTP_STATUS.BAD_REQUEST, [{ field: 'paid_amount', message }]);
+  }
+};
+
+/**
+ * Accept a payment method from the client. Blank input means CASH.
+ * @param {*} value
+ * @returns {string}
+ */
+const resolvePaymentMethod = (value) => {
+  if (value === undefined || value === null || String(value).trim() === '') return 'CASH';
+
+  const method = String(value).trim().toUpperCase();
+  if (!PAYMENT_METHODS.includes(method)) {
+    throw new AppError(
+      `payment_method must be one of: ${PAYMENT_METHODS.join(', ')}.`,
+      HTTP_STATUS.BAD_REQUEST,
+      [{ field: 'payment_method', message: `Must be one of: ${PAYMENT_METHODS.join(', ')}.` }]
+    );
+  }
+  return method;
+};
+
+/**
+ * Add a payment history row when the amount paid on a booking changed.
+ * Money taken back (a lower paid_amount) is REFUNDED. Otherwise the row is PAID when the bill
+ * is fully paid after it, and PARTIALLY_PAID while a balance is left.
+ * @param {Object} booking - Needs id and hotel_id
+ * @param {number} amount - Signed change in paid_amount. Zero is ignored.
+ * @param {Object} details
+ * @param {string} details.source - BOOKING, UPDATE, or CHECKOUT
+ * @param {string} details.method - One of PAYMENT_METHODS
+ * @param {string} details.bookingPaymentStatus - Booking payment_status after this change
+ * @param {Object} reqUser
+ * @returns {Promise<void>}
+ */
+const recordPayment = async (booking, amount, { source, method, bookingPaymentStatus }, reqUser) => {
+  const change = Math.round(Number(amount) * 100) / 100;
+  if (!change) return;
+
+  let status = 'PARTIALLY_PAID';
+  if (change < 0) status = 'REFUNDED';
+  else if (bookingPaymentStatus === 'PAID') status = 'PAID';
+
+  await bookingPaymentModel.createPayment({
+    hotel_id: booking.hotel_id,
+    booking_id: booking.id,
+    amount: change,
+    payment_method: method,
+    status,
+    source,
+    received_by: reqUser?.id,
+  });
 };
 
 /**
@@ -550,6 +616,11 @@ const createBooking = async (body, files = [], reqUser = null) => {
     numberOfNights,
   });
 
+  // Front desk create checks the guest in unless booking_status is sent.
+  const bookingStatus = resolveBookingStatus(body.booking_status, { fallback: 'CHECKED_IN' });
+  if (bookingStatus === 'CHECKED_OUT') assertNoDueForCheckout(pricing.due_amount);
+  const paymentMethod = resolvePaymentMethod(body.payment_method);
+
   // Guest photos and signatures arrive only as form-data files.
   const { imageFiles, signatureFiles } = categorizeUploadedFiles(files);
   const uploadedImages = await s3Service.uploadFiles(imageFiles, 'bookings/images');
@@ -573,9 +644,8 @@ const createBooking = async (body, files = [], reqUser = null) => {
     children: Math.max(0, Number(body.children) || 0),
     ...pricing,
     notes: body.notes ? String(body.notes).trim() : '',
-    // Front desk create checks the guest in unless booking_status is sent.
     // payment_status in the pricing fields is still derived only from the amount paid.
-    booking_status: resolveBookingStatus(body.booking_status, { fallback: 'CHECKED_IN' }),
+    booking_status: bookingStatus,
     deleted_at: null,
   };
 
@@ -586,6 +656,12 @@ const createBooking = async (body, files = [], reqUser = null) => {
     imageRecords: uploadedImages,
     signatureRecords: uploadedSignatures,
   });
+
+  await recordPayment(newBooking, pricing.paid_amount, {
+    source: 'BOOKING',
+    method: paymentMethod,
+    bookingPaymentStatus: pricing.payment_status,
+  }, reqUser);
 
   // PENDING leaves every room unchanged. Any other status moves all rooms together.
   if (newBooking.booking_status && newBooking.booking_status !== 'PENDING') {
@@ -669,6 +745,7 @@ const getBookingById = async (id, reqUser = null) => {
  */
 const updateBooking = async (id, body, files = [], reqUser = null) => {
   const existing = await getBookingById(id, reqUser);
+  const paymentMethod = resolvePaymentMethod(body.payment_method);
 
   const hotelId = existing.hotel_id;
   const inDate = body.check_in_date ? new Date(body.check_in_date) : new Date(existing.check_in_date);
@@ -735,6 +812,12 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
     signatureRecords: uploadedSignatures,
   });
 
+  await recordPayment(existing, pricing.paid_amount - existing.paid_amount, {
+    source: 'UPDATE',
+    method: paymentMethod,
+    bookingPaymentStatus: pricing.payment_status,
+  }, reqUser);
+
   // Rooms dropped from the stay are released. Rooms added pick up the current stay status.
   const removedRoomIds = previousRoomIds.filter((id) => !roomIds.includes(id));
   const addedRoomIds = roomIds.filter((id) => !previousRoomIds.includes(id));
@@ -751,6 +834,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
 /**
  * Check a guest out of a booking.
  * body.paid_amount is added to the amount already paid. It does not replace it.
+ * It must equal the due amount exactly: paying less or more is rejected.
  * A late fee is run through the same GST calculation. Scheduled dates and nights stay as booked.
  * The stay becomes CHECKED_OUT and every room on the booking is marked CLEANING.
  * @param {number|string} id
@@ -798,6 +882,20 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
     numberOfNights: existing.number_of_nights,
   });
 
+  const paymentMethod = resolvePaymentMethod(body.payment_method);
+
+  // The payment at checkout must equal the due amount, no less and no more (late fee included).
+  // Send 0 or leave paid_amount out when nothing is due. Nothing is saved until this passes.
+  const dueBeforePayment = Math.max(
+    0,
+    Math.round((pricing.total_amount - Number(existing.paid_amount)) * 100) / 100
+  );
+  const paidNow = Math.round(collectedNow * 100) / 100;
+  if (paidNow !== dueBeforePayment) {
+    const message = `paid_amount must be exactly the due amount of ${dueBeforePayment}. You sent ${paidNow}.`;
+    throw new AppError(message, HTTP_STATUS.BAD_REQUEST, [{ field: 'paid_amount', message }]);
+  }
+
   const now = new Date();
   const updates = {
     ...pricing,
@@ -811,6 +909,11 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
   }
 
   await bookingModel.updateBooking(existing.id, updates);
+  await recordPayment(existing, collectedNow, {
+    source: 'CHECKOUT',
+    method: paymentMethod,
+    bookingPaymentStatus: pricing.payment_status,
+  }, reqUser);
   await syncRoomForBookingStatus(existing, 'CHECKED_OUT', now);
 
   return getBookingById(existing.id, reqUser);
@@ -837,8 +940,31 @@ const updateBookingStatus = async (id, body = {}, reqUser = null) => {
   }
 
   const status = resolveBookingStatus(body.booking_status, { required: true, fallback: null });
+  if (status === 'CHECKED_OUT') assertNoDueForCheckout(existing.due_amount);
+
   await applyBookingStatusEffects(existing, status);
   return getBookingById(existing.id, reqUser);
+};
+
+/**
+ * Payment history of one booking with its current totals.
+ * @param {number|string} id
+ * @param {Object} [reqUser=null]
+ * @returns {Promise<Object>}
+ */
+const getBookingPayments = async (id, reqUser = null) => {
+  const booking = await getBookingById(id, reqUser);
+  const payments = await bookingPaymentModel.findPaymentsByBookingId(booking.id);
+
+  return {
+    booking_id: booking.id,
+    booking_number: booking.booking_number,
+    total_amount: booking.total_amount,
+    paid_amount: booking.paid_amount,
+    due_amount: booking.due_amount,
+    payment_status: booking.payment_status,
+    payments,
+  };
 };
 
 /**
@@ -863,5 +989,6 @@ module.exports = {
   updateBooking,
   checkOutBooking,
   updateBookingStatus,
+  getBookingPayments,
   deleteBooking,
 };
