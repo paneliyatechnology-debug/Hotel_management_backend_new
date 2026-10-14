@@ -255,16 +255,19 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 | `PUT` | `/subscription-plans/:id` | Update a plan | `SUPER_ADMIN` |
 | `DELETE` | `/subscription-plans/:id` | Archive a plan | `SUPER_ADMIN` |
 
-### Room types and rooms (`HOTEL_ADMIN`, `RECEPTIONIST`)
+### Room types and rooms
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` / `POST` | `/room-types` | List / create room types (multipart for images) |
-| `GET` / `PUT` / `DELETE` | `/room-types/:id` | Details / update / delete |
-| `GET` / `POST` | `/rooms` | List (filters: `floor`, `room_type_id`, `status`, `is_active`, `page`, `limit`, `sort_by`, `sort_order`) / create |
-| `GET` / `PUT` | `/rooms/:id` | Details / update |
-| `PATCH` | `/rooms/:id/status` | Change room status |
-| `DELETE` | `/rooms/:id` | Soft delete (only `AVAILABLE` rooms) |
+| Method | Endpoint | Description | Access |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/room-types` | List room types | `HOTEL_ADMIN`, `RECEPTIONIST` |
+| `GET` | `/room-types/:id` | Room type details | `HOTEL_ADMIN`, `RECEPTIONIST` |
+| `POST` | `/room-types` | Create room type (multipart for images) | `HOTEL_ADMIN` |
+| `PUT` / `DELETE` | `/room-types/:id` | Update / delete | `HOTEL_ADMIN` |
+| `GET` | `/rooms` | List (filters: `floor`, `room_type_id`, `status`, `is_active`, `page`, `limit`, `sort_by`, `sort_order`) | `HOTEL_ADMIN`, `RECEPTIONIST` |
+| `GET` | `/rooms/:id` | Room details | `HOTEL_ADMIN`, `RECEPTIONIST` |
+| `POST` | `/rooms` | Create room | `HOTEL_ADMIN` |
+| `PUT` / `DELETE` | `/rooms/:id` | Update / soft delete (only `AVAILABLE` rooms) | `HOTEL_ADMIN` |
+| `PATCH` | `/rooms/:id/status` | Change room status | `HOTEL_ADMIN`, `RECEPTIONIST` |
 
 Room statuses: `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, `BLOCKED`.
 

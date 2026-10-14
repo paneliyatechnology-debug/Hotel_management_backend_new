@@ -1,14 +1,12 @@
 /**
  * Physical Room Router.
  * Mounts endpoints for Physical Rooms:
- * 1. POST /api/v1/rooms – Create a physical room with validation and S3 image uploads.
- * 2. GET /api/v1/rooms – List rooms with pagination, filters, and floor sort (asc or desc).
- * 3. GET /api/v1/rooms/:id – Get a single room by ID.
- * 4. PUT /api/v1/rooms/:id – Update room details.
- * 5. PATCH /api/v1/rooms/:id/status – Update only the room status.
- * 6. DELETE /api/v1/rooms/:id – Soft-delete a room.
- *
- * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
+ * 1. POST /api/v1/rooms – Create a physical room (HOTEL_ADMIN).
+ * 2. GET /api/v1/rooms – List rooms (HOTEL_ADMIN or RECEPTIONIST).
+ * 3. GET /api/v1/rooms/:id – Get a single room (HOTEL_ADMIN or RECEPTIONIST).
+ * 4. PUT /api/v1/rooms/:id – Update room details (HOTEL_ADMIN).
+ * 5. PATCH /api/v1/rooms/:id/status – Update only the room status (HOTEL_ADMIN or RECEPTIONIST).
+ * 6. DELETE /api/v1/rooms/:id – Soft-delete a room (HOTEL_ADMIN).
  */
 const express = require('express');
 const roomController = require('../controllers/roomController');
@@ -27,15 +25,10 @@ const { ROLE_CODES } = require('../constants');
 
 const router = express.Router();
 
-// ==========================================
-// Authentication and role guard
-// ==========================================
-router.use(authenticateUser);
-router.use(requireRole(ROLE_CODES.HOTEL_ADMIN, ROLE_CODES.RECEPTIONIST));
+const hotelStaff = requireRole(ROLE_CODES.HOTEL_ADMIN, ROLE_CODES.RECEPTIONIST);
+const hotelAdminOnly = requireRole(ROLE_CODES.HOTEL_ADMIN);
 
-// ==========================================
-// Physical Room Endpoints
-// ==========================================
+router.use(authenticateUser);
 
 /**
  * POST /api/v1/rooms
@@ -43,6 +36,7 @@ router.use(requireRole(ROLE_CODES.HOTEL_ADMIN, ROLE_CODES.RECEPTIONIST));
  */
 router.post(
   '/',
+  hotelAdminOnly,
   uploadRoomImages,
   createRoomValidator,
   validate,
@@ -55,6 +49,7 @@ router.post(
  */
 router.get(
   '/',
+  hotelStaff,
   getRoomsQueryValidator,
   validate,
   roomController.getRooms
@@ -66,6 +61,7 @@ router.get(
  */
 router.get(
   '/:id',
+  hotelStaff,
   getRoomByIdValidator,
   validate,
   roomController.getRoomById
@@ -77,6 +73,7 @@ router.get(
  */
 router.put(
   '/:id',
+  hotelAdminOnly,
   uploadRoomImages,
   updateRoomValidator,
   validate,
@@ -89,6 +86,7 @@ router.put(
  */
 router.patch(
   '/:id/status',
+  hotelStaff,
   updateRoomStatusValidator,
   validate,
   roomController.updateRoomStatus
@@ -100,6 +98,7 @@ router.patch(
  */
 router.delete(
   '/:id',
+  hotelAdminOnly,
   deleteRoomValidator,
   validate,
   roomController.deleteRoom

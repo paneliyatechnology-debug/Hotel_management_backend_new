@@ -682,7 +682,7 @@ const roomTypeFolder = {
   name: '05 Room categories',
   description: `Room types for one hotel. Names are unique per hotel among categories that are not deleted. Two hotels may use the same name.
 
-${authNote('HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.')}
+Create, update and delete are \`HOTEL_ADMIN\` only. List and get are \`HOTEL_ADMIN\` or \`RECEPTIONIST\`. SUPER_ADMIN is also allowed.
 
 Category names must be unique inside that hotel. Soft-deleted names can be reused.
 
@@ -743,7 +743,7 @@ A category from another hotel returns 403. Missing id returns 404.
         ],
       },
       description: `### POST /api/v1/room-types
-${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+${authNote('HOTEL_ADMIN only.')}
 
 Do not send \`hotel_id\`. The server uses the hotel on the token.
 
@@ -769,7 +769,7 @@ ${idNote('Use **List room categories** to read the new category.')}`,
         ],
       },
       description: `### PUT /api/v1/room-types/:id
-${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+${authNote('HOTEL_ADMIN only.')}
 
 **Path keys**
 | Key | Type | Required | Meaning |
@@ -789,7 +789,7 @@ ${idNote('Use **Get room category** to read the updated category.')}`,
       pathSegments: ['api', 'v1', 'room-types', ':id'],
       variable: [idVar('id', '{{roomTypeId}}', 'Required. Category id to delete.')],
       description: `### DELETE /api/v1/room-types/:id
-${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+${authNote('HOTEL_ADMIN only.')}
 
 Soft-delete. Fails when any physical room still uses this category. Move or delete those rooms first.
 
@@ -807,7 +807,7 @@ ${idNote()}`,
 
 const roomFolder = {
   name: '06 Physical rooms',
-  description: `${authNote('HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.')}
+  description: `Create, update and delete are \`HOTEL_ADMIN\` only. List, get and status change are \`HOTEL_ADMIN\` or \`RECEPTIONIST\`. SUPER_ADMIN is also allowed.
 
 Room number is unique per hotel and floor. Room 101 on floor 1 and room 101 on floor 2 are both allowed. The same number on the same floor is not.
 
@@ -857,7 +857,7 @@ ${envelope}`,
         ],
       },
       description: `### POST /api/v1/rooms
-${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+${authNote('HOTEL_ADMIN only.')}
 
 Do not send \`hotel_id\`. The category must already exist in this hotel.
 
@@ -969,7 +969,7 @@ Another hotel's room returns 403.
         ],
       },
       description: `### PUT /api/v1/rooms/:id
-${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+${authNote('HOTEL_ADMIN only.')}
 
 Send only the keys that change. Disabled form rows are not sent until you enable them.
 
@@ -990,6 +990,8 @@ ${idNote('Use **Get room** to read the updated room.')}`,
         status: 'CLEANING',
       }),
       description: `### PATCH /api/v1/rooms/:id/status
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
 Changes only \`status\`. Price, number, floor, and other fields stay as they are.
 
 Setting \`CLEANING\` starts the cleaning timer. When the room's \`cleaning_duration_minutes\` have passed, the server sets it to \`AVAILABLE\`. Checkout uses 20 minutes.
@@ -1015,6 +1017,8 @@ ${idNote('Use **Get room** to read the room with the new status.')}`,
       pathSegments: ['api', 'v1', 'rooms', ':id'],
       variable: [idVar('id', '{{roomId}}', 'Required. Room id to soft-delete.')],
       description: `### DELETE /api/v1/rooms/:id
+${authNote('HOTEL_ADMIN only.')}
+
 Soft-delete. Only a room with status \`AVAILABLE\` can be deleted. A room that is \`OCCUPIED\`, \`RESERVED\`, \`CLEANING\`, or \`MAINTENANCE\` returns 400. Change its status first, or wait until it is free.
 
 The room leaves the list and its room number can be used again on that floor. Past bookings keep the room: \`rooms\` on those bookings still shows its \`room_number\`, \`floor\`, and \`room_type_name\`.

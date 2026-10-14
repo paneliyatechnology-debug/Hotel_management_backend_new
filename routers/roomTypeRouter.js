@@ -1,13 +1,11 @@
 /**
  * Room Type (Category) Router.
  * Mounts endpoints for Room Categories:
- * 1. GET /api/v1/room-types – Get all active room categories, with optional hotel_id filtering.
- * 2. GET /api/v1/room-types/:id – Get a single room category by ID.
- * 3. POST /api/v1/room-types – Create a category using hotel_id, name, description, and images[].
- * 4. PUT /api/v1/room-types/:id – Update an existing category with proper validation.
- * 5. DELETE /api/v1/room-types/:id – Safely delete a category only if no physical rooms are assigned to it.
- *
- * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
+ * 1. GET /api/v1/room-types – List categories (HOTEL_ADMIN or RECEPTIONIST).
+ * 2. GET /api/v1/room-types/:id – Get one category (HOTEL_ADMIN or RECEPTIONIST).
+ * 3. POST /api/v1/room-types – Create a category (HOTEL_ADMIN).
+ * 4. PUT /api/v1/room-types/:id – Update a category (HOTEL_ADMIN).
+ * 5. DELETE /api/v1/room-types/:id – Delete a category (HOTEL_ADMIN).
  */
 const express = require('express');
 const roomTypeController = require('../controllers/roomTypeController');
@@ -25,22 +23,18 @@ const { ROLE_CODES } = require('../constants');
 
 const router = express.Router();
 
-// ==========================================
-// Authentication and role guard
-// ==========================================
-router.use(authenticateUser);
-router.use(requireRole(ROLE_CODES.HOTEL_ADMIN, ROLE_CODES.RECEPTIONIST));
+const hotelStaff = requireRole(ROLE_CODES.HOTEL_ADMIN, ROLE_CODES.RECEPTIONIST);
+const hotelAdminOnly = requireRole(ROLE_CODES.HOTEL_ADMIN);
 
-// ==========================================
-// Room Category Endpoints
-// ==========================================
+router.use(authenticateUser);
 
 /**
  * GET /api/v1/room-types
- * Get all active room categories, with optional hotel_id filtering
+ * Get all active room categories
  */
 router.get(
   '/',
+  hotelStaff,
   getRoomTypesQueryValidator,
   validate,
   roomTypeController.getAllRoomTypes
@@ -52,6 +46,7 @@ router.get(
  */
 router.get(
   '/:id',
+  hotelStaff,
   getRoomTypeByIdValidator,
   validate,
   roomTypeController.getRoomTypeById
@@ -59,11 +54,11 @@ router.get(
 
 /**
  * POST /api/v1/room-types
- * Create a category using hotel_id, name, description, and images[]
- * Handles multipart/form-data image uploads to S3
+ * Create a category
  */
 router.post(
   '/',
+  hotelAdminOnly,
   uploadRoomImages,
   createRoomTypeValidator,
   validate,
@@ -72,10 +67,11 @@ router.post(
 
 /**
  * PUT /api/v1/room-types/:id
- * Update an existing category with proper validation and optional new S3 images
+ * Update an existing category
  */
 router.put(
   '/:id',
+  hotelAdminOnly,
   uploadRoomImages,
   updateRoomTypeValidator,
   validate,
@@ -84,10 +80,11 @@ router.put(
 
 /**
  * DELETE /api/v1/room-types/:id
- * Safely delete a category only if no physical rooms are assigned to it
+ * Soft-delete a category when no physical rooms use it
  */
 router.delete(
   '/:id',
+  hotelAdminOnly,
   deleteRoomTypeValidator,
   validate,
   roomTypeController.deleteRoomType
