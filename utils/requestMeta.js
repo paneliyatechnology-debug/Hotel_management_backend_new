@@ -61,16 +61,37 @@ const getRequestData = (req) => {
 };
 
 /**
+ * Read one request header. Works for Express (`req.get`) and for the Socket.IO handshake
+ * fake request, which only has a plain `headers` object.
+ * @param {Object} req
+ * @param {string} name
+ * @returns {string|null}
+ */
+const readHeader = (req, name) => {
+  if (!req) return null;
+  if (typeof req.get === 'function') {
+    const value = req.get(name);
+    return value == null ? null : String(value);
+  }
+
+  const headers = req.headers || {};
+  const key = String(name).toLowerCase();
+  const value = headers[key] ?? headers[name];
+  if (value == null) return null;
+  return Array.isArray(value) ? String(value[0]) : String(value);
+};
+
+/**
  * Caller address, browser and the data they sent.
  * `req.ip` follows the proxy headers once Express trust proxy is on.
  * `request_data` is read only when the audit entry is written. That is after multer has parsed a
  * multipart body, which has not happened yet when the user is authenticated.
- * @param {import('express').Request} req
+ * @param {import('express').Request|Object} req
  * @returns {{ ip_address: string|null, user_agent: string|null, request_data: Object|null }}
  */
 const getRequestMeta = (req) => ({
   ip_address: req.ip || req.socket?.remoteAddress || null,
-  user_agent: (req.get('user-agent') || '').slice(0, 255) || null,
+  user_agent: (readHeader(req, 'user-agent') || '').slice(0, 255) || null,
   get request_data() {
     return getRequestData(req);
   },

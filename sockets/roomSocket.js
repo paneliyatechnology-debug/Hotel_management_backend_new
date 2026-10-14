@@ -52,11 +52,25 @@ const authorizeSocket = async (socket, next) => {
   try {
     const token = readAccessToken(socket);
     const requestedHotelId = socket.handshake.auth?.hotel_id ?? socket.handshake.query?.hotel_id;
+    const handshakeHeaders = { ...(socket.handshake.headers || {}) };
+    if (token) {
+      handshakeHeaders.authorization = `Bearer ${token}`;
+    }
+
+    // Shape enough like an Express request for authenticateUser / getRequestMeta.
     const req = {
       cookies: {},
-      headers: token ? { authorization: `Bearer ${token}` } : {},
+      headers: handshakeHeaders,
       query: {},
       body: {},
+      ip: socket.handshake.address || null,
+      socket: { remoteAddress: socket.handshake.address || null },
+      get(name) {
+        const key = String(name).toLowerCase();
+        const value = this.headers[key] ?? this.headers[name];
+        if (value == null) return undefined;
+        return Array.isArray(value) ? value[0] : value;
+      },
     };
 
     if (requestedHotelId !== undefined && requestedHotelId !== null && requestedHotelId !== '') {
