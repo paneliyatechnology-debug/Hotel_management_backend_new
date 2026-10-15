@@ -164,6 +164,24 @@ const createRoom = async (body, files = [], reqUser = null) => {
  * @param {Object} [reqUser=null]
  * @returns {Promise<{ rooms: Object[], total: number, page: number, limit: number, totalPages: number }>}
  */
+/**
+ * Compact hotel GST / tax fields for room list consumers (billing UI).
+ * @param {Object|null} hotel
+ * @returns {Object|null}
+ */
+const formatHotelGstSummary = (hotel) => {
+  if (!hotel) return null;
+  return {
+    id: hotel.id,
+    name: hotel.name,
+    gst_number: hotel.gst_number || '',
+    pan_number: hotel.pan_number || '',
+    gst_enabled: Boolean(hotel.settings?.gst_enabled),
+    tax_percentage: Number(hotel.settings?.tax_percentage) || 18,
+    currency: hotel.settings?.currency || 'INR',
+  };
+};
+
 const getRooms = async (query = {}, reqUser = null) => {
   const filters = {};
 
@@ -186,7 +204,18 @@ const getRooms = async (query = {}, reqUser = null) => {
     sort_order: query.sort_order,
   };
 
-  return roomModel.findRooms(filters, pagination, sorting);
+  const result = await roomModel.findRooms(filters, pagination, sorting);
+
+  const hotelId = filters.hotel_id
+    || (result.rooms[0] ? Number(result.rooms[0].hotel_id) : null);
+  if (hotelId) {
+    const hotel = await hotelModel.findHotelById(hotelId);
+    result.hotel = formatHotelGstSummary(hotel);
+  } else {
+    result.hotel = null;
+  }
+
+  return result;
 };
 
 /**
