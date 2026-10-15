@@ -15,44 +15,33 @@ let queueMode = 'UNDETERMINED'; // 'REDIS' | 'IN_MEMORY' | 'UNDETERMINED'
 // IN-MEMORY RESILIENT ASYNC FALLBACK QUEUE (When Redis is offline)
 // =========================================================================
 const memoryQueue = [];
-let isProcessingMemoryQueue = false;
+const RETRY_STEP_MS = 3000;
 
-const runMemoryQueueWorker = async () => {
-  if (isProcessingMemoryQueue) return;
-  isProcessingMemoryQueue = true;
-
+const processMemoryTask = async (task) => {
+  task.attempts += 1;
   try {
-    const now = Date.now();
-    const readyTasks = memoryQueue.filter((t) => t.nextRunAt <= now);
-
-    for (const task of readyTasks) {
-      const index = memoryQueue.indexOf(task);
-      if (index !== -1) {
-        memoryQueue.splice(index, 1);
-      }
-
-      task.attempts += 1;
-      try {
-        console.log(`[InMemoryQueue] Processing job ${task.id} (Type: ${task.job.type}, To: ${maskEmail(task.job.to)})`);
-        await processEmailJob(task.job);
-        console.log(`[InMemoryQueue] Job ${task.id} completed successfully (Type: ${task.job.type})`);
-      } catch (err) {
-        if (task.attempts < task.maxAttempts) {
-          const delayMs = task.attempts * 5000;
-          task.nextRunAt = Date.now() + delayMs;
-          memoryQueue.push(task);
-          console.warn(`[InMemoryQueue] Job ${task.id} failed (Attempt ${task.attempts}/${task.maxAttempts}). Retrying in ${delayMs / 1000}s... Reason: ${err.message}`);
-        } else {
-          console.error(`[InMemoryQueue] Job ${task.id} PERMANENTLY failed after ${task.attempts} attempts. Reason: ${err.message}`);
-        }
-      }
-    }
-  } finally {
-    isProcessingMemoryQueue = false;
-    if (memoryQueue.length > 0) {
-      setTimeout(runMemoryQueueWorker, 2000);
+    console.log(`[InMemoryQueue] Processing job ${task.id} (Type: ${task.job.type}, To: ${maskEmail(task.job.to)})`);
+    await processEmailJob(task.job);
+    console.log(`[InMemoryQueue] Job ${task.id} completed successfully (Type: ${task.job.type})`);
+  } catch (err) {
+    if (task.attempts < task.maxAttempts) {
+      const delayMs = task.attempts * RETRY_STEP_MS;
+      task.nextRunAt = Date.now() + delayMs;
+      memoryQueue.push(task);
+      setTimeout(runMemoryQueueWorker, delayMs);
+      console.warn(`[InMemoryQueue] Job ${task.id} failed (Attempt ${task.attempts}/${task.maxAttempts}). Retrying in ${delayMs / 1000}s... Reason: ${err.message}`);
+    } else {
+      console.error(`[InMemoryQueue] Job ${task.id} PERMANENTLY failed after ${task.attempts} attempts. Reason: ${err.message}`);
     }
   }
+};
+
+// Ready jobs are taken off the queue first and sent in parallel, so one slow email never delays the others.
+const runMemoryQueueWorker = async () => {
+  const now = Date.now();
+  const readyTasks = memoryQueue.filter((t) => t.nextRunAt <= now);
+  readyTasks.forEach((task) => memoryQueue.splice(memoryQueue.indexOf(task), 1));
+  await Promise.all(readyTasks.map(processMemoryTask));
 };
 
 const enqueueInMemory = (jobData) => {
@@ -122,7 +111,7 @@ const initializeEmailQueue = async () => {
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 5000,
+            delay: 3000,
           },
           removeOnComplete: { count: 1000 },
           removeOnFail: { count: 5000 },
@@ -134,7 +123,7 @@ const initializeEmailQueue = async () => {
         async (job) => {
           await processEmailJob(job.data);
         },
-        { connection }
+        { connection, concurrency: 5 }
       );
 
       bullWorker.on('completed', (job) => {

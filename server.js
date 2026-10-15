@@ -10,6 +10,7 @@ const db = require('./database/knex');
 const { attachRoomSocket, closeRoomSocket } = require('./sockets/roomSocket');
 const { startCronJobs } = require('./routers/cronRouter');
 const { closePdfBrowser } = require('./services/bookingPdfService');
+const { initializeEmailQueue } = require('./queues/emailQueue');
 
 const PORT = process.env.PORT || 5001;
 const APP_NAME = process.env.APP_NAME || 'Hotel Management Backend';
@@ -22,6 +23,8 @@ const start = async () => {
     const server = http.createServer(app);
     attachRoomSocket(server, { isOriginAllowed: app.isOriginAllowed });
     startCronJobs();
+    // Connect the email queue at startup so the first email is not delayed by the Redis check.
+    initializeEmailQueue().catch((err) => console.warn('[Server] Email queue init failed:', err.message));
 
     server.listen(PORT, '0.0.0.0', () => {
       console.log('----------------------------------------------------');

@@ -3,6 +3,7 @@
  * Processes transactional email jobs dispatched through BullMQ or the in-memory fallback queue.
  */
 const {
+  sendPasswordResetLinkEmail,
   sendHotelRegisteredEmail,
   sendStaffUserCreatedEmail,
   maskEmail,
@@ -31,6 +32,9 @@ const processEmailJob = async (job) => {
         ...data,
         email: to,
       });
+
+    case 'PASSWORD_RESET':
+      return await sendPasswordResetLinkEmail(to, data.userName, data.resetUrl, data.expiryMinutes);
 
     default:
       console.warn(`[EmailWorker] Unknown email job type: ${type}`);

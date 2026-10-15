@@ -88,7 +88,8 @@ All variables are documented inline in [`.env.example`](.env.example). Summary:
 | `RESET_PASSWORD_URL` | No | `FRONTEND_URL` | Overrides the password reset link base |
 | `ADMIN_URL`, `WEB_URL` | No | - | Email link bases and CORS origins |
 | `ALLOWED_ORIGINS` | No | - | Extra CORS origins, comma separated |
-| `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `FROM_NAME` | No | - | Email delivery. Without a key, emails are only logged. |
+| `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `FROM_NAME` | No | - | Email delivery. Without a key, emails are only logged. The sender must be on your own authenticated domain. |
+| `REPLY_TO_EMAIL` | No | `SUPPORT_EMAIL` | Reply-To address on every email |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | No | `127.0.0.1`, `6379` | BullMQ email queue |
 | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` | For uploads | - | Image storage |
 
@@ -491,6 +492,7 @@ Code style: 2-space indentation, single quotes, semicolons, `const` over `let`, 
 | Socket.IO client times out | Use `http://127.0.0.1:<port>` instead of `localhost`, pass the token in `auth.token`, and use client v4 |
 | Reset link points to the live frontend | Run the local frontend on `localhost` (its origin is trusted) or set `RESET_PASSWORD_URL` |
 | Emails are not delivered | Set `BREVO_API_KEY` and a verified `BREVO_SENDER_EMAIL`. Without a key emails are only logged |
+| Emails go to spam or arrive late | Do not use a gmail/yahoo/outlook address as `BREVO_SENDER_EMAIL`. Use an address on your own domain and add the SPF, DKIM and DMARC records Brevo shows under Senders, Domains & Dedicated IPs. The server logs a warning at the first send when the sender is a free-mail address |
 | Redis connection warnings | Redis is optional. The in-memory queue is used when it is offline |
 | Image upload fails | Check the `S3_*` variables and bucket permissions. Files must be images up to 10 MB each |
 | PDF generation fails on a server | Install Chromium system libraries required by Puppeteer |

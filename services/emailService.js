@@ -20,6 +20,36 @@ const maskEmail = (email) => {
   return `${local[0]}***${local[local.length - 1]}@${domain}`;
 };
 
+// Free mail providers publish a DMARC policy that rejects or spam-folders mail they did not send.
+// A Brevo email that claims to come from one of them lands in spam.
+const FREE_MAIL_DOMAINS = new Set([
+  'gmail.com',
+  'googlemail.com',
+  'yahoo.com',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'icloud.com',
+  'aol.com',
+]);
+const SEND_TIMEOUT_MS = 15000;
+let senderWarningShown = false;
+
+/**
+ * Warn once when the sender address belongs to a free mail provider.
+ * @param {string} senderEmail
+ */
+const warnIfSenderCannotBeAuthenticated = (senderEmail) => {
+  if (senderWarningShown) return;
+  const domain = (senderEmail.split('@')[1] || '').toLowerCase();
+  if (!FREE_MAIL_DOMAINS.has(domain)) return;
+  senderWarningShown = true;
+  console.warn(
+    `[EmailService] BREVO_SENDER_EMAIL uses a free mail domain (${domain}). It cannot pass SPF/DKIM/DMARC, so mail goes to spam and is delayed. ` +
+      'Use an address on your own domain and authenticate that domain in Brevo (Senders, Domains & Dedicated IPs).'
+  );
+};
+
 /**
  * Core Email Dispatcher via Brevo REST API v3 (HTTPS port 443)
  * @param {Object} options - { to, subject, html, text, toName }
@@ -40,6 +70,9 @@ const sendEmail = async ({ to, subject, html, text, toName }) => {
     process.env.FROM_EMAIL ||
     'no-reply@myownpms.com'
   ).trim();
+  warnIfSenderCannotBeAuthenticated(senderEmail);
+
+  const replyTo = (process.env.REPLY_TO_EMAIL || process.env.SUPPORT_EMAIL || '').trim();
 
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
@@ -48,11 +81,15 @@ const sendEmail = async ({ to, subject, html, text, toName }) => {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
+    // Fail fast instead of holding the queue on a stalled connection. The queue retries the job.
+    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     body: JSON.stringify({
       sender: {
         name: senderName,
         email: senderEmail,
       },
+      replyTo: replyTo ? { email: replyTo, name: senderName } : undefined,
+      tags: ['transactional'],
       to: [
         {
           email: to.trim(),
@@ -65,7 +102,7 @@ const sendEmail = async ({ to, subject, html, text, toName }) => {
     }),
   });
 
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     const errorMsg = data.message || JSON.stringify(data);

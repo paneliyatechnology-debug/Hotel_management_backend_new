@@ -12,9 +12,7 @@ const {
   setAuthCookies,
   clearAuthCookies,
 } = require('../utils/jwt');
-const {
-  sendPasswordResetLinkEmail,
-} = require('./emailService');
+const { queueEmail } = require('../queues/emailQueue');
 const auditService = require('./auditService');
 const { assertHotelActive } = require('../utils/hotelScope');
 const { AppError } = require('../utils/response');
@@ -333,8 +331,12 @@ const forgotPassword = async (email, requestOrigin) => {
     ? `${frontendBase}?token=${token}`
     : `${frontendBase.replace(/\/+$/, '')}/reset-password?token=${token}`;
 
-  // Dispatch professional HTML email with Reset Password button
-  await sendPasswordResetLinkEmail(user.email, user.name, resetUrl, expiryMinutes);
+  // Queue the email so the request returns at once. The queue retries a failed send.
+  await queueEmail('PASSWORD_RESET', user.email, {
+    userName: user.name,
+    resetUrl,
+    expiryMinutes,
+  });
 
   return {
     email: user.email,
