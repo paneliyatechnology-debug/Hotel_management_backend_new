@@ -199,6 +199,26 @@ const findHotelAccessState = (id) =>
     .first();
 
 /**
+ * Short hotel identity returned with login and the profile: id, name, GST and PAN.
+ * @param {number|string} id - Hotel id
+ * @returns {Promise<{ id: number, name: string, gst_number: string, pan_number: string }|null>}
+ */
+const findHotelSummary = async (id) => {
+  const row = await db('hotels')
+    .where({ id })
+    .whereNull('deleted_at')
+    .select('id', 'name', 'gst_number', 'pan_number')
+    .first();
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    gst_number: row.gst_number || '',
+    pan_number: row.pan_number || '',
+  };
+};
+
+/**
  * The hotel's subscription plan and its limits, used to decide whether it may add rooms.
  * An archived plan is still returned: hotels already on it keep its limits.
  * @param {number|string} id - Hotel id
@@ -388,6 +408,7 @@ module.exports = {
   findHotelById,
   findHotelAccessState,
   findHotelSubscription,
+  findHotelSummary,
   findHotels,
   findHotelBySlug,
   slugExists,

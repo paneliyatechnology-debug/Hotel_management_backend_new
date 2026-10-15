@@ -299,6 +299,11 @@ After 15 failed attempts the account is locked for 1 minute.
 | \`user.hotel_id\` | number or null | Hotel this user belongs to. Null for super admin. |
 | \`user.is_active\` | boolean | \`false\` means the account cannot sign in. |
 | \`user.is_disabled\` | boolean | \`true\` means the account cannot sign in and cannot call any protected API. |
+| \`hotel\` | object or null | The user's hotel. Null for super admin. |
+| \`hotel.id\` | number | Hotel id. |
+| \`hotel.name\` | string | Hotel name. |
+| \`hotel.gst_number\` | string | Hotel GST number. Empty string when not set. |
+| \`hotel.pan_number\` | string | Hotel PAN number. Empty string when not set. |
 
 The password is never returned.`,
     }),
@@ -423,7 +428,8 @@ No query keys. No body. Use this after login to know the role and hotel before s
 | \`must_change_password\` | boolean | \`true\` when the account was created with a temporary password. |
 | \`last_login_at\` | string or null | Last successful login. |
 | \`created_at\` | string | Account created time. |
-| \`updated_at\` | string | Account updated time. |`,
+| \`updated_at\` | string | Account updated time. |
+| \`hotel\` | object or null | The user's hotel: \`id\`, \`name\`, \`gst_number\`, \`pan_number\` (empty strings when not set). Null for super admin. |`,
     }),
   ],
 };

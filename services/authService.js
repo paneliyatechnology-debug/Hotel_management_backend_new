@@ -4,6 +4,7 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const userModel = require('../models/userModel');
+const hotelModel = require('../models/hotelModel');
 const tokenModel = require('../models/tokenModel');
 const {
   generateAccessToken,
@@ -129,6 +130,9 @@ const verifyAndLogin = async (user, password, res, requestMeta) => {
   const refreshToken = generateRefreshToken(user.id, user.hotel_id);
   setAuthCookies(res, accessToken, refreshToken);
 
+  // Super admin has no hotel
+  const hotel = user.hotel_id ? await hotelModel.findHotelSummary(user.hotel_id) : null;
+
   return {
     access_token: accessToken,
     refresh_token: refreshToken,
@@ -142,6 +146,7 @@ const verifyAndLogin = async (user, password, res, requestMeta) => {
       is_active: Boolean(user.is_active),
       is_disabled: Boolean(user.is_disabled),
     },
+    hotel,
   };
 };
 
@@ -431,6 +436,9 @@ const getProfile = async (userId) => {
     throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
   }
 
+  // Super admin has no hotel
+  const hotel = user.hotel_id ? await hotelModel.findHotelSummary(user.hotel_id) : null;
+
   return {
     id: user.id,
     name: user.name,
@@ -444,6 +452,7 @@ const getProfile = async (userId) => {
     last_login_at: user.last_login_at,
     created_at: user.created_at,
     updated_at: user.updated_at,
+    hotel,
   };
 };
 
