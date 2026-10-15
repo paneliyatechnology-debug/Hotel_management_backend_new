@@ -1283,7 +1283,7 @@ Builds the folio from this booking, including the hotel's bank details (only whe
       description: `### GET /api/v1/bookings/:id/bill
 ${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
 
-Builds a professional guest **tax invoice / bill slip** for this booking only (hotel letterhead, guest and stay details). The table has one row per room: Sr No, Room, Room Category, Floor, Nights, Room Price (per night) and Amount (price x nights). Under it: Total, Discount, Taxable Amount, CGST, SGST, Extra Charges, Late Checkout Charges, Grand Total, Amount Paid and Balance Due, then Payment Received (net amount paid per method, total paid, balance due), the hotel's bank details (only when the hotel has added them), the bill amount in words and the signature. It does not include the full folio extras such as ID proofs or the payment ledger. The file is saved under uploads/pdfs and removed every 3 hours.
+Builds a professional guest **tax invoice / bill slip** for this booking only (hotel letterhead, guest and stay details). The table has one row per room: Sr No, Room, Room Category, Floor, Nights, Room Price (per night) and Amount (price x nights). Under it: Total, Discount, Taxable Amount, CGST, SGST, Extra Charges, Late Checkout Charges, Grand Total, Amount Paid and Balance Due, then Payment Received (net amount paid per method, total paid, balance due), the hotel's bank details (only when the hotel has added them), the bill amount in words and an empty Authorised Signatory space to sign by hand (no signature image is printed). It does not include the full folio extras such as ID proofs or the payment ledger. The file is saved under uploads/pdfs and removed every 3 hours.
 
 **Path keys**
 | Key | Type | Required | Meaning |

@@ -333,10 +333,17 @@ const toDataUri = async (url) => {
   }
 };
 
+/**
+ * Replace {{KEY}} placeholders. Inside a <style> block a key is written as a CSS comment,
+ * like /*{{KEY}}*\/, so the template stays valid CSS for editors. The whole comment is replaced.
+ * @param {string} template
+ * @param {Object<string, string>} values
+ * @returns {string}
+ */
 const fillTemplate = (template, values) => {
   let html = template;
   for (const [key, value] of Object.entries(values)) {
-    html = html.split(`{{${key}}}`).join(value ?? '');
+    html = html.split(`/*{{${key}}}*/`).join(value ?? '').split(`{{${key}}}`).join(value ?? '');
   }
   return html;
 };
@@ -610,12 +617,6 @@ const buildBillHtml = async (booking, hotel, payments) => {
     pan ? `PAN: ${escapeHtml(pan)}` : '',
   ].filter(Boolean).join('<span class="sep">|</span>');
 
-  const signatureUrls = (Array.isArray(booking.signatures) ? booking.signatures : []).filter(Boolean);
-  const signatureSources = await Promise.all(signatureUrls.map(toDataUri));
-  const signature = signatureSources.filter(Boolean).map((src) => (
-    `<img src="${src}" alt="Authorised signature" />`
-  )).join('');
-
   const notes = String(booking.notes || '').trim();
   const invoiceNo = String(booking.booking_number || booking.id);
   const roomRows = await buildRoomBillRows(booking, rooms);
@@ -646,7 +647,6 @@ const buildBillHtml = async (booking, hotel, payments) => {
     BANK_BLOCK: buildBillBankBlock(hotel),
     AMOUNT_IN_WORDS: escapeHtml(amountInWords(booking.total_amount)),
     NOTES: escapeHtml(notes || '—'),
-    SIGNATURE: signature,
     YEAR: String(new Date().getFullYear()),
   });
 };

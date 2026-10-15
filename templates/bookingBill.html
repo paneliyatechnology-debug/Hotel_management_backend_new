@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Bill Invoice {{INVOICE_NO}}</title>
   <style>
-    {{FONT_FACE}}
+    /*{{FONT_FACE}}*/
 
     :root {
       --ink: #000000;
@@ -169,7 +169,7 @@
       border-bottom: none;
     }
 
-    /* Terms + signature */
+    /* Terms + space for the authorised signatory to sign by hand */
     .closing {
       display: grid;
       grid-template-columns: 1.55fr 1fr;
@@ -187,7 +187,6 @@
       min-height: 88px;
     }
     .sign .for { font-size: 9px; font-weight: 500; color: var(--ink); }
-    .sign img { max-height: 38px; max-width: 150px; object-fit: contain; display: block; margin: 4px 0 4px auto; }
     .sign .cap { font-size: 8px; color: var(--muted); border-top: var(--bw) solid #000; padding-top: 4px; margin-top: 4px; }
 
     .footer {
@@ -280,10 +279,7 @@
       </div>
       <div class="sign">
         <div class="for">For, {{HOTEL_NAME}}</div>
-        <div>
-          {{SIGNATURE}}
-          <div class="cap">Authorised Signatory</div>
-        </div>
+        <div class="cap">Authorised Signatory</div>
       </div>
     </div>
 
