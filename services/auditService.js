@@ -15,7 +15,7 @@ const {
 } = require('../constants');
 
 // Never written to the audit trail, even when they are part of an update.
-const SENSITIVE_FIELDS = ['password'];
+const SENSITIVE_FIELDS = ['password', 'bank_account_number'];
 
 // Failed requests: first path segment (after /api/v1) to the record type it works on.
 const AUDIT_RESOURCES = {

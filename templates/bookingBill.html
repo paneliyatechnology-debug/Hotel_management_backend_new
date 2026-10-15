@@ -138,6 +138,8 @@
       color: var(--muted);
       margin-bottom: 5px;
     }
+    .block.bank { border-top: var(--bw) solid #000; }
+    .block.bank table.kv .k { width: 70px; }
     table.paid { border-collapse: collapse; width: 80%; }
     table.paid td { padding: 2.5px 0; font-size: 9px; color: var(--ink); }
     table.paid td.m { width: 50%; }
@@ -259,6 +261,7 @@
             {{PAYMENT_METHOD_ROWS}}
           </table>
         </div>
+        {{BANK_BLOCK}}
         <div class="words-row"><b>Bill amount</b>{{AMOUNT_IN_WORDS}}</div>
         <div class="note-row"><b>Note</b>{{NOTES}}</div>
       </div>

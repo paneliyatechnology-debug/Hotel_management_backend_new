@@ -264,6 +264,58 @@ const buildPaidMethods = (payments) => {
 };
 
 /**
+ * Bank details the hotel has filled in, as [label, value] pairs.
+ * Empty when the hotel has not added any, so the PDFs can leave the section out.
+ * @param {Object} hotel
+ * @returns {Array<[string, string]>}
+ */
+const getBankDetailRows = (hotel) => [
+  ['Bank', hotel?.bank_name],
+  ['A/c holder', hotel?.bank_account_holder],
+  ['A/c number', hotel?.bank_account_number],
+  ['IFSC', hotel?.bank_ifsc_code],
+  ['Branch', hotel?.bank_branch],
+].map(([label, value]) => [label, String(value || '').trim()]).filter(([, value]) => value);
+
+/**
+ * Folio card listing the hotel's bank details. Empty when none are set.
+ * @param {Object} hotel
+ * @returns {string}
+ */
+const buildFolioBankSection = (hotel) => {
+  const rows = getBankDetailRows(hotel);
+  if (!rows.length) return '';
+  const body = rows
+    .map(([label, value]) => `<tr><td class="k">${label}</td><td class="v">${escapeHtml(value)}</td></tr>`)
+    .join('');
+  return `
+    <section class="card">
+      <div class="card-head"><div class="card-title">Bank details</div></div>
+      <div class="card-body"><table class="rows">${body}</table></div>
+    </section>`;
+};
+
+/**
+ * Bill block listing the hotel's bank details. Empty when none are set.
+ * @param {Object} hotel
+ * @returns {string}
+ */
+const buildBillBankBlock = (hotel) => {
+  const rows = getBankDetailRows(hotel);
+  if (!rows.length) return '';
+  const body = rows
+    .map(([label, value]) => `
+          <tr><td class="k">${label}</td><td class="s">:</td><td>${escapeHtml(value)}</td></tr>`)
+    .join('');
+  return `
+        <div class="block bank">
+          <div class="block-title">Bank details</div>
+          <table class="kv">${body}
+          </table>
+        </div>`;
+};
+
+/**
  * Embed a remote file so the PDF does not depend on the browser loading it later.
  * @param {string} url
  * @returns {Promise<string>}
@@ -382,6 +434,7 @@ const buildHtml = async (booking, hotel, payments) => {
     TOTAL_AMOUNT: money(booking.total_amount),
     PAID_AMOUNT: money(booking.paid_amount),
     PAID_METHODS: buildPaidMethods(payments),
+    BANK_SECTION: buildFolioBankSection(hotel),
     DUE_AMOUNT: money(booking.due_amount),
     DUE_CLASS: Number(booking.due_amount) > 0 ? 'open' : 'clear',
     PAYMENT_STATUS: escapeHtml(humanize(booking.payment_status)),
@@ -590,6 +643,7 @@ const buildBillHtml = async (booking, hotel, payments) => {
     LINE_ITEMS: buildBillLineItems(roomRows),
     SUMMARY_ROWS: buildBillSummaryRows(booking),
     PAYMENT_METHOD_ROWS: buildBillPaymentMethodRows(payments, booking),
+    BANK_BLOCK: buildBillBankBlock(hotel),
     AMOUNT_IN_WORDS: escapeHtml(amountInWords(booking.total_amount)),
     NOTES: escapeHtml(notes || '—'),
     SIGNATURE: signature,

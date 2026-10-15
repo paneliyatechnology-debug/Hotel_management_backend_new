@@ -61,19 +61,16 @@ const fileCount = (files, kind) => {
 /**
  * Guest photos and the signature are form-data files. A URL does not count.
  * @param {'image'|'signature'} kind
- * @param {number} [minimum=1]
  * @returns {import('express-validator').ValidationChain}
  */
-const requireMedia = (kind, minimum = 1) => {
+const requireMedia = (kind) => {
   const field = kind === 'signature' ? 'signatures' : 'images';
   const message = kind === 'signature'
     ? 'At least one signature is required.'
-    : (minimum === 1
-      ? 'At least one image is required.'
-      : `At least ${minimum} images are required.`);
+    : 'At least one image is required.';
 
   return body(field).custom((_value, { req }) => {
-    if (fileCount(req.files, kind) < minimum) {
+    if (fileCount(req.files, kind) < 1) {
       throw new Error(message);
     }
     return true;
@@ -181,7 +178,7 @@ const createBookingValidator = [
     .isIn(BOOKING_STATUSES)
     .withMessage(`booking_status must be one of: ${BOOKING_STATUSES.join(', ')}.`),
 
-  requireMedia('image', 2),
+  requireMedia('image'),
   requireMedia('signature'),
 ];
 

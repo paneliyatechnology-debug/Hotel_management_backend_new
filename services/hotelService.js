@@ -25,6 +25,26 @@ const { generateSecureTempPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
 
+// Bank details printed on bills and folios. Every one is optional.
+const BANK_FIELDS = [
+  'bank_name',
+  'bank_account_holder',
+  'bank_account_number',
+  'bank_ifsc_code',
+  'bank_branch',
+];
+
+/**
+ * Trim a bank detail. The IFSC code is stored uppercase.
+ * @param {string} field - One of BANK_FIELDS
+ * @param {*} value
+ * @returns {string}
+ */
+const cleanBankValue = (field, value) => {
+  const text = String(value ?? '').trim();
+  return field === 'bank_ifsc_code' ? text.toUpperCase() : text;
+};
+
 /**
  * Generate a clean, URL-safe slug from hotel name with collision handling.
  * @param {string} name - Hotel name
@@ -277,6 +297,7 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
       pincode: String(pincode).trim(),
       gst_number: gstNumber ? gstNumber.trim().toUpperCase() : '',
       pan_number: panNumber ? panNumber.trim().toUpperCase() : '',
+      ...Object.fromEntries(BANK_FIELDS.map((field) => [field, cleanBankValue(field, payload[field])])),
       total_rooms: totalRooms ? Number(totalRooms) : 0,
       hotel_type: hotelType ? hotelType.trim() : 'Boutique Hotel',
       website: website ? website.trim() : '',
@@ -492,6 +513,11 @@ const updateHotel = async (id, payload, files = [], reqUser) => {
   if (payload.pan_number !== undefined) {
     updates.pan_number = String(payload.pan_number ?? '').trim().toUpperCase();
   }
+  BANK_FIELDS.forEach((field) => {
+    if (payload[field] !== undefined) {
+      updates[field] = cleanBankValue(field, payload[field]);
+    }
+  });
   if (payload.total_rooms !== undefined) {
     updates.total_rooms = Number(payload.total_rooms) || 0;
   }

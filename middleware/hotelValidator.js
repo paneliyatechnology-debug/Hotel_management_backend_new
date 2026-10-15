@@ -17,6 +17,10 @@ const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i
 // PAN Regex Pattern (10 characters)
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i;
 
+// Bank account number (9 to 18 digits) and IFSC code (4 letters, a zero, 6 letters or digits)
+const BANK_ACCOUNT_REGEX = /^\d{9,18}$/;
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
+
 // Pincode Regex Pattern (6 digits)
 const PINCODE_REGEX = /^\d{6}$/;
 
@@ -54,6 +58,48 @@ const panNumberRule = () =>
       }
       return true;
     });
+
+// ==========================================
+// Optional bank details printed on bills and folios.
+// An empty value is allowed, so a field can be cleared on update.
+// ==========================================
+
+const bankTextRule = (field, label, max) =>
+  body(field)
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max })
+    .withMessage(`${label} cannot exceed ${max} characters.`);
+
+const bankAccountNumberRule = () =>
+  body('bank_account_number')
+    .optional({ checkFalsy: true })
+    .trim()
+    .custom((val) => {
+      if (val && !BANK_ACCOUNT_REGEX.test(val)) {
+        throw new Error('Bank account number must be 9 to 18 digits.');
+      }
+      return true;
+    });
+
+const bankIfscRule = () =>
+  body('bank_ifsc_code')
+    .optional({ checkFalsy: true })
+    .trim()
+    .custom((val) => {
+      if (val && !IFSC_REGEX.test(val)) {
+        throw new Error('Please provide a valid 11-character IFSC code (e.g. HDFC0001234).');
+      }
+      return true;
+    });
+
+const bankDetailRules = () => [
+  bankTextRule('bank_name', 'Bank name', 150),
+  bankTextRule('bank_account_holder', 'Account holder name', 150),
+  bankAccountNumberRule(),
+  bankIfscRule(),
+  bankTextRule('bank_branch', 'Bank branch', 150),
+];
 
 const totalRoomsRule = () =>
   body('total_rooms')
@@ -155,6 +201,7 @@ const registerHotelValidator = [
   // Optional: Tax & Registration Details
   gstNumberRule(),
   panNumberRule(),
+  ...bankDetailRules(),
   totalRoomsRule(),
 
   body('hotel_type')
@@ -271,6 +318,7 @@ const updateHotelValidator = [
   withPincodeFormat(body('pincode').optional().trim()),
   gstNumberRule(),
   panNumberRule(),
+  ...bankDetailRules(),
   totalRoomsRule(),
 
   body('hotel_type')

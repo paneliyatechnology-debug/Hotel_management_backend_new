@@ -527,6 +527,36 @@
                   "description": "Optional. 10-character PAN. Empty is allowed. Stored uppercase."
                 },
                 {
+                  "key": "bank_name",
+                  "value": "HDFC Bank",
+                  "type": "text",
+                  "description": "Optional. Bank name printed on bills and folios. Max 150 characters."
+                },
+                {
+                  "key": "bank_account_holder",
+                  "value": "Seaside Residency",
+                  "type": "text",
+                  "description": "Optional. Account holder name. Max 150 characters."
+                },
+                {
+                  "key": "bank_account_number",
+                  "value": "123456789012",
+                  "type": "text",
+                  "description": "Optional. 9 to 18 digits."
+                },
+                {
+                  "key": "bank_ifsc_code",
+                  "value": "HDFC0001234",
+                  "type": "text",
+                  "description": "Optional. 11-character IFSC code. Stored uppercase."
+                },
+                {
+                  "key": "bank_branch",
+                  "value": "Marine Drive, Mumbai",
+                  "type": "text",
+                  "description": "Optional. Branch name. Max 150 characters."
+                },
+                {
                   "key": "total_rooms",
                   "value": "24",
                   "type": "text",
@@ -598,7 +628,7 @@
                 "register"
               ]
             },
-            "description": "### POST /api/v1/hotels/register\nPublic. Same route: `POST /api/v1/hotel/register`.\n\nCreates the property as `ACTIVE`, creates a `HOTEL_ADMIN`, emails a temporary password and a 48-hour setup link, and returns an access token. The frontend does not choose the password. The server generates one.\n\nA duplicate `owner_email` returns 409.\n\n**Body keys** are on the form-data rows. Each row has its own description. Do not send `password`. It is not used.\n\nTrial, slug, check-in time (`14:00`), check-out time (`12:00`), timezone `Asia/Kolkata`, currency `INR`, and tax 18 are set by the server.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `hotel` | object | Saved hotel. See hotel object below. |\n| `admin.id` | number | New hotel admin user id. |\n| `admin.name` | string | Owner name. |\n| `admin.email` | string | Login email. |\n| `admin.role` | string | Always `HOTEL_ADMIN`. |\n| `admin.is_active` | boolean | Active flag. |\n| `admin.hotel_id` | number | New hotel id. |\n| `trial.start_date` | string | Trial start. |\n| `trial.end_date` | string | Trial end. |\n| `trial.duration` | number | Length from system settings. Default 30. |\n| `trial.unit` | string | `days` or `hours`. |\n| `auth.token_type` | string | `Bearer`. |\n| `auth.access_token` | string | Access token for the new admin. Saved into `{{accessToken}}`. |\n| `auth.expires_in` | string | Access token lifetime, usually `1h`. |\n\n**Hotel object keys**\n| Key | Meaning |\n| --- | --- |\n| `id`, `name`, `slug` | Id, display name, URL slug. |\n| `owner_id` | Hotel admin user id. |\n| `address`, `city`, `state`, `country`, `pincode` | Location. |\n| `gst_number`, `pan_number` | Tax ids. Empty string when omitted. |\n| `total_rooms`, `hotel_type`, `website`, `logo` | Profile. `logo` is a full URL. |\n| `is_active` | `true` on registration. A super admin can switch a hotel off. |\n| `subscription_plan_id`, `subscription_plan_active` | Plan link and whether it is active. |\n| `subscription_plan_start_date`, `subscription_plan_end_date` | Plan window. |\n| `subscription.plan_id`, `subscription.active`, `subscription.start_date`, `subscription.end_date`, `subscription.auto_renew` | Same subscription data, grouped. `auto_renew` is false at registration. |\n| `settings.check_in_time`, `settings.check_out_time` | Default `14:00` and `12:00`. |\n| `settings.timezone`, `settings.currency`, `settings.tax_percentage` | `Asia/Kolkata`, `INR`, `18`. |\n| `settings.gst_enabled` | True when a GST number was sent. |\n| `settings.upi_id` | UPI id, or empty. |\n| `settings.late_checkout_grace_minutes` | Default 10. |\n| `settings.amenities` | Default string array. |\n| `settings.policies` | Default string array. |\n| `owner` | Present when the owner join is loaded: `id`, `name`, `email`. |\n| `created_at`, `updated_at`, `deleted_at` | Timestamps. `deleted_at` is null. |"
+            "description": "### POST /api/v1/hotels/register\nPublic. Same route: `POST /api/v1/hotel/register`.\n\nCreates the property as `ACTIVE`, creates a `HOTEL_ADMIN`, emails a temporary password and a 48-hour setup link, and returns an access token. The frontend does not choose the password. The server generates one.\n\nA duplicate `owner_email` returns 409.\n\n**Body keys** are on the form-data rows. Each row has its own description. Do not send `password`. It is not used.\n\nTrial, slug, check-in time (`14:00`), check-out time (`12:00`), timezone `Asia/Kolkata`, currency `INR`, and tax 18 are set by the server.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `hotel` | object | Saved hotel. See hotel object below. |\n| `admin.id` | number | New hotel admin user id. |\n| `admin.name` | string | Owner name. |\n| `admin.email` | string | Login email. |\n| `admin.role` | string | Always `HOTEL_ADMIN`. |\n| `admin.is_active` | boolean | Active flag. |\n| `admin.hotel_id` | number | New hotel id. |\n| `trial.start_date` | string | Trial start. |\n| `trial.end_date` | string | Trial end. |\n| `trial.duration` | number | Length from system settings. Default 30. |\n| `trial.unit` | string | `days` or `hours`. |\n| `auth.token_type` | string | `Bearer`. |\n| `auth.access_token` | string | Access token for the new admin. Saved into `{{accessToken}}`. |\n| `auth.expires_in` | string | Access token lifetime, usually `1h`. |\n\n**Hotel object keys**\n| Key | Meaning |\n| --- | --- |\n| `id`, `name`, `slug` | Id, display name, URL slug. |\n| `owner_id` | Hotel admin user id. |\n| `address`, `city`, `state`, `country`, `pincode` | Location. |\n| `gst_number`, `pan_number` | Tax ids. Empty string when omitted. |\n| `bank_name`, `bank_account_holder`, `bank_account_number`, `bank_ifsc_code`, `bank_branch` | Bank details printed on the booking bill and folio PDFs. Empty string when not set. |\n| `total_rooms`, `hotel_type`, `website`, `logo` | Profile. `logo` is a full URL. |\n| `is_active` | `true` on registration. A super admin can switch a hotel off. |\n| `subscription_plan_id`, `subscription_plan_active` | Plan link and whether it is active. |\n| `subscription_plan_start_date`, `subscription_plan_end_date` | Plan window. |\n| `subscription.plan_id`, `subscription.active`, `subscription.start_date`, `subscription.end_date`, `subscription.auto_renew` | Same subscription data, grouped. `auto_renew` is false at registration. |\n| `settings.check_in_time`, `settings.check_out_time` | Default `14:00` and `12:00`. |\n| `settings.timezone`, `settings.currency`, `settings.tax_percentage` | `Asia/Kolkata`, `INR`, `18`. |\n| `settings.gst_enabled` | True when a GST number was sent. |\n| `settings.upi_id` | UPI id, or empty. |\n| `settings.late_checkout_grace_minutes` | Default 10. |\n| `settings.amenities` | Default string array. |\n| `settings.policies` | Default string array. |\n| `owner` | Present when the owner join is loaded: `id`, `name`, `email`. |\n| `created_at`, `updated_at`, `deleted_at` | Timestamps. `deleted_at` is null. |"
           }
         }
       ]
@@ -1589,7 +1619,7 @@
     },
     {
       "name": "07 Bookings",
-      "description": "**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nTwo different statuses:\n| Key | Values | Meaning |\n| --- | --- | --- |\n| `booking_status` | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, `NO_SHOW` | The stay |\n| `payment_status` | `PENDING`, `PARTIALLY_PAID`, `PAID` | The bill. Calculated from amounts. Do not send it. |\n\nCreate stores `CHECKED_IN` when `booking_status` is omitted. `created_by` is the logged-in user. `actual_check_in` is the current time. The room is marked `OCCUPIED`.\n\nWhat each stay status does to the room:\n| booking_status | Room |\n| --- | --- |\n| `CHECKED_IN` | Every room becomes `OCCUPIED`. Sets `actual_check_in` if it was empty. |\n| `CHECKED_OUT` | Allowed only when `due_amount` is 0, otherwise 400. Every room becomes `CLEANING` for 20 minutes, then `AVAILABLE` automatically. Sets `actual_check_out` if it was empty. |\n| `CONFIRMED` | `RESERVED` only when the room is `AVAILABLE` and nobody else is checked in. |\n| `PENDING` | Room stays as it is on create. |\n| `CANCELLED`, `NO_SHOW` | Releases the room when this stay was holding it. Another checked-in stay keeps it `OCCUPIED`. Another confirmed stay keeps it `RESERVED`. Otherwise `AVAILABLE`. `MAINTENANCE`, `BLOCKED`, and `CLEANING` are not cleared. |\n\n`CHECKED_OUT`, `CANCELLED`, and `NO_SHOW` no longer block the dates, so the room can be booked again.\n\nCreate requires at least two guest photos in `images` and one signature. Update requires at least one guest photo and one signature. Send them as form-data files. A URL is ignored. A file field whose name contains `sign` or `signature` is the signature. Any other image file is a guest photo.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "description": "**Who can call this:** HOTEL_ADMIN or RECEPTIONIST. SUPER_ADMIN is also allowed.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nTwo different statuses:\n| Key | Values | Meaning |\n| --- | --- | --- |\n| `booking_status` | `PENDING`, `CONFIRMED`, `CHECKED_IN`, `CHECKED_OUT`, `CANCELLED`, `NO_SHOW` | The stay |\n| `payment_status` | `PENDING`, `PARTIALLY_PAID`, `PAID` | The bill. Calculated from amounts. Do not send it. |\n\nCreate stores `CHECKED_IN` when `booking_status` is omitted. `created_by` is the logged-in user. `actual_check_in` is the current time. The room is marked `OCCUPIED`.\n\nWhat each stay status does to the room:\n| booking_status | Room |\n| --- | --- |\n| `CHECKED_IN` | Every room becomes `OCCUPIED`. Sets `actual_check_in` if it was empty. |\n| `CHECKED_OUT` | Allowed only when `due_amount` is 0, otherwise 400. Every room becomes `CLEANING` for 20 minutes, then `AVAILABLE` automatically. Sets `actual_check_out` if it was empty. |\n| `CONFIRMED` | `RESERVED` only when the room is `AVAILABLE` and nobody else is checked in. |\n| `PENDING` | Room stays as it is on create. |\n| `CANCELLED`, `NO_SHOW` | Releases the room when this stay was holding it. Another checked-in stay keeps it `OCCUPIED`. Another confirmed stay keeps it `RESERVED`. Otherwise `AVAILABLE`. `MAINTENANCE`, `BLOCKED`, and `CLEANING` are not cleared. |\n\n`CHECKED_OUT`, `CANCELLED`, and `NO_SHOW` no longer block the dates, so the room can be booked again.\n\nCreate and update each require at least one guest photo in `images` and one signature. Send them as form-data files. A URL is ignored. A file field whose name contains `sign` or `signature` is the signature. Any other image file is a guest photo.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
           "name": "Create booking",
@@ -1738,13 +1768,7 @@
                   "key": "images",
                   "type": "file",
                   "src": [],
-                  "description": "Required. At least two guest photos. Repeat this field for the second photo."
-                },
-                {
-                  "key": "images",
-                  "type": "file",
-                  "src": [],
-                  "description": "Required. Second guest photo. Add more rows if you need more than two."
+                  "description": "Required. At least one guest photo. Repeat this field to add more photos."
                 },
                 {
                   "key": "signatures",
@@ -1959,7 +1983,7 @@
                 }
               ]
             },
-            "description": "### GET /api/v1/bookings/:id/pdf\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nBuilds the folio from this booking, including the guest signature and every uploaded image under ID proofs. The file is saved under uploads/pdfs and removed every 3 hours.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `url` | string | Open this address in a browser to view the PDF. |\n| `file_name` | string | File name in the uploads folder. |"
+            "description": "### GET /api/v1/bookings/:id/pdf\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nBuilds the folio from this booking, including the hotel's bank details (only when the hotel has added them), the guest signature and every uploaded image under ID proofs. The file is saved under uploads/pdfs and removed every 3 hours.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `url` | string | Open this address in a browser to view the PDF. |\n| `file_name` | string | File name in the uploads folder. |"
           }
         },
         {
@@ -1993,7 +2017,7 @@
                 }
               ]
             },
-            "description": "### GET /api/v1/bookings/:id/bill\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nBuilds a professional guest **tax invoice / bill slip** for this booking only (hotel letterhead, guest and stay details). The table has one row per room: Sr No, Room, Room Category, Floor, Nights, Room Price (per night) and Amount (price x nights). Under it: Total, Discount, Taxable Amount, CGST, SGST, Extra Charges, Late Checkout Charges, Grand Total, Amount Paid and Balance Due, then Payment Received (net amount paid per method, total paid, balance due), the bill amount in words and the signature. It does not include the full folio extras such as ID proofs or the payment ledger. The file is saved under uploads/pdfs and removed every 3 hours.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `url` | string | Open this address in a browser to view the bill PDF. |\n| `file_name` | string | File name in the uploads folder. |"
+            "description": "### GET /api/v1/bookings/:id/bill\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nBuilds a professional guest **tax invoice / bill slip** for this booking only (hotel letterhead, guest and stay details). The table has one row per room: Sr No, Room, Room Category, Floor, Nights, Room Price (per night) and Amount (price x nights). Under it: Total, Discount, Taxable Amount, CGST, SGST, Extra Charges, Late Checkout Charges, Grand Total, Amount Paid and Balance Due, then Payment Received (net amount paid per method, total paid, balance due), the hotel's bank details (only when the hotel has added them), the bill amount in words and the signature. It does not include the full folio extras such as ID proofs or the payment ledger. The file is saved under uploads/pdfs and removed every 3 hours.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `url` | string | Open this address in a browser to view the bill PDF. |\n| `file_name` | string | File name in the uploads folder. |"
           }
         },
         {
@@ -2726,6 +2750,41 @@
                   "disabled": true
                 },
                 {
+                  "key": "bank_name",
+                  "value": "HDFC Bank",
+                  "type": "text",
+                  "description": "Optional. Bank name printed on bills and folios. Max 150 characters.",
+                  "disabled": true
+                },
+                {
+                  "key": "bank_account_holder",
+                  "value": "Seaside Residency",
+                  "type": "text",
+                  "description": "Optional. Account holder name. Max 150 characters.",
+                  "disabled": true
+                },
+                {
+                  "key": "bank_account_number",
+                  "value": "123456789012",
+                  "type": "text",
+                  "description": "Optional. 9 to 18 digits.",
+                  "disabled": true
+                },
+                {
+                  "key": "bank_ifsc_code",
+                  "value": "HDFC0001234",
+                  "type": "text",
+                  "description": "Optional. 11-character IFSC code. Stored uppercase.",
+                  "disabled": true
+                },
+                {
+                  "key": "bank_branch",
+                  "value": "Marine Drive, Mumbai",
+                  "type": "text",
+                  "description": "Optional. Branch name. Max 150 characters.",
+                  "disabled": true
+                },
+                {
                   "key": "total_rooms",
                   "value": "24",
                   "type": "text",
@@ -2896,7 +2955,7 @@
                 }
               ]
             },
-            "description": "### GET /api/v1/hotels/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. Returns 404 when the hotel does not exist or was deleted. |\n\n**Response `data`:** one hotel object.\n\n**Hotel object keys**\n| Key | Meaning |\n| --- | --- |\n| `id`, `name`, `slug` | Id, display name, URL slug. The slug never changes after creation. |\n| `owner_id` | Hotel admin user id. |\n| `owner` | Owner summary: `id`, `name`, `email`, `phone`. |\n| `address`, `city`, `state`, `country`, `pincode` | Location. |\n| `gst_number`, `pan_number` | Tax ids. Empty string when not set. |\n| `total_rooms`, `hotel_type`, `website`, `logo` | Profile. `logo` is a full URL. |\n| `is_active` | `true` by default. When `false`, nobody from this hotel can log in or call any API. |\n| `subscription_plan_id`, `subscription_plan_active` | Plan link and whether it is active. |\n| `subscription_plan_start_date`, `subscription_plan_end_date` | Plan window. |\n| `subscription.plan_id`, `subscription.active`, `subscription.start_date`, `subscription.end_date`, `subscription.auto_renew` | Same subscription data, grouped. |\n| `settings` | Check-in and check-out time, timezone, currency, tax, GST flag, UPI id, late checkout grace, amenities and policies. |\n| `created_at`, `updated_at`, `deleted_at` | Timestamps. `deleted_at` is null for a live hotel. |"
+            "description": "### GET /api/v1/hotels/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. Returns 404 when the hotel does not exist or was deleted. |\n\n**Response `data`:** one hotel object.\n\n**Hotel object keys**\n| Key | Meaning |\n| --- | --- |\n| `id`, `name`, `slug` | Id, display name, URL slug. The slug never changes after creation. |\n| `owner_id` | Hotel admin user id. |\n| `owner` | Owner summary: `id`, `name`, `email`, `phone`. |\n| `address`, `city`, `state`, `country`, `pincode` | Location. |\n| `gst_number`, `pan_number` | Tax ids. Empty string when not set. |\n| `bank_name`, `bank_account_holder`, `bank_account_number`, `bank_ifsc_code`, `bank_branch` | Bank details printed on the booking bill and folio PDFs. Empty string when not set. |\n| `total_rooms`, `hotel_type`, `website`, `logo` | Profile. `logo` is a full URL. |\n| `is_active` | `true` by default. When `false`, nobody from this hotel can log in or call any API. |\n| `subscription_plan_id`, `subscription_plan_active` | Plan link and whether it is active. |\n| `subscription_plan_start_date`, `subscription_plan_end_date` | Plan window. |\n| `subscription.plan_id`, `subscription.active`, `subscription.start_date`, `subscription.end_date`, `subscription.auto_renew` | Same subscription data, grouped. |\n| `settings` | Check-in and check-out time, timezone, currency, tax, GST flag, UPI id, late checkout grace, amenities and policies. |\n| `created_at`, `updated_at`, `deleted_at` | Timestamps. `deleted_at` is null for a live hotel. |"
           }
         },
         {
@@ -2966,6 +3025,41 @@
                   "value": "AAAAA0000A",
                   "type": "text",
                   "description": "Optional. 10-character PAN. Empty clears it.",
+                  "disabled": true
+                },
+                {
+                  "key": "bank_name",
+                  "value": "HDFC Bank",
+                  "type": "text",
+                  "description": "Optional. Bank name. Empty clears it. Max 150 characters.",
+                  "disabled": true
+                },
+                {
+                  "key": "bank_account_holder",
+                  "value": "Seaside Residency",
+                  "type": "text",
+                  "description": "Optional. Account holder name. Empty clears it. Max 150 characters.",
+                  "disabled": true
+                },
+                {
+                  "key": "bank_account_number",
+                  "value": "123456789012",
+                  "type": "text",
+                  "description": "Optional. 9 to 18 digits. Empty clears it.",
+                  "disabled": true
+                },
+                {
+                  "key": "bank_ifsc_code",
+                  "value": "HDFC0001234",
+                  "type": "text",
+                  "description": "Optional. 11-character IFSC code. Empty clears it. Stored uppercase.",
+                  "disabled": true
+                },
+                {
+                  "key": "bank_branch",
+                  "value": "Marine Drive, Mumbai",
+                  "type": "text",
+                  "description": "Optional. Branch name. Empty clears it. Max 150 characters.",
                   "disabled": true
                 },
                 {

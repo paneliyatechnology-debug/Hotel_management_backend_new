@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Builds a Postman Collection v2.1 file the frontend team can import directly.
  * Every request key is listed in the body or query, and explained in the request description.
  *
@@ -458,6 +458,11 @@ ${envelope}`,
           textField('pincode', '400001', 'Required. 6-digit Indian PIN code.'),
           textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN. Empty is allowed. Stored uppercase. Turns GST on for the hotel when present.'),
           textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN. Empty is allowed. Stored uppercase.'),
+          textField('bank_name', 'HDFC Bank', 'Optional. Bank name printed on bills and folios. Max 150 characters.'),
+          textField('bank_account_holder', 'Seaside Residency', 'Optional. Account holder name. Max 150 characters.'),
+          textField('bank_account_number', '123456789012', 'Optional. 9 to 18 digits.'),
+          textField('bank_ifsc_code', 'HDFC0001234', 'Optional. 11-character IFSC code. Stored uppercase.'),
+          textField('bank_branch', 'Marine Drive, Mumbai', 'Optional. Branch name. Max 150 characters.'),
           textField('total_rooms', '24', 'Optional. Whole number, 0 or more. Inventory count only. It does not create rooms.'),
           textField('hotel_type', 'Boutique Hotel', 'Optional. Free text, max 100 characters. Example: Boutique Hotel, Resort, Lodge.'),
           textField('upi_id', 'seaside@upi', 'Optional. UPI id shown for payments. Stored in hotel settings.'),
@@ -505,6 +510,7 @@ Trial, slug, check-in time (\`14:00\`), check-out time (\`12:00\`), timezone \`A
 | \`owner_id\` | Hotel admin user id. |
 | \`address\`, \`city\`, \`state\`, \`country\`, \`pincode\` | Location. |
 | \`gst_number\`, \`pan_number\` | Tax ids. Empty string when omitted. |
+| \`bank_name\`, \`bank_account_holder\`, \`bank_account_number\`, \`bank_ifsc_code\`, \`bank_branch\` | Bank details printed on the booking bill and folio PDFs. Empty string when not set. |
 | \`total_rooms\`, \`hotel_type\`, \`website\`, \`logo\` | Profile. \`logo\` is a full URL. |
 | \`is_active\` | \`true\` on registration. A super admin can switch a hotel off. |
 | \`subscription_plan_id\`, \`subscription_plan_active\` | Plan link and whether it is active. |
@@ -1082,7 +1088,7 @@ What each stay status does to the room:
 
 \`CHECKED_OUT\`, \`CANCELLED\`, and \`NO_SHOW\` no longer block the dates, so the room can be booked again.
 
-Create requires at least two guest photos in \`images\` and one signature. Update requires at least one guest photo and one signature. Send them as form-data files. A URL is ignored. A file field whose name contains \`sign\` or \`signature\` is the signature. Any other image file is a guest photo.
+Create and update each require at least one guest photo in \`images\` and one signature. Send them as form-data files. A URL is ignored. A file field whose name contains \`sign\` or \`signature\` is the signature. Any other image file is a guest photo.
 
 ${envelope}`,
   item: [
@@ -1114,8 +1120,7 @@ ${envelope}`,
           textField('payment_method', 'CASH', 'Optional. How paid_amount was paid: CASH, ONLINE, CARD, UPI, or BANK_TRANSFER. Default CASH. Saved in the payment history.', true),
           textField('notes', 'Late arrival after 10 pm', 'Optional. Front desk note.'),
           textField('booking_status', 'CHECKED_IN', 'Optional. PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, or NO_SHOW. When omitted, the server stores CHECKED_IN.'),
-          fileField('images', 'Required. At least two guest photos. Repeat this field for the second photo.'),
-          fileField('images', 'Required. Second guest photo. Add more rows if you need more than two.'),
+          fileField('images', 'Required. At least one guest photo. Repeat this field to add more photos.'),
           fileField('signatures', 'Required. At least one signature image.'),
         ],
       },
@@ -1256,7 +1261,7 @@ Another hotel's booking returns 403.
       description: `### GET /api/v1/bookings/:id/pdf
 ${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
 
-Builds the folio from this booking, including the guest signature and every uploaded image under ID proofs. The file is saved under uploads/pdfs and removed every 3 hours.
+Builds the folio from this booking, including the hotel's bank details (only when the hotel has added them), the guest signature and every uploaded image under ID proofs. The file is saved under uploads/pdfs and removed every 3 hours.
 
 **Path keys**
 | Key | Type | Required | Meaning |
@@ -1278,7 +1283,7 @@ Builds the folio from this booking, including the guest signature and every uplo
       description: `### GET /api/v1/bookings/:id/bill
 ${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
 
-Builds a professional guest **tax invoice / bill slip** for this booking only (hotel letterhead, guest and stay details). The table has one row per room: Sr No, Room, Room Category, Floor, Nights, Room Price (per night) and Amount (price x nights). Under it: Total, Discount, Taxable Amount, CGST, SGST, Extra Charges, Late Checkout Charges, Grand Total, Amount Paid and Balance Due, then Payment Received (net amount paid per method, total paid, balance due), the bill amount in words and the signature. It does not include the full folio extras such as ID proofs or the payment ledger. The file is saved under uploads/pdfs and removed every 3 hours.
+Builds a professional guest **tax invoice / bill slip** for this booking only (hotel letterhead, guest and stay details). The table has one row per room: Sr No, Room, Room Category, Floor, Nights, Room Price (per night) and Amount (price x nights). Under it: Total, Discount, Taxable Amount, CGST, SGST, Extra Charges, Late Checkout Charges, Grand Total, Amount Paid and Balance Due, then Payment Received (net amount paid per method, total paid, balance due), the hotel's bank details (only when the hotel has added them), the bill amount in words and the signature. It does not include the full folio extras such as ID proofs or the payment ledger. The file is saved under uploads/pdfs and removed every 3 hours.
 
 **Path keys**
 | Key | Type | Required | Meaning |
@@ -1656,6 +1661,7 @@ const hotelObjectKeys = `**Hotel object keys**
 | \`owner\` | Owner summary: \`id\`, \`name\`, \`email\`, \`phone\`. |
 | \`address\`, \`city\`, \`state\`, \`country\`, \`pincode\` | Location. |
 | \`gst_number\`, \`pan_number\` | Tax ids. Empty string when not set. |
+| \`bank_name\`, \`bank_account_holder\`, \`bank_account_number\`, \`bank_ifsc_code\`, \`bank_branch\` | Bank details printed on the booking bill and folio PDFs. Empty string when not set. |
 | \`total_rooms\`, \`hotel_type\`, \`website\`, \`logo\` | Profile. \`logo\` is a full URL. |
 | \`is_active\` | \`true\` by default. When \`false\`, nobody from this hotel can log in or call any API. |
 | \`subscription_plan_id\`, \`subscription_plan_active\` | Plan link and whether it is active. |
@@ -1693,6 +1699,11 @@ ${envelope}`,
           textField('pincode', '400001', 'Required. 6-digit Indian PIN code.'),
           textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN. Stored uppercase.', true),
           textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN. Stored uppercase.', true),
+          textField('bank_name', 'HDFC Bank', 'Optional. Bank name printed on bills and folios. Max 150 characters.', true),
+          textField('bank_account_holder', 'Seaside Residency', 'Optional. Account holder name. Max 150 characters.', true),
+          textField('bank_account_number', '123456789012', 'Optional. 9 to 18 digits.', true),
+          textField('bank_ifsc_code', 'HDFC0001234', 'Optional. 11-character IFSC code. Stored uppercase.', true),
+          textField('bank_branch', 'Marine Drive, Mumbai', 'Optional. Branch name. Max 150 characters.', true),
           textField('total_rooms', '24', 'Optional. Whole number, 0 or more. Inventory count only.', true),
           textField('hotel_type', 'Boutique Hotel', 'Optional. Free text, max 100 characters.', true),
           textField('website', 'https://seaside.example', 'Optional. Valid URL.', true),
@@ -1791,6 +1802,11 @@ ${hotelObjectKeys}`,
           textField('pincode', '400001', 'Optional. 6-digit Indian PIN code.', true),
           textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN. Empty clears it and turns GST off.', true),
           textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN. Empty clears it.', true),
+          textField('bank_name', 'HDFC Bank', 'Optional. Bank name. Empty clears it. Max 150 characters.', true),
+          textField('bank_account_holder', 'Seaside Residency', 'Optional. Account holder name. Empty clears it. Max 150 characters.', true),
+          textField('bank_account_number', '123456789012', 'Optional. 9 to 18 digits. Empty clears it.', true),
+          textField('bank_ifsc_code', 'HDFC0001234', 'Optional. 11-character IFSC code. Empty clears it. Stored uppercase.', true),
+          textField('bank_branch', 'Marine Drive, Mumbai', 'Optional. Branch name. Empty clears it. Max 150 characters.', true),
           textField('total_rooms', '24', 'Optional. Whole number, 0 or more.', true),
           textField('hotel_type', 'Boutique Hotel', 'Optional. Max 100 characters.', true),
           textField('website', 'https://seaside.example', 'Optional. Valid URL.', true),
