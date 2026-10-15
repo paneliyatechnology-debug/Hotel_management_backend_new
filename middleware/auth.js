@@ -94,9 +94,11 @@ const authenticateUser = async (req, res, next) => {
       );
     }
 
-    // Deactivated hotel, inactive plan, or expired plan: block every protected API, clear auth
-    // cookies the same way logout does, and tell the frontend to log out (force_logout). This
-    // covers an old access token that was issued before the plan ended.
+    // Deactivated hotel: block every protected API, clear auth cookies the same way logout does,
+    // and tell the frontend to log out (force_logout).
+    // Inactive or expired plan: block every protected API with code PLAN_INACTIVE / PLAN_EXPIRED,
+    // but keep the session so the user can still see the renew message. Both cover an old access
+    // token that was issued before the change.
     try {
       await assertHotelActive(user);
     } catch (hotelErr) {

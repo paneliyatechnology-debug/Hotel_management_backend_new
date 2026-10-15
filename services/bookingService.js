@@ -11,7 +11,6 @@ const s3Service = require('./s3Service');
 const auditService = require('./auditService');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
-const { checkEmailExistsGlobally } = require('../utils/emailValidator');
 const { resolveHotelId } = require('../utils/hotelScope');
 const {
   HTTP_STATUS,
@@ -31,22 +30,15 @@ const OPEN_BOOKING_STATUSES = BOOKING_STATUSES.filter(
 );
 
 /**
- * Guest email is optional. A login email from users or hotel owners is rejected.
+ * Guest email is optional and not unique. Any address is accepted, including one used by a
+ * staff, hotel admin or super admin login, and many bookings can share it.
  * @param {*} value
- * @returns {Promise<string|null|undefined>} undefined when the field was not sent
+ * @returns {string|null|undefined} undefined when the field was not sent
  */
-const resolveGuestEmail = async (value) => {
+const resolveGuestEmail = (value) => {
   if (value === undefined) return undefined;
   if (value === null || String(value).trim() === '') return null;
-
-  const email = String(value).trim().toLowerCase();
-  const usedByAccount = await checkEmailExistsGlobally(email);
-  if (usedByAccount) {
-    throw new AppError('This email belongs to a user account.', HTTP_STATUS.BAD_REQUEST, [
-      { field: 'email', message: 'This email belongs to a user account.' },
-    ]);
-  }
-  return email;
+  return String(value).trim().toLowerCase();
 };
 
 /**
@@ -647,7 +639,7 @@ const createBooking = async (body, files = [], reqUser = null) => {
     deleted_at: null,
   };
 
-  const guestEmail = await resolveGuestEmail(body.email);
+  const guestEmail = resolveGuestEmail(body.email);
   if (guestEmail !== undefined) bookingData.email = guestEmail;
 
   const newBooking = await bookingModel.createBooking(bookingData, {
@@ -797,7 +789,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
     updatePayload.secondary_guest_name = body.secondary_guest_name ? String(body.secondary_guest_name).trim() : null;
   }
   if (body.mobile_number) updatePayload.mobile_number = String(body.mobile_number).trim();
-  if (body.email !== undefined) updatePayload.email = await resolveGuestEmail(body.email);
+  if (body.email !== undefined) updatePayload.email = resolveGuestEmail(body.email);
   if (body.address !== undefined) updatePayload.address = body.address ? String(body.address).trim() : null;
   if (body.actual_check_in !== undefined) {
     updatePayload.actual_check_in = body.actual_check_in ? new Date(body.actual_check_in) : null;

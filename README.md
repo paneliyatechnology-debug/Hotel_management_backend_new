@@ -192,9 +192,12 @@ Error (validation, `AppError` and database errors):
 }
 ```
 
-When the hotel is deactivated or its plan is inactive / expired, the same error shape also includes
-`"force_logout": true` and `"code": "FORCE_LOGOUT"`. Auth cookies are cleared. The frontend should
-log the user out.
+When the hotel is deactivated, the same error shape also includes `"force_logout": true` and
+`"code": "FORCE_LOGOUT"`. Auth cookies are cleared. The frontend should log the user out.
+
+When the hotel's subscription plan is inactive or has ended, the error has `"code": "PLAN_INACTIVE"` or
+`"code": "PLAN_EXPIRED"` (status `403`). The user is **not** logged out. The frontend should keep the session and
+show a "renew your plan" screen.
 
 Database constraint errors map to `409 Conflict` (duplicates) or `400` (foreign keys).
 
@@ -371,13 +374,14 @@ append-only. The API is read-only.
 
 - Every hotel starts with `is_active = true`. A super admin can switch it off with `PATCH /hotels/:id/active-status`.
 - While a hotel is off, all of its users get `403` on login, refresh token, password reset and every protected API (even with a token issued earlier), and their sockets are disconnected. Nothing is deleted.
-- The same block applies when the hotel's subscription plan is switched off (`subscription_plan_active = false`)
-  or its end date has passed. Users see a message asking them to renew the plan. Super admins are never blocked
-  and can renew the plan with `PUT /hotels/:id`. A missing end date means the plan never expires.
-- These blocks are enforced in auth middleware on every protected API, and also on login, refresh-token and
-  password reset. When an old access or refresh token is used after the plan ends, the server clears auth
-  cookies the same way `POST /auth/logout` does, and the error includes `"force_logout": true` and
-  `"code": "FORCE_LOGOUT"`. The frontend should clear local tokens and redirect to login.
+- When the hotel's subscription plan is switched off (`subscription_plan_active = false`) or its end date has
+  passed, every protected API returns `403` with `"code": "PLAN_INACTIVE"` or `"code": "PLAN_EXPIRED"` and a message
+  asking the user to renew. The user stays signed in: login, refresh-token, logout and password reset still work,
+  so the frontend can show a renew screen. Super admins are never blocked and can renew the plan with
+  `PUT /hotels/:id`. A missing end date means the plan never expires.
+- A deactivated hotel is stricter: the block also applies to login, refresh-token and password reset, auth cookies
+  are cleared like `POST /auth/logout`, and the error includes `"force_logout": true` and `"code": "FORCE_LOGOUT"`.
+  The frontend should clear local tokens and redirect to login.
 - Switching the hotel or plan back on restores access.
 
 **Billing**

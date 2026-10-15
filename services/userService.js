@@ -7,7 +7,6 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
-const bookingModel = require('../models/bookingModel');
 const hotelModel = require('../models/hotelModel');
 const tokenModel = require('../models/tokenModel');
 const auditService = require('./auditService');
@@ -66,9 +65,6 @@ const createUser = async (payload, req_user) => {
   const exists = await userModel.emailExists(email);
   if (exists) {
     throw new AppError('A user with this email already exists.', HTTP_STATUS.CONFLICT);
-  }
-  if (await bookingModel.emailUsedOnBooking(email)) {
-    throw new AppError('This email is used on a booking.', HTTP_STATUS.CONFLICT);
   }
 
   const role = String(payload.role || '').toUpperCase();
@@ -425,9 +421,6 @@ const updateUser = async (id, payload, req_user) => {
       const email_taken = await userModel.emailExists(normalized_email, id);
       if (email_taken) {
         throw new AppError('A user with this email already exists.', HTTP_STATUS.CONFLICT);
-      }
-      if (await bookingModel.emailUsedOnBooking(normalized_email)) {
-        throw new AppError('This email is used on a booking.', HTTP_STATUS.CONFLICT);
       }
     }
   }

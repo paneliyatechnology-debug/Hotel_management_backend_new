@@ -315,7 +315,7 @@ The password is never returned.`,
       description: `### POST /api/v1/auth/refresh-token
 Public. Issues a new access token and a new refresh token.
 
-If the hotel is deactivated or its subscription plan is inactive or expired, this returns 403 with \`force_logout: true\` and \`code: "FORCE_LOGOUT"\`, clears auth cookies, and does not issue new tokens. The frontend should clear local tokens and send the user to login.
+If the hotel is deactivated, this returns 403 with \`force_logout: true\` and \`code: "FORCE_LOGOUT"\`, clears auth cookies, and does not issue new tokens. The frontend should clear local tokens and send the user to login. An inactive or expired subscription plan does not block refresh: the user stays signed in and the protected APIs return \`code: "PLAN_INACTIVE"\` or \`"PLAN_EXPIRED"\`.
 
 The body key is \`refresh_token\` (snake_case). A browser may instead send the \`refreshToken\` cookie. Postman should send the body key.
 
@@ -885,7 +885,7 @@ Do not send \`hotel_id\`. The category must already exist in this hotel.
 
 A duplicate \`room_number\` on the same floor returns 409.
 
-The hotel's subscription plan must allow one more room. A request is rejected with 403 when the hotel already has as many rooms as the plan's \`max_rooms\`. Deleted rooms are not counted. Updating or deleting rooms is not affected. A hotel whose plan is not active or has ended cannot call this API at all: every protected request returns 403 until a super admin renews the plan.
+The hotel's subscription plan must allow one more room. A request is rejected with 403 when the hotel already has as many rooms as the plan's \`max_rooms\`. Deleted rooms are not counted. Updating or deleting rooms is not affected. A hotel whose plan is not active or has ended cannot call this API at all: every protected request returns 403 with \`code: "PLAN_INACTIVE"\` or \`"PLAN_EXPIRED"\` (the user is not logged out) until a super admin renews the plan.
 
 **Body keys** are described on each form row.
 
@@ -1105,7 +1105,7 @@ ${envelope}`,
           textField('primary_guest_name', 'Ravi Shah', 'Required. Guest on the booking. 2 to 255 characters.'),
           textField('secondary_guest_name', 'Meera Shah', 'Optional. Second guest name. Max 255 characters.', true),
           textField('mobile_number', '9876543210', 'Required. 7 to 20 characters. Digits, spaces, plus, and hyphen.'),
-          textField('email', 'guest@example.com', 'Optional. Guest email. A user or hotel owner login email is rejected.', true),
+          textField('email', 'guest@example.com', 'Optional. Guest email. Not unique: any address is accepted, even a staff or admin login email.', true),
           textField('address', '12 Lake Road, Pune', 'Optional. Guest address.', true),
           textField('room_id', '[{{roomId}}]', 'Required. Array of room ids in this hotel. Send JSON: [12, 15]. Every room is held for the same dates and receives the same stay status at the same time. One room is still an array: [12].'),
           textField('check_in_date', '2026-10-14T14:00:00.000Z', 'Required. Scheduled check-in. ISO date or datetime. Must be before check_out_date.'),
@@ -1208,7 +1208,7 @@ Another hotel's booking returns 403.
 | \`primary_guest_name\` | string | Main guest. |
 | \`secondary_guest_name\` | string or null | Second guest. |
 | \`mobile_number\` | string | Guest mobile. |
-| \`email\` | string or null | Guest email. Not a login email. Null when omitted. |
+| \`email\` | string or null | Guest email. Not unique and not a login email. Null when omitted. |
 | \`address\` | string | Guest address. |
 | \`room_id\` | number array | Every room on this stay. Example: \`[12, 15]\`. |
 | \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`room_type_name\`. |
@@ -1309,7 +1309,7 @@ Builds a professional guest **tax invoice / bill slip** for this booking only (h
           textField('primary_guest_name', 'Ravi Shah', 'Optional. 2 to 255 characters.', true),
           textField('secondary_guest_name', 'Meera Shah', 'Optional. Send empty to clear.', true),
           textField('mobile_number', '9876543210', 'Optional. 7 to 20 characters.', true),
-          textField('email', 'guest@example.com', 'Optional. Guest email. A user or hotel owner login email is rejected. Send empty to clear.', true),
+          textField('email', 'guest@example.com', 'Optional. Guest email. Not unique: any address is accepted, even a staff or admin login email. Send empty to clear.', true),
           textField('address', '12 Lake Road, Pune', 'Optional. Send empty to clear.', true),
           textField('room_id', '[{{roomId}}]', 'Optional. Replace the whole room list. JSON array, for example [12, 15]. Rooms removed from the list are released. Rooms added get the current booking status.', true),
           textField('check_in_date', '2026-10-14T14:00:00.000Z', 'Optional. New scheduled check-in. Nights are recalculated.', true),
@@ -1483,7 +1483,7 @@ A hotel admin's \`hotel_id\` in the body is ignored. The new user is attached to
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | \`name\` | string | Yes | Display name. 2 to 100 characters. Not unique. |
-| \`email\` | string | Yes | Login email. Stored lowercase. Unique among active users. An email already stored on a booking is rejected. |
+| \`email\` | string | Yes | Login email. Stored lowercase. Unique among active users. Booking guest emails are not checked. |
 | \`password\` | string | No | Minimum 6 characters. Omit to generate a temporary password and email it. |
 | \`phone\` | string | Yes | 5 to 20 characters. |
 | \`role\` | string | Yes | \`RECEPTIONIST\`, \`MANAGER\`, \`HOUSEKEEPING\`, or \`ACCOUNTANT\` for a hotel admin. A super admin may also send \`HOTEL_ADMIN\` or \`SUPER_ADMIN\`. |

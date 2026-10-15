@@ -671,22 +671,6 @@ const softDeleteBooking = async (id, client = db) => {
   return { id: Number(id), is_deleted: true, deleted_at: now };
 };
 
-/**
- * True when a non-deleted booking already stores this guest email.
- * @param {string} email
- * @param {import('knex').Knex} [client=db]
- * @returns {Promise<boolean>}
- */
-const emailUsedOnBooking = async (email, client = db) => {
-  if (!email) return false;
-  const row = await client('bookings')
-    .whereNull('deleted_at')
-    .whereRaw('LOWER(email) = ?', [String(email).trim().toLowerCase()])
-    .select('id')
-    .first();
-  return Boolean(row);
-};
-
 module.exports = {
   formatBooking,
   generateBookingNumber,
@@ -696,5 +680,4 @@ module.exports = {
   createBooking,
   updateBooking,
   softDeleteBooking,
-  emailUsedOnBooking,
 };

@@ -45,15 +45,25 @@ const resolveHotelId = (reqUser) => {
 // Frontend should clear the session and call logout when this code is returned.
 const FORCE_LOGOUT = { forceLogout: true, code: 'FORCE_LOGOUT' };
 
+// Plan problems block the API but keep the user signed in, so the frontend can show a renew screen.
+const PLAN_INACTIVE = { code: 'PLAN_INACTIVE' };
+const PLAN_EXPIRED = { code: 'PLAN_EXPIRED' };
+
 /**
- * Block every user of a hotel that a super admin has deactivated or deleted, or whose
- * subscription plan is switched off or has ended. Super admins have no hotel and are never blocked.
- * Used by auth middleware on every protected API, and by login / refresh-token / password reset.
- * Failures set force_logout so the frontend clears the session (including after a refresh-token attempt).
+ * Block the users of a hotel that cannot be used right now. Super admins have no hotel and are never blocked.
+ *
+ * - Hotel deactivated or deleted: 403 with force_logout, so the frontend clears the session.
+ * - Subscription plan switched off or ended: 403 with code PLAN_INACTIVE or PLAN_EXPIRED. The user is NOT
+ *   logged out and keeps the session. Every protected API stays blocked until the plan is renewed.
+ *
+ * Auth middleware runs the full check on every protected API. Login, refresh-token and password reset
+ * pass { checkPlan: false } so users of an expired plan can still sign in and see the renew message.
  * @param {Object|null|undefined} user - User row with role and hotel_id
+ * @param {Object} [options]
+ * @param {boolean} [options.checkPlan=true] - Also reject an inactive or ended plan
  * @returns {Promise<void>}
  */
-const assertHotelActive = async (user) => {
+const assertHotelActive = async (user, { checkPlan = true } = {}) => {
   if (!user || !user.hotel_id || user.role === ROLE_CODES.SUPER_ADMIN) return;
 
   const hotel = await hotelModel.findHotelAccessState(user.hotel_id);
@@ -69,7 +79,7 @@ const assertHotelActive = async (user) => {
   }
 
   // A hotel with no plan assigned is left open. The rest must have an active, unexpired plan.
-  if (!hotel.subscription_plan_id) return;
+  if (!checkPlan || !hotel.subscription_plan_id) return;
 
   const planName = hotel.plan_name || 'current';
 
@@ -78,7 +88,7 @@ const assertHotelActive = async (user) => {
       `Your ${planName} plan is not active. Please renew your plan to continue.`,
       HTTP_STATUS.FORBIDDEN,
       [],
-      FORCE_LOGOUT
+      PLAN_INACTIVE
     );
   }
 
@@ -88,7 +98,7 @@ const assertHotelActive = async (user) => {
       `Your ${planName} plan ended on ${new Date(endDate).toISOString().slice(0, 10)}. Please renew your plan to continue.`,
       HTTP_STATUS.FORBIDDEN,
       [],
-      FORCE_LOGOUT
+      PLAN_EXPIRED
     );
   }
 };

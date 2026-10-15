@@ -6,7 +6,6 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const db = require('../database/knex');
 const hotelModel = require('../models/hotelModel');
-const bookingModel = require('../models/bookingModel');
 const userModel = require('../models/userModel');
 const tokenModel = require('../models/tokenModel');
 const systemSettingsModel = require('../models/systemSettingsModel');
@@ -170,9 +169,6 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
       'This email is already registered in the system (either as a user or another hotel owner). Please use a different email.',
       HTTP_STATUS.CONFLICT
     );
-  }
-  if (await bookingModel.emailUsedOnBooking(normalizedEmail)) {
-    throw new AppError('This email is used on a booking.', HTTP_STATUS.CONFLICT);
   }
 
   // 3. Free Trial Duration Calculation

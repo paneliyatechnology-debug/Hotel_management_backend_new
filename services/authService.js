@@ -80,7 +80,8 @@ const verifyAndLogin = async (user, password, res, requestMeta) => {
     );
   }
 
-  await assertHotelActive(user);
+  // An inactive or expired plan does not block sign-in. The protected APIs return the plan error instead.
+  await assertHotelActive(user, { checkPlan: false });
 
   // Check temporary lockout
   if (user.account_locked_until) {
@@ -223,9 +224,9 @@ const refreshToken = async (token, res) => {
   }
 
   try {
-    await assertHotelActive(user);
+    await assertHotelActive(user, { checkPlan: false });
   } catch (hotelErr) {
-    // Same as logout: drop cookies so the frontend cannot keep refreshing after the plan ended.
+    // Same as logout: drop cookies so the frontend cannot keep refreshing a deactivated hotel's session.
     if (hotelErr.forceLogout) {
       clearAuthCookies(res);
     }
@@ -309,7 +310,7 @@ const forgotPassword = async (email, requestOrigin) => {
     throw new AppError('This account has been deactivated. Please contact your hotel administrator.', HTTP_STATUS.FORBIDDEN);
   }
 
-  await assertHotelActive(user);
+  await assertHotelActive(user, { checkPlan: false });
 
   // Generate secure single-use reset token
   const token = crypto.randomBytes(32).toString('hex');
@@ -377,7 +378,7 @@ const resetPassword = async ({ token, password }, requestMeta) => {
     );
   }
 
-  await assertHotelActive(user);
+  await assertHotelActive(user, { checkPlan: false });
 
   // Hash new password and update in database
   const hashedPassword = await bcrypt.hash(password, 10);

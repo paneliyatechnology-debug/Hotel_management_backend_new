@@ -20,7 +20,7 @@ const {
 
 /**
  * Check that the hotel's subscription plan allows one more room.
- * Plan active/expired access is enforced by assertHotelActive on every request. This check only
+ * Plan active/expired access is enforced by assertHotelActive on every request (PLAN_INACTIVE / PLAN_EXPIRED). This check only
  * enforces the plan's max_rooms. A hotel with no plan has no limit.
  * @param {number} hotelId
  * @returns {Promise<void>}
