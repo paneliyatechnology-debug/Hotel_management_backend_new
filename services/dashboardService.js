@@ -6,7 +6,7 @@
  */
 const dashboardModel = require('../models/dashboardModel');
 const { resolveHotelId } = require('../utils/hotelScope');
-const { resolveDateRange, percent } = require('../utils/dateRange');
+const { resolveDateRange, percent, money, toDateKey, getCurrentWeekDays } = require('../utils/dateRange');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, ROLE_CODES } = require('../constants');
 
@@ -54,6 +54,36 @@ const resolveScopedHotelId = (reqUser, query = {}) => {
 
   return resolveHotelId(reqUser);
 };
+
+/**
+ * Room status graph: count and share of the hotel's rooms for every room status.
+ * @param {Object} roomStatusSummary - Status to room count
+ * @param {number} totalRooms
+ * @returns {{ total_rooms: number, statuses: Object[] }}
+ */
+const buildRoomStatusGraph = (roomStatusSummary, totalRooms) => ({
+  total_rooms: totalRooms,
+  statuses: Object.entries(roomStatusSummary).map(([status, count]) => ({
+    status,
+    count,
+    percentage: totalRooms > 0 ? percent((count / totalRooms) * 100) : 0,
+  })),
+});
+
+/**
+ * Current week revenue graph: all seven days, Monday first, 0 for a day without collections.
+ * @param {Object} dailyCollections - YYYY-MM-DD to amount collected
+ * @returns {{ date: string, day: string, revenue: number }[]}
+ */
+const buildWeeklyRevenueGraph = (dailyCollections) =>
+  getCurrentWeekDays().map((day) => {
+    const date = toDateKey(day);
+    return {
+      date,
+      day: day.toLocaleDateString('en-US', { weekday: 'long' }),
+      revenue: money(dailyCollections[date]),
+    };
+  });
 
 /**
  * Platform dashboard for SUPER_ADMIN.
@@ -118,6 +148,10 @@ const getHotelAdminDashboard = async (query = {}, reqUser) => {
     throw new AppError('Hotel not found.', HTTP_STATUS.NOT_FOUND);
   }
 
+  // The graphs are for the hotel admin only, not a super admin looking at one hotel.
+  const isHotelAdmin = reqUser.role === ROLE_CODES.HOTEL_ADMIN;
+  const weekDays = getCurrentWeekDays();
+
   const [
     todayRevenue,
     monthRevenue,
@@ -128,6 +162,7 @@ const getHotelAdminDashboard = async (query = {}, reqUser) => {
     todayPulse,
     roomStatusSummary,
     revenueByPaymentMethod,
+    weeklyCollections,
   ] = await Promise.all([
     dashboardModel.sumHotelCollectionsInRange(hotelId, range.todayFrom, range.todayTo),
     dashboardModel.sumHotelCollectionsInRange(hotelId, range.from, range.to),
@@ -138,6 +173,13 @@ const getHotelAdminDashboard = async (query = {}, reqUser) => {
     dashboardModel.getHotelTodayPulse(hotelId, range.todayFrom, range.todayTo),
     dashboardModel.getHotelRoomStatusSummary(hotelId),
     dashboardModel.getHotelRevenueByPaymentMethod(hotelId, range.from, range.to),
+    isHotelAdmin
+      ? dashboardModel.getHotelDailyCollections(
+          hotelId,
+          weekDays[0],
+          new Date(weekDays[6].getFullYear(), weekDays[6].getMonth(), weekDays[6].getDate() + 1)
+        )
+      : null,
   ]);
 
   const maxRoomsAllowed = hotel.plan_max_rooms !== null && hotel.plan_max_rooms !== undefined
@@ -171,6 +213,10 @@ const getHotelAdminDashboard = async (query = {}, reqUser) => {
       today_pulse: todayPulse,
       room_status_summary: roomStatusSummary,
       revenue_by_payment_method: revenueByPaymentMethod,
+      ...(isHotelAdmin && {
+        room_status_graph: buildRoomStatusGraph(roomStatusSummary, totalPhysicalRooms),
+        weekly_revenue_graph: buildWeeklyRevenueGraph(weeklyCollections),
+      }),
       subscription_quota: {
         plan_id: hotel.subscription_plan_id,
         plan_name: hotel.plan_name || null,

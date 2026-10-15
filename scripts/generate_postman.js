@@ -2053,6 +2053,8 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 | \`today_pulse\` | Checked in today, expected check-outs today, checked out today, in-house guests. |
 | \`room_status_summary\` | Counts for every room status. |
 | \`revenue_by_payment_method\` | Collections in \`date_range\` by method. |
+| \`room_status_graph\` | HOTEL_ADMIN only. \`total_rooms\` and \`statuses[]\`, one entry per room status with \`status\`, \`count\` and \`percentage\` (share of the hotel's rooms, 2 decimals). |
+| \`weekly_revenue_graph\` | HOTEL_ADMIN only. Seven entries, Monday to Sunday of the current week, each with \`date\` (YYYY-MM-DD), \`day\` (for example \`Monday\`) and \`revenue\`. Revenue is the collected payments (\`booking_payments\` PAID / PARTIALLY_PAID) of that day. A day with no payments, or a day still to come, is \`0\`. Not affected by \`date_range\`. |
 | \`subscription_quota\` | Plan limit, rooms used, dates, \`days_left\`, \`is_active\`. |
 
 **Front desk \`data\`**

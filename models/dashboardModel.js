@@ -3,7 +3,7 @@
  * Read-only Knex helpers used by dashboardService. Soft-deleted rows are excluded.
  */
 const db = require('../database/knex');
-const { money } = require('../utils/dateRange');
+const { money, toDateKey } = require('../utils/dateRange');
 const {
   ROLE_CODES,
   ROOM_STATUSES,
@@ -386,6 +386,29 @@ const getHotelRoomStatusSummary = async (hotelId, client = db) => {
 };
 
 /**
+ * Collected payments of a hotel in a date window, added up per local calendar day.
+ * Days are bucketed in the server's local time, the same clock the date ranges use.
+ * @param {number} hotelId
+ * @param {Date} from
+ * @param {Date} to
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object>} Map of YYYY-MM-DD to the amount collected that day
+ */
+const getHotelDailyCollections = async (hotelId, from, to, client = db) => {
+  const rows = await client('booking_payments')
+    .where({ hotel_id: hotelId })
+    .whereIn('status', COLLECTED_PAYMENT_STATUSES)
+    .modify((qb) => whereBetweenDates(qb, 'created_at', from, to))
+    .select('created_at', 'amount');
+
+  return rows.reduce((totals, row) => {
+    const key = toDateKey(row.created_at);
+    totals[key] = (totals[key] || 0) + (Number(row.amount) || 0);
+    return totals;
+  }, {});
+};
+
+/**
  * Collections grouped by payment method for a hotel in a date window.
  * @param {number} hotelId
  * @param {Date} from
@@ -495,6 +518,7 @@ module.exports = {
   countHotelActiveStaff,
   getHotelRoomStatusSummary,
   getHotelRevenueByPaymentMethod,
+  getHotelDailyCollections,
   getHotelTodayPulse,
   getHotelShiftCollectionsToday,
 };

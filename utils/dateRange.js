@@ -57,6 +57,35 @@ const resolveDateRange = (dateRange = 'this_month', now = new Date()) => {
 };
 
 /**
+ * Local calendar date as YYYY-MM-DD.
+ * @param {Date} value
+ * @returns {string}
+ */
+const toDateKey = (value) => {
+  const date = new Date(value);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+};
+
+/**
+ * The seven days of the current calendar week, Monday first, including days still to come.
+ * @param {Date} [now=new Date()]
+ * @returns {Date[]} Start of each day
+ */
+const getCurrentWeekDays = (now = new Date()) => {
+  const monday = startOfDay(now);
+  const daysFromMonday = monday.getDay() === 0 ? 6 : monday.getDay() - 1;
+  monday.setDate(monday.getDate() - daysFromMonday);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + index);
+    return day;
+  });
+};
+
+/**
  * Round a money value to 2 decimal places.
  * @param {*} value
  * @returns {number}
@@ -73,6 +102,8 @@ const percent = (value) => Math.round((Number(value) || 0) * 100) / 100;
 module.exports = {
   DATE_RANGES,
   resolveDateRange,
+  toDateKey,
+  getCurrentWeekDays,
   money,
   percent,
 };
