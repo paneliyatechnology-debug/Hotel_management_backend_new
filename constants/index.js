@@ -59,6 +59,7 @@ const MESSAGES = {
   BOOKING_CHECKED_OUT_SUCCESS: 'Checkout completed successfully. Room is now marked for cleaning.',
   BOOKING_STATUS_UPDATED_SUCCESS: 'Booking status updated successfully.',
   BOOKING_PDF_GENERATED_SUCCESS: 'Booking folio generated successfully.',
+  BOOKING_BILL_GENERATED_SUCCESS: 'Booking bill generated successfully.',
   BOOKING_RETRIEVED_SUCCESS: 'Booking retrieved successfully.',
   BOOKINGS_RETRIEVED_SUCCESS: 'Bookings retrieved successfully.',
   USER_CREATED_SUCCESS: 'User created successfully.',

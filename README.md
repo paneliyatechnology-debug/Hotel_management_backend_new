@@ -279,6 +279,7 @@ Room statuses: `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, `
 | `GET` | `/bookings` | Paginated list: `id`, `hotel_id`, `booking_number`, `primary_guest_name`, `mobile_number`, `booking_status`, `rooms` |
 | `GET` | `/bookings/:id` | Full booking including `payment_history` |
 | `GET` | `/bookings/:id/pdf` | Generate the folio PDF |
+| `GET` | `/bookings/:id/bill` | Generate the guest tax-invoice bill PDF |
 | `PUT` | `/bookings/:id` | Update a booking and recalculate totals |
 | `PATCH` | `/bookings/:id/status` | Change the stay status |
 | `POST` | `/bookings/:id/check-out` | Check out and record the final payment |

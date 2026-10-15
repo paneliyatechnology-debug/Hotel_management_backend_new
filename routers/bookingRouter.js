@@ -5,10 +5,11 @@
  * 2. GET /api/v1/bookings – List bookings (id, hotel, booking number, guest, mobile, rooms) with pagination and filters.
  * 3. GET /api/v1/bookings/:id – Get complete booking details with payment history.
  * 4. GET /api/v1/bookings/:id/pdf – Generate a folio PDF and return its URL.
- * 5. PUT /api/v1/bookings/:id – Update booking details and relations.
- * 6. POST /api/v1/bookings/:id/check-out – Check out a booking (balance must be paid) and mark the room for cleaning.
- * 7. PATCH /api/v1/bookings/:id/status – Update only the booking stay status.
- * 8. DELETE /api/v1/bookings/:id – Soft-delete a booking.
+ * 5. GET /api/v1/bookings/:id/bill – Generate a guest tax-invoice bill slip PDF and return its URL.
+ * 6. PUT /api/v1/bookings/:id – Update booking details and relations.
+ * 7. POST /api/v1/bookings/:id/check-out – Check out a booking (balance must be paid) and mark the room for cleaning.
+ * 8. PATCH /api/v1/bookings/:id/status – Update only the booking stay status.
+ * 9. DELETE /api/v1/bookings/:id – Soft-delete a booking.
  *
  * Every route requires a logged-in HOTEL_ADMIN or RECEPTIONIST of that hotel.
  */
@@ -83,6 +84,17 @@ router.get(
   getBookingByIdValidator,
   validate,
   bookingController.getBookingPdf
+);
+
+/**
+ * GET /api/v1/bookings/:id/bill
+ * Generate the guest tax-invoice bill slip and return a URL that opens the PDF.
+ */
+router.get(
+  '/:id/bill',
+  getBookingByIdValidator,
+  validate,
+  bookingController.getBookingBill
 );
 
 /**

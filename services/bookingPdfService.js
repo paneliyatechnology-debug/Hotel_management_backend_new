@@ -1,18 +1,20 @@
-/**
- * Builds a booking folio (stay, charges, payment history) from the current booking and hotel records.
- * The PDF is written under uploads/pdfs and removed by the cleanup job.
+﻿/**
+ * Builds booking PDFs (full folio and guest tax-invoice bill) from booking and hotel records.
+ * Files are written under uploads/pdfs and removed by the cleanup job.
  */
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
 const bookingService = require('./bookingService');
 const hotelModel = require('../models/hotelModel');
+const roomModel = require('../models/roomModel');
 const bookingPaymentModel = require('../models/bookingPaymentModel');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS } = require('../constants');
 
 const PDF_DIR = path.join(process.cwd(), 'uploads', 'pdfs');
-const TEMPLATE_PATH = path.join(__dirname, '../templates/bookingFolio.html');
+const FOLIO_TEMPLATE_PATH = path.join(__dirname, '../templates/bookingFolio.html');
+const BILL_TEMPLATE_PATH = path.join(__dirname, '../templates/bookingBill.html');
 
 let browser = null;
 
@@ -54,6 +56,19 @@ const formatDatePart = (value) => {
   });
 };
 
+/** Invoice date in DD/MM/YYYY (same style as the sales bill reference). */
+const formatInvoiceDate = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  });
+};
+
 const formatTimePart = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -72,6 +87,59 @@ const joinParts = (parts) => parts.map((part) => String(part || '').trim()).filt
 const humanize = (value) => {
   const text = String(value || '').replace(/_/g, ' ').trim().toLowerCase();
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : '—';
+};
+
+const ONES = [
+  '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+  'Seventeen', 'Eighteen', 'Nineteen',
+];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+const twoDigits = (n) => {
+  if (n < 20) return ONES[n];
+  const ten = Math.floor(n / 10);
+  const one = n % 10;
+  return `${TENS[ten]}${one ? ` ${ONES[one]}` : ''}`;
+};
+
+const threeDigits = (n) => {
+  const hundred = Math.floor(n / 100);
+  const rest = n % 100;
+  if (hundred && rest) return `${ONES[hundred]} Hundred ${twoDigits(rest)}`;
+  if (hundred) return `${ONES[hundred]} Hundred`;
+  return twoDigits(rest);
+};
+
+/**
+ * Indian-style amount in words for the tax invoice (e.g. "Rupees One Thousand Only").
+ * @param {number|string} value
+ * @returns {string}
+ */
+const amountInWords = (value) => {
+  const amount = Math.round((Number(value) || 0) * 100) / 100;
+  if (amount === 0) return 'Rupees Zero Only';
+
+  const rupees = Math.floor(amount);
+  const paise = Math.round((amount - rupees) * 100);
+
+  const convert = (num) => {
+    if (num === 0) return '';
+    const crore = Math.floor(num / 10000000);
+    const lakh = Math.floor((num % 10000000) / 100000);
+    const thousand = Math.floor((num % 100000) / 1000);
+    const hundredRest = num % 1000;
+    const parts = [];
+    if (crore) parts.push(`${threeDigits(crore)} Crore`);
+    if (lakh) parts.push(`${threeDigits(lakh)} Lakh`);
+    if (thousand) parts.push(`${threeDigits(thousand)} Thousand`);
+    if (hundredRest) parts.push(threeDigits(hundredRest));
+    return parts.join(' ');
+  };
+
+  let words = `Rupees ${convert(rupees)}`;
+  if (paise > 0) words += ` and ${twoDigits(paise)} Paise`;
+  return `${words} Only`;
 };
 
 const STAY_TONES = {
@@ -222,7 +290,7 @@ const fillTemplate = (template, values) => {
 };
 
 const buildHtml = async (booking, hotel, payments) => {
-  const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+  const template = fs.readFileSync(FOLIO_TEMPLATE_PATH, 'utf8');
   const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
   const roomRows = rooms.length
     ? rooms.map((room) => `
@@ -326,6 +394,209 @@ const buildHtml = async (booking, hotel, payments) => {
   });
 };
 
+/**
+ * Split the stay across rooms: one row per room with its nightly price and line amount.
+ * Uses each room's custom_price_per_night. If the booking base_amount was set manually
+ * and differs, the amount is shared by those prices (or equally when no price is set),
+ * so the room rows always add up to the booking's base_amount.
+ * @param {Object} booking
+ * @param {Array<Object>} rooms
+ * @returns {Promise<Array<{ room: string, category: string, floor: string|number, nights: number, rate: number, amount: number }>>}
+ */
+const buildRoomBillRows = async (booking, rooms) => {
+  const nights = Math.max(1, Number(booking.number_of_nights) || 1);
+  const baseAmount = Math.round((Number(booking.base_amount) || 0) * 100) / 100;
+
+  if (!rooms.length) {
+    return [{
+      room: '—', category: 'Room stay', floor: '—', nights, rate: baseAmount / nights, amount: baseAmount,
+    }];
+  }
+
+  const nightlyPrices = await Promise.all(rooms.map(async (room) => {
+    try {
+      const found = await roomModel.findRoomById(room.id);
+      return Number(found?.custom_price_per_night) || 0;
+    } catch (_) {
+      return 0;
+    }
+  }));
+  const nightlyTotal = nightlyPrices.reduce((sum, price) => sum + price, 0);
+
+  let amounts;
+  if (nightlyTotal > 0 && Math.abs(nightlyTotal * nights - baseAmount) < 0.01) {
+    amounts = nightlyPrices.map((price) => Math.round(price * nights * 100) / 100);
+  } else {
+    const weights = nightlyTotal > 0 ? nightlyPrices : rooms.map(() => 1);
+    const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
+    let allocated = 0;
+    amounts = weights.map((weight, index) => {
+      if (index === weights.length - 1) return Math.round((baseAmount - allocated) * 100) / 100;
+      const share = Math.round(((baseAmount * weight) / weightTotal) * 100) / 100;
+      allocated += share;
+      return share;
+    });
+  }
+
+  return rooms.map((room, index) => ({
+    room: String(room.room_number || room.id),
+    category: room.room_type_name || '—',
+    floor: room.floor ?? '—',
+    nights,
+    rate: amounts[index] / nights,
+    amount: amounts[index],
+  }));
+};
+
+/**
+ * Table body: Sr No, Room, Category, Floor, Nights, Room Price (per night), Amount.
+ * @param {Array<Object>} rows - From buildRoomBillRows
+ * @returns {string}
+ */
+const buildBillLineItems = (rows) => rows.map((row, index) => `
+      <tr>
+        <td class="c">${index + 1}</td>
+        <td class="c desc">${escapeHtml(row.room)}</td>
+        <td class="l">${escapeHtml(row.category)}</td>
+        <td class="c">${escapeHtml(row.floor)}</td>
+        <td class="c">${escapeHtml(row.nights)}</td>
+        <td class="r">${money(row.rate)}</td>
+        <td class="r">${money(row.amount)}</td>
+      </tr>
+    `).join('');
+
+/**
+ * "Payment Received" block: one line per payment method with the net amount paid by it,
+ * then the total paid and the balance due. Refunds reduce their method; failed payments are ignored.
+ * @param {Array<Object>} payments
+ * @param {Object} booking
+ * @returns {string}
+ */
+const buildBillPaymentMethodRows = (payments, booking) => {
+  const byMethod = new Map();
+  for (const payment of payments) {
+    if (payment.status === 'FAILED') continue;
+    const label = METHOD_LABELS[payment.payment_method] || humanize(payment.payment_method);
+    byMethod.set(label, (byMethod.get(label) || 0) + (Number(payment.amount) || 0));
+  }
+
+  const lines = [...byMethod.entries()]
+    .filter(([, amount]) => Math.abs(amount) > 0.004)
+    .map(([label, amount]) => `
+      <tr>
+        <td class="m">${escapeHtml(label)}</td><td class="s">:</td>
+        <td class="a">${amount < 0 ? '−' : ''}${money(Math.abs(amount))}</td>
+      </tr>`);
+
+  if (!lines.length) {
+    lines.push('<tr><td class="none" colspan="3">No payment received.</td></tr>');
+  }
+
+  lines.push(`
+      <tr class="total">
+        <td class="m">Total Paid</td><td class="s">:</td>
+        <td class="a">${money(booking.paid_amount)}</td>
+      </tr>`);
+  lines.push(`
+      <tr class="due">
+        <td class="m">Balance Due</td><td class="s">:</td>
+        <td class="a">${money(booking.due_amount)}</td>
+      </tr>`);
+  return lines.join('');
+};
+
+/**
+ * Totals box: Sub Total, Discount, Taxable Amount, CGST, SGST, Extra charges,
+ * Late checkout, Grand Total. Amounts are in INR.
+ * @param {Object} booking
+ * @returns {string}
+ */
+const buildBillSummaryRows = (booking) => {
+  const row = (label, value, cls = '') => `
+      <tr class="${cls}">
+        <td>${label}</td>
+        <td class="v">${value}</td>
+      </tr>`;
+  const cgstRate = Number(booking.cgst_rate || 0).toFixed(2);
+  const sgstRate = Number(booking.sgst_rate || 0).toFixed(2);
+  const lateHours = Number(booking.late_checkout_hours) || 0;
+  const discount = Number(booking.discount_amount) || 0;
+
+  return [
+    row('Sub Total', money(booking.base_amount), 'head'),
+    row('Discount', `${discount > 0 ? '−' : ''}${money(discount)}`, 'minus'),
+    row('Taxable Amount', money(booking.taxable_amount), 'strong'),
+    row(`Central Tax (${cgstRate}%)`, money(booking.cgst_amount)),
+    row(`State/UT Tax (${sgstRate}%)`, money(booking.sgst_amount)),
+    row('Extra Charges', money(booking.extra_charges_total)),
+    row(`Late Checkout Charges${lateHours > 0 ? ` (${lateHours} h)` : ''}`, money(booking.late_checkout_charge)),
+    row('Grand Total', money(booking.total_amount), 'grand'),
+  ].join('');
+};
+/**
+ * Clean bill invoice (rooms, charges, payment history) for a booking.
+ * @param {Object} booking
+ * @param {Object} hotel
+ * @param {Array<Object>} payments
+ * @returns {Promise<string>}
+ */
+const buildBillHtml = async (booking, hotel, payments) => {
+  const template = fs.readFileSync(BILL_TEMPLATE_PATH, 'utf8');
+  const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
+  const address = joinParts([hotel?.address, hotel?.city, hotel?.state, hotel?.pincode, hotel?.country]);
+  const contact = joinParts([
+    hotel?.owner?.phone ? `Ph: ${hotel.owner.phone}` : '',
+    hotel?.owner?.email ? `Email: ${hotel.owner.email}` : '',
+  ]);
+
+  const gstin = String(hotel?.gst_number || '').trim();
+  const pan = String(hotel?.pan_number || '').trim();
+  // GSTIN and PAN sit under the hotel address in the header, only when the hotel has them.
+  const hotelTaxLine = [
+    gstin ? `GSTIN: ${escapeHtml(gstin)}` : '',
+    pan ? `PAN: ${escapeHtml(pan)}` : '',
+  ].filter(Boolean).join('<span class="sep">|</span>');
+
+  const signatureUrls = (Array.isArray(booking.signatures) ? booking.signatures : []).filter(Boolean);
+  const signatureSources = await Promise.all(signatureUrls.map(toDataUri));
+  const signature = signatureSources.filter(Boolean).map((src) => (
+    `<img src="${src}" alt="Authorised signature" />`
+  )).join('');
+
+  const notes = String(booking.notes || '').trim();
+  const invoiceNo = String(booking.booking_number || booking.id);
+  const roomRows = await buildRoomBillRows(booking, rooms);
+
+  return fillTemplate(template, {
+    FONT_FACE: getFontFaceCss(),
+    HOTEL_NAME: escapeHtml(hotel?.name || 'Hotel'),
+    HOTEL_ADDRESS: escapeHtml(address || '—'),
+    HOTEL_CONTACT: escapeHtml(contact || ''),
+    HOTEL_TAX_LINE: hotelTaxLine,
+    INVOICE_NO: escapeHtml(invoiceNo),
+    INVOICE_DATE: escapeHtml(formatInvoiceDate(
+      booking.actual_check_out || booking.check_out_date || booking.created_at || new Date()
+    )),
+    PAYMENT_STATUS: escapeHtml(humanize(booking.payment_status)),
+    GUEST_NAME: escapeHtml(booking.primary_guest_name || '—'),
+    GUEST_ADDRESS: escapeHtml(booking.address || '—'),
+    GUEST_MOBILE: escapeHtml(booking.mobile_number || '—'),
+    GUEST_EMAIL: escapeHtml(booking.email || '—'),
+    ADULTS: escapeHtml(booking.adults ?? 0),
+    CHILDREN: escapeHtml(booking.children ?? 0),
+    CHECK_IN: escapeHtml(formatDateTime(booking.actual_check_in || booking.check_in_date)),
+    CHECK_OUT: escapeHtml(formatDateTime(booking.actual_check_out || booking.check_out_date)),
+    NIGHTS: escapeHtml(booking.number_of_nights ?? '—'),
+    LINE_ITEMS: buildBillLineItems(roomRows),
+    SUMMARY_ROWS: buildBillSummaryRows(booking),
+    PAYMENT_METHOD_ROWS: buildBillPaymentMethodRows(payments, booking),
+    AMOUNT_IN_WORDS: escapeHtml(amountInWords(booking.total_amount)),
+    NOTES: escapeHtml(notes || '—'),
+    SIGNATURE: signature,
+    YEAR: String(new Date().getFullYear()),
+  });
+};
+
 const getBrowser = async () => {
   if (browser && browser.connected) return browser;
   browser = await puppeteer.launch({
@@ -345,6 +616,48 @@ const closePdfBrowser = async () => {
 };
 
 /**
+ * Render HTML to a PDF file under uploads/pdfs.
+ * @param {string} html
+ * @param {string} fileName
+ * @param {string} errorLabel
+ * @returns {Promise<string>} Absolute file path
+ */
+const renderPdfFile = async (html, fileName, errorLabel) => {
+  fs.mkdirSync(PDF_DIR, { recursive: true });
+  const filePath = path.join(PDF_DIR, fileName);
+  const chrome = await getBrowser();
+  const page = await chrome.newPage();
+  try {
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.evaluateHandle('document.fonts.ready');
+    // The bill template shrinks itself to one page; measure again now that fonts are loaded.
+    await page.evaluate(() => { if (typeof window.fitToPage === 'function') window.fitToPage(); });
+    // Templates may ask for a print scale (the bill uses it to get hairline borders).
+    const scale = await page.evaluate(() => (typeof window.pdfScale === 'number' ? window.pdfScale : 1));
+    await page.pdf({
+      path: filePath,
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+      scale,
+      margin: { top: 0, bottom: 0, left: 0, right: 0 },
+    });
+  } catch (err) {
+    throw new AppError(
+      `Failed to generate the ${errorLabel}: ${err.message}`,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  } finally {
+    await page.close();
+  }
+  return filePath;
+};
+
+const safeBookingFileToken = (booking) =>
+  String(booking.booking_number || booking.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+/**
+ * Full booking folio (stay, charges, payment history, ID proofs).
  * @param {number|string} bookingId
  * @param {Object} reqUser
  * @param {string} baseUrl
@@ -355,34 +668,28 @@ const generateBookingPdf = async (bookingId, reqUser, baseUrl) => {
   const hotel = await hotelModel.findHotelById(booking.hotel_id);
   const payments = await bookingPaymentModel.findPaymentsByBookingId(booking.id);
   const html = await buildHtml(booking, hotel, payments);
+  const fileName = `booking_${safeBookingFileToken(booking)}_${Date.now()}.pdf`;
+  await renderPdfFile(html, fileName, 'booking PDF');
+  return {
+    url: `${baseUrl}/uploads/pdfs/${fileName}`,
+    file_name: fileName,
+  };
+};
 
-  fs.mkdirSync(PDF_DIR, { recursive: true });
-  const safeNumber = String(booking.booking_number || booking.id).replace(/[^a-zA-Z0-9_-]/g, '_');
-  const fileName = `booking_${safeNumber}_${Date.now()}.pdf`;
-  const filePath = path.join(PDF_DIR, fileName);
-
-  const chrome = await getBrowser();
-  const page = await chrome.newPage();
-  try {
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await page.evaluateHandle('document.fonts.ready');
-    await page.pdf({
-      path: filePath,
-      format: 'A4',
-      printBackground: true,
-      // Page size comes from the template's @page rule; the 12mm margin is padding on .sheet so the background fills the page.
-      preferCSSPageSize: true,
-      margin: { top: 0, bottom: 0, left: 0, right: 0 },
-    });
-  } catch (err) {
-    throw new AppError(
-      `Failed to generate the booking PDF: ${err.message}`,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR
-    );
-  } finally {
-    await page.close();
-  }
-
+/**
+ * Guest tax-invoice bill slip for a booking (professional bill only).
+ * @param {number|string} bookingId
+ * @param {Object} reqUser
+ * @param {string} baseUrl
+ * @returns {Promise<{ url: string, file_name: string }>}
+ */
+const generateBookingBillPdf = async (bookingId, reqUser, baseUrl) => {
+  const booking = await bookingService.getBookingById(bookingId, reqUser);
+  const hotel = await hotelModel.findHotelById(booking.hotel_id);
+  const payments = await bookingPaymentModel.findPaymentsByBookingId(booking.id);
+  const html = await buildBillHtml(booking, hotel, payments);
+  const fileName = `bill_${safeBookingFileToken(booking)}_${Date.now()}.pdf`;
+  await renderPdfFile(html, fileName, 'booking bill');
   return {
     url: `${baseUrl}/uploads/pdfs/${fileName}`,
     file_name: fileName,
@@ -404,6 +711,7 @@ const clearGeneratedPdfs = () => {
 
 module.exports = {
   generateBookingPdf,
+  generateBookingBillPdf,
   clearGeneratedPdfs,
   closePdfBrowser,
   PDF_DIR,

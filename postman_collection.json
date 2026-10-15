@@ -1333,7 +1333,7 @@
                 }
               ]
             },
-            "description": "### GET /api/v1/rooms\nRooms for the logged-in hotel only. Soft-deleted rooms are omitted.\n\nDefault order is floor ascending, then room number ascending. Send `sort_order=desc` to reverse that. `sort_by` only accepts `floor`.\n\n**Query keys** are on the Params tab.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `rooms` | array | Room objects. Keys are listed on Get room. |\n| `total` | number | Matching rooms. |\n| `page` | number | Current page. |\n| `limit` | number | Page size. |\n| `totalPages` | number | Page count. Camel case, not `total_pages`. |"
+            "description": "### GET /api/v1/rooms\nRooms for the logged-in hotel only. Soft-deleted rooms are omitted.\n\nDefault order is floor ascending, then room number ascending. Send `sort_order=desc` to reverse that. `sort_by` only accepts `floor`.\n\n**Query keys** are on the Params tab.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `rooms` | array | Room objects. Keys are listed on Get room. |\n| `hotel` | object or null | GST / tax details for the logged-in hotel (same on every page). |\n| `hotel.id` | number | Hotel id. |\n| `hotel.name` | string | Hotel name. |\n| `hotel.gst_number` | string | GSTIN. Empty when not set. |\n| `hotel.pan_number` | string | PAN. Empty when not set. |\n| `hotel.gst_enabled` | boolean | Whether GST is enabled for the hotel. |\n| `hotel.tax_percentage` | number | Default tax / GST percentage (e.g. `18`). |\n| `hotel.currency` | string | Hotel currency (e.g. `INR`). |\n| `total` | number | Matching rooms. |\n| `page` | number | Current page. |\n| `limit` | number | Page size. |\n| `totalPages` | number | Page count. Camel case, not `total_pages`. |"
           }
         },
         {
@@ -1960,6 +1960,40 @@
               ]
             },
             "description": "### GET /api/v1/bookings/:id/pdf\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nBuilds the folio from this booking, including the guest signature and every uploaded image under ID proofs. The file is saved under uploads/pdfs and removed every 3 hours.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `url` | string | Open this address in a browser to view the PDF. |\n| `file_name` | string | File name in the uploads folder. |"
+          }
+        },
+        {
+          "name": "Generate booking bill",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bookings/{{bookingId}}/bill",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "bookings",
+                ":id",
+                "bill"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{bookingId}}",
+                  "description": "Required. Booking id."
+                }
+              ]
+            },
+            "description": "### GET /api/v1/bookings/:id/bill\n**Who can call this:** HOTEL_ADMIN or RECEPTIONIST.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nBuilds a professional guest **tax invoice / bill slip** for this booking only (hotel letterhead, guest and stay details). The table has one row per room: Sr No, Room, Room Category, Floor, Nights, Room Price (per night) and Amount (price x nights). Under it: Total, Discount, Taxable Amount, CGST, SGST, Extra Charges, Late Checkout Charges, Grand Total, Amount Paid and Balance Due, then Payment Received (net amount paid per method, total paid, balance due), the bill amount in words and the signature. It does not include the full folio extras such as ID proofs or the payment ledger. The file is saved under uploads/pdfs and removed every 3 hours.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `url` | string | Open this address in a browser to view the bill PDF. |\n| `file_name` | string | File name in the uploads folder. |"
           }
         },
         {

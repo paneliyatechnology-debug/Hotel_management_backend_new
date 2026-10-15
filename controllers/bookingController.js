@@ -78,6 +78,26 @@ const getBookingPdf = async (req, res, next) => {
 };
 
 /**
+ * GET /api/v1/bookings/:id/bill
+ * Generate the guest tax-invoice bill slip and return a URL that opens the PDF.
+ */
+const getBookingBill = async (req, res, next) => {
+  try {
+    const proto = req.get('x-forwarded-proto') || req.protocol;
+    const baseUrl = `${proto}://${req.get('host')}`;
+    const data = await bookingPdfService.generateBookingBillPdf(req.params.id, req.user, baseUrl);
+    return success(
+      res,
+      MESSAGES.BOOKING_BILL_GENERATED_SUCCESS,
+      data,
+      HTTP_STATUS.OK
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * PUT /api/v1/bookings/:id
  * Update booking details, room allocations, guests, and media
  */
@@ -134,6 +154,7 @@ module.exports = {
   getBookings,
   getBookingById,
   getBookingPdf,
+  getBookingBill,
   updateBooking,
   checkOutBooking,
   updateBookingStatus,

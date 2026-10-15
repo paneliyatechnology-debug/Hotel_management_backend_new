@@ -914,6 +914,14 @@ Default order is floor ascending, then room number ascending. Send \`sort_order=
 | Key | Type | Meaning |
 | --- | --- | --- |
 | \`rooms\` | array | Room objects. Keys are listed on Get room. |
+| \`hotel\` | object or null | GST / tax details for the logged-in hotel (same on every page). |
+| \`hotel.id\` | number | Hotel id. |
+| \`hotel.name\` | string | Hotel name. |
+| \`hotel.gst_number\` | string | GSTIN. Empty when not set. |
+| \`hotel.pan_number\` | string | PAN. Empty when not set. |
+| \`hotel.gst_enabled\` | boolean | Whether GST is enabled for the hotel. |
+| \`hotel.tax_percentage\` | number | Default tax / GST percentage (e.g. \`18\`). |
+| \`hotel.currency\` | string | Hotel currency (e.g. \`INR\`). |
 | \`total\` | number | Matching rooms. |
 | \`page\` | number | Current page. |
 | \`limit\` | number | Page size. |
@@ -1259,6 +1267,28 @@ Builds the folio from this booking, including the guest signature and every uplo
 | Key | Type | Meaning |
 | --- | --- | --- |
 | \`url\` | string | Open this address in a browser to view the PDF. |
+| \`file_name\` | string | File name in the uploads folder. |`,
+    }),
+    item({
+      name: 'Generate booking bill',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/bookings/{{bookingId}}/bill',
+      pathSegments: ['api', 'v1', 'bookings', ':id', 'bill'],
+      variable: [idVar('id', '{{bookingId}}', 'Required. Booking id.')],
+      description: `### GET /api/v1/bookings/:id/bill
+${authNote('HOTEL_ADMIN or RECEPTIONIST.')}
+
+Builds a professional guest **tax invoice / bill slip** for this booking only (hotel letterhead, guest and stay details). The table has one row per room: Sr No, Room, Room Category, Floor, Nights, Room Price (per night) and Amount (price x nights). Under it: Total, Discount, Taxable Amount, CGST, SGST, Extra Charges, Late Checkout Charges, Grand Total, Amount Paid and Balance Due, then Payment Received (net amount paid per method, total paid, balance due), the bill amount in words and the signature. It does not include the full folio extras such as ID proofs or the payment ledger. The file is saved under uploads/pdfs and removed every 3 hours.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Booking id. |
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`url\` | string | Open this address in a browser to view the bill PDF. |
 | \`file_name\` | string | File name in the uploads folder. |`,
     }),
     item({
