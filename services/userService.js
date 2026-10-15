@@ -11,6 +11,7 @@ const hotelModel = require('../models/hotelModel');
 const tokenModel = require('../models/tokenModel');
 const auditService = require('./auditService');
 const { queueEmail } = require('../queues/emailQueue');
+const { buildPortalLinks } = require('../utils/frontendUrl');
 const { generateSecureTempPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, ROLE_CODES, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
@@ -177,14 +178,8 @@ const createUser = async (payload, req_user) => {
   }
 
   // Enqueue onboarding email with temporary password & password reset link
-  const adminBaseUrl = (
-    process.env.ADMIN_URL ||
-    process.env.WEB_URL ||
-    'https://hotel-management-admin-livid.vercel.app'
-  ).replace(/\/+$/, '');
-
-  const portalUrl = `${adminBaseUrl}/login`;
-  const setupUrl = `${adminBaseUrl}/reset-password?token=${setupToken}`;
+  // Same web app as the forgot-password link, not the super admin console.
+  const { portalUrl, setupUrl } = buildPortalLinks(setupToken);
 
   let hotelName = 'MYOWNPMS';
   if (hotel_id) {

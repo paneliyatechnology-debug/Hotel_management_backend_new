@@ -7,6 +7,7 @@ const {
   hotelRegisteredWelcomeTemplate,
   staffUserWelcomeTemplate,
 } = require('../templates/emailTemplates');
+const { buildPortalLinks } = require('../utils/frontendUrl');
 
 /**
  * Mask email for safe server logging (e.g. j***n@example.com)
@@ -153,7 +154,7 @@ const sendPasswordResetLinkEmail = async (to, userName, resetUrl, expiryMinutes 
  */
 const sendHotelRegisteredEmail = async (data) => {
   const htmlContent = hotelRegisteredWelcomeTemplate(data);
-  const portalUrl = data.portalUrl || process.env.ADMIN_URL || 'https://hotel-management-admin-livid.vercel.app/login';
+  const portalUrl = data.portalUrl || buildPortalLinks().portalUrl;
 
   return sendEmail({
     to: data.adminEmail,
@@ -178,7 +179,7 @@ const sendHotelRegisteredEmail = async (data) => {
  */
 const sendStaffUserCreatedEmail = async (data) => {
   const htmlContent = staffUserWelcomeTemplate(data);
-  const portalUrl = data.portalUrl || process.env.ADMIN_URL || 'https://hotel-management-admin-livid.vercel.app/login';
+  const portalUrl = data.portalUrl || buildPortalLinks().portalUrl;
 
   return sendEmail({
     to: data.email,

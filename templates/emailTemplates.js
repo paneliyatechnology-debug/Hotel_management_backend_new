@@ -3,6 +3,8 @@
  * Brand in the header is always MYOWNPMS. Footer matches the booking folio PDF.
  */
 
+const { buildPortalLinks } = require('../utils/frontendUrl');
+
 const BRAND_NAME = 'MYOWNPMS';
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@myownpms.com';
 
@@ -23,11 +25,7 @@ const escapeHtml = (value) =>
  * @param {string} [portalUrl]
  * @returns {string}
  */
-const resolvePortalUrl = (portalUrl) =>
-  portalUrl ||
-  process.env.ADMIN_URL ||
-  process.env.WEB_URL ||
-  'https://hotel-management-admin-livid.vercel.app/login';
+const resolvePortalUrl = (portalUrl) => portalUrl || buildPortalLinks().portalUrl;
 
 /**
  * Footer line matching the booking folio PDF.

@@ -13,6 +13,7 @@ const {
   clearAuthCookies,
 } = require('../utils/jwt');
 const { queueEmail } = require('../queues/emailQueue');
+const { getFrontendBaseUrl } = require('../utils/frontendUrl');
 const auditService = require('./auditService');
 const { assertHotelActive } = require('../utils/hotelScope');
 const { AppError } = require('../utils/response');
@@ -273,7 +274,7 @@ const LOCAL_ORIGIN_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
  */
 const resolveResetBaseUrl = (requestOrigin) => {
   if (requestOrigin && LOCAL_ORIGIN_PATTERN.test(requestOrigin)) return requestOrigin;
-  return (process.env.RESET_PASSWORD_URL || process.env.FRONTEND_URL || 'http://localhost:3000').trim();
+  return getFrontendBaseUrl();
 };
 
 /**

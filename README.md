@@ -84,9 +84,9 @@ All variables are documented inline in [`.env.example`](.env.example). Summary:
 | `DB_TEST_*` | No | - | Database used when `NODE_ENV=test` |
 | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | Production | built-in dev fallback | Token signing secrets. Always set real values in production. |
 | `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | No | `1h`, `30d` | Token lifetimes |
-| `FRONTEND_URL` | Yes | `http://localhost:3000` | CORS origin and password reset link base |
-| `RESET_PASSWORD_URL` | No | `FRONTEND_URL` | Overrides the password reset link base |
-| `ADMIN_URL`, `WEB_URL` | No | - | Email link bases and CORS origins |
+| `FRONTEND_URL` | Yes | `http://localhost:3000` | CORS origin and the web app address used in every email link (welcome, staff invitation, password reset) |
+| `RESET_PASSWORD_URL` | No | `FRONTEND_URL` | Overrides the address used in email links |
+| `ADMIN_URL`, `WEB_URL` | No | - | Extra CORS origins only (for example the super admin console). Not used in email links |
 | `ALLOWED_ORIGINS` | No | - | Extra CORS origins, comma separated |
 | `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `FROM_NAME` | No | - | Email delivery. Without a key, emails are only logged. The sender must be on your own authenticated domain. |
 | `REPLY_TO_EMAIL` | No | `SUPPORT_EMAIL` | Reply-To address on every email |

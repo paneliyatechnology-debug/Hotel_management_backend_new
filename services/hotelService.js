@@ -14,6 +14,7 @@ const s3Service = require('./s3Service');
 const auditService = require('./auditService');
 const { checkEmailExistsGlobally } = require('../utils/emailValidator');
 const { queueEmail } = require('../queues/emailQueue');
+const { buildPortalLinks } = require('../utils/frontendUrl');
 const { disconnectHotel } = require('../sockets/roomSocket');
 const {
   generateAccessToken,
@@ -345,14 +346,8 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
   }
 
   // 6. Enqueue Welcome Email
-  const adminBaseUrl = (
-    process.env.ADMIN_URL ||
-    process.env.WEB_URL ||
-    'https://hotel-management-admin-livid.vercel.app'
-  ).replace(/\/+$/, '');
-
-  const portalUrl = `${adminBaseUrl}/login`;
-  const setupUrl = `${adminBaseUrl}/reset-password?token=${setupToken}`;
+  // Same web app as the forgot-password link, not the super admin console.
+  const { portalUrl, setupUrl } = buildPortalLinks(setupToken);
 
   try {
     await queueEmail('HOTEL_REGISTERED', normalizedEmail, {
