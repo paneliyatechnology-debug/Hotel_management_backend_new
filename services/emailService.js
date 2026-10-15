@@ -34,11 +34,11 @@ const sendEmail = async ({ to, subject, html, text, toName }) => {
     return { success: true, simulated: true, messageId: `<test-${Date.now()}@simulation>` };
   }
 
-  const senderName = process.env.FROM_NAME || process.env.APP_NAME || 'MYOWNPMS';
+  const senderName = process.env.FROM_NAME || 'MYOWNPMS';
   const senderEmail = (
     process.env.BREVO_SENDER_EMAIL ||
     process.env.FROM_EMAIL ||
-    'no-reply@hotelmanagement.com'
+    'no-reply@myownpms.com'
   ).trim();
 
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {

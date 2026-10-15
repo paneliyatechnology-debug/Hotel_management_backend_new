@@ -1,462 +1,342 @@
 /**
- * Reusable HTML Email Templates
- * Modern, Clean & Professional SaaS Theme for Hotel Management Portal
+ * HTML email templates for MYOWNPMS.
+ * Brand in the header is always MYOWNPMS. Footer matches the booking folio PDF.
  */
 
+const BRAND_NAME = 'MYOWNPMS';
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@myownpms.com';
+
 /**
- * Clean & Professional Hotel Registration Welcome Email Template
+ * Escape text for safe use inside HTML.
+ * @param {*} value
+ * @returns {string}
+ */
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/**
+ * @param {string} [portalUrl]
+ * @returns {string}
+ */
+const resolvePortalUrl = (portalUrl) =>
+  portalUrl ||
+  process.env.ADMIN_URL ||
+  process.env.WEB_URL ||
+  'https://hotel-management-admin-livid.vercel.app/login';
+
+/**
+ * Footer line matching the booking folio PDF.
+ * @param {string} [entityName] - Hotel or property name
+ * @returns {string}
+ */
+const brandFooter = (entityName) => {
+  const year = new Date().getFullYear();
+  const name = escapeHtml(entityName || BRAND_NAME);
+  // Matches booking folio PDF: © YEAR <strong>HOTEL</strong>. Powered by MYOWNPMS.
+  return `
+    <p style="margin:0 0 6px 0;">
+      Need help? Write to
+      <a href="mailto:${escapeHtml(SUPPORT_EMAIL)}" style="color:#4b5563;text-decoration:underline;">${escapeHtml(SUPPORT_EMAIL)}</a>.
+    </p>
+    <p style="margin:0;">&copy; ${year} <strong>${name}</strong>. Powered by ${BRAND_NAME}.</p>
+  `;
+};
+
+/**
+ * Shared email shell. Header always shows MYOWNPMS — never APP_NAME / backend labels.
+ * @param {Object} options
+ * @returns {string}
+ */
+const emailLayout = ({ title, subtitle, badgeHtml = '', bodyHtml, footerHtml, preheader = '' }) => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>${escapeHtml(title)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#1f2937;">
+  ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${escapeHtml(preheader)}</div>` : ''}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="background-color:#0b1f33;padding:26px 36px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td>
+                    <div style="font-size:15px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#ffffff;">
+                      ${BRAND_NAME}
+                    </div>
+                    <div style="font-size:12px;color:#94a3b8;margin-top:6px;">
+                      ${escapeHtml(subtitle)}
+                    </div>
+                  </td>
+                  ${badgeHtml ? `<td align="right" style="vertical-align:middle;">${badgeHtml}</td>` : ''}
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:36px 36px 28px 36px;">
+              ${bodyHtml}
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#f9fafb;padding:22px 36px;border-top:1px solid #e5e7eb;text-align:center;font-size:12px;color:#6b7280;line-height:1.6;">
+              ${footerHtml}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+/**
+ * @param {string} href
+ * @param {string} label
+ * @returns {string}
+ */
+const ctaButton = (href, label) => `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 18px 0;">
+  <tr>
+    <td align="center">
+      <a href="${escapeHtml(href)}" target="_blank" style="display:inline-block;background-color:#0b1f33;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:14px 32px;border-radius:4px;">
+        ${escapeHtml(label)}
+      </a>
+    </td>
+  </tr>
+</table>`;
+
+/**
+ * @param {string} heading
+ * @param {Array<{ label: string, valueHtml: string }>} rows
+ * @returns {string}
+ */
+const detailCard = (heading, rows) => `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;margin:0 0 24px 0;">
+  <tr>
+    <td style="padding:20px 22px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#6b7280;margin-bottom:14px;">
+        ${escapeHtml(heading)}
+      </div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;">
+        ${rows
+          .map(
+            (row) => `
+        <tr>
+          <td style="color:#6b7280;padding:7px 0;width:38%;vertical-align:top;">${escapeHtml(row.label)}</td>
+          <td style="padding:7px 0;color:#111827;vertical-align:top;">${row.valueHtml}</td>
+        </tr>`
+          )
+          .join('')}
+      </table>
+    </td>
+  </tr>
+</table>`;
+
+/**
+ * @param {string} url
+ * @returns {string}
+ */
+const fallbackLink = (url) => `
+<div style="margin-top:24px;padding-top:18px;border-top:1px solid #eef2f7;font-size:12px;color:#9ca3af;line-height:1.6;">
+  <p style="margin:0 0 6px 0;">If the button does not work, copy and paste this link into your browser:</p>
+  <p style="margin:0;word-break:break-all;">
+    <a href="${escapeHtml(url)}" target="_blank" style="color:#1d4ed8;text-decoration:underline;">${escapeHtml(url)}</a>
+  </p>
+</div>`;
+
+/**
+ * @param {string} password
+ * @returns {string}
+ */
+const passwordChip = (password) =>
+  `<code style="display:inline-block;background-color:#ffffff;border:1px solid #d1d5db;padding:4px 10px;border-radius:3px;font-family:'Courier New',Courier,monospace;font-size:14px;font-weight:700;color:#111827;">${escapeHtml(password)}</code>`;
+
+/**
+ * Hotel registration welcome email.
  * @param {Object} data
- * @param {string} data.hotelName
- * @param {string} data.ownerName
- * @param {string} data.adminEmail
- * @param {string} [data.temporaryPassword]
- * @param {string} [data.setupUrl]
- * @param {string} [data.portalUrl]
- * @param {string} data.trialStartDate
- * @param {string} data.trialEndDate
- * @returns {string} HTML string
+ * @returns {string}
  */
 const hotelRegisteredWelcomeTemplate = (data) => {
-  const portalUrl =
-    data.portalUrl ||
-    process.env.ADMIN_URL ||
-    process.env.WEB_URL ||
-    'https://hotel-management-admin-livid.vercel.app/login';
+  const portalUrl = resolvePortalUrl(data.portalUrl);
   const ctaUrl = data.setupUrl || portalUrl;
-  const ctaLabel = data.setupUrl ? 'Set Up Your Permanent Password' : 'Log In to Admin Portal';
+  const ctaLabel = data.setupUrl ? 'Set Your Permanent Password' : 'Open Admin Portal';
+  const ownerName = escapeHtml(data.ownerName || 'there');
+  const hotelName = data.hotelName || 'Your property';
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>Welcome to MYOWNPMS - ${data.hotelName}</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: #334155;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f1f5f9; padding: 40px 16px;">
-    <tr>
-      <td align="center">
-        <!-- Main Card -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 580px; background-color: #ffffff; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-          <!-- Brand Header -->
-          <tr>
-            <td style="padding: 28px 36px 20px 36px; border-bottom: 1px solid #f1f5f9;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td>
-                    <div style="font-size: 14px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #1e3a8a;">
-                      MYOWNPMS
-                    </div>
-                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-                      Hotel Management System
-                    </div>
-                  </td>
-                  <td align="right">
-                    <span style="display: inline-block; background-color: #ecfdf5; color: #059669; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px; border: 1px solid #a7f3d0;">
-                      Free Trial Active
-                    </span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+  const rows = [
+    {
+      label: 'Portal',
+      valueHtml: `<a href="${escapeHtml(portalUrl)}" style="color:#1d4ed8;font-weight:500;text-decoration:underline;" target="_blank">${escapeHtml(portalUrl)}</a>`,
+    },
+    {
+      label: 'Admin email',
+      valueHtml: `<strong style="font-weight:600;">${escapeHtml(data.adminEmail)}</strong>`,
+    },
+  ];
 
-          <!-- Content Body -->
-          <tr>
-            <td style="padding: 32px 36px 24px 36px;">
-              <h1 style="margin: 0 0 10px 0; font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1.3;">
-                Welcome, ${data.ownerName}
-              </h1>
-              <p style="margin: 0 0 24px 0; font-size: 15px; color: #475569; line-height: 1.6;">
-                Your property <strong style="color: #0f172a;">${data.hotelName}</strong> has been successfully registered. Your 30-day free trial is now active, and your hotel management workspace is ready.
-              </p>
+  if (data.temporaryPassword) {
+    rows.push({
+      label: 'Temporary password',
+      valueHtml: passwordChip(data.temporaryPassword),
+    });
+  }
 
-              <!-- Credentials Card -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 24px;">
-                <tr>
-                  <td style="padding: 18px 22px;">
-                    <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #64748b; margin-bottom: 12px;">
-                      Admin Access Details
-                    </div>
+  const bodyHtml = `
+    <h1 style="margin:0 0 12px 0;font-size:24px;font-weight:700;color:#0b1f33;line-height:1.3;">
+      Welcome, ${ownerName}
+    </h1>
+    <p style="margin:0 0 22px 0;font-size:15px;color:#4b5563;line-height:1.7;">
+      <strong style="color:#111827;">${escapeHtml(hotelName)}</strong> is registered on ${BRAND_NAME}.
+      Your 30-day free trial is active and your workspace is ready.
+    </p>
+    ${detailCard('Admin access', rows)}
+    ${ctaButton(ctaUrl, ctaLabel)}
+    <p style="margin:0 0 22px 0;font-size:13px;color:#6b7280;line-height:1.6;text-align:center;">
+      Sign in with the temporary password, or use the button above to set a permanent password.
+      ${data.setupUrl ? ' The setup link is valid for <strong style="color:#374151;">48 hours</strong>.' : ''}
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #eef2f7;padding-top:16px;font-size:13px;color:#6b7280;">
+      <tr>
+        <td style="padding:5px 0;">Subscription</td>
+        <td align="right" style="color:#047857;font-weight:600;padding:5px 0;">30-Day Free Trial</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0;">Trial period</td>
+        <td align="right" style="color:#111827;font-weight:600;padding:5px 0;">
+          ${escapeHtml(data.trialStartDate)} &ndash; ${escapeHtml(data.trialEndDate)}
+        </td>
+      </tr>
+    </table>
+    ${data.setupUrl ? fallbackLink(data.setupUrl) : ''}
+  `;
 
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
-                      <tr>
-                        <td style="color: #64748b; padding: 6px 0; width: 36%;">Portal URL:</td>
-                        <td style="padding: 6px 0;">
-                          <a href="${portalUrl}" style="color: #2563eb; font-weight: 500; text-decoration: underline;" target="_blank">
-                            ${portalUrl}
-                          </a>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; padding: 6px 0;">Admin Email:</td>
-                        <td style="color: #0f172a; font-weight: 600; padding: 6px 0;">
-                          ${data.adminEmail}
-                        </td>
-                      </tr>
-                      ${
-                        data.temporaryPassword
-                          ? `
-                      <tr>
-                        <td style="color: #64748b; padding: 6px 0;">Temporary Password:</td>
-                        <td style="padding: 6px 0;">
-                          <code style="display: inline-block; background-color: #ffffff; border: 1px solid #cbd5e1; padding: 3px 8px; border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 14px; font-weight: 700; color: #0f172a;">
-                            ${data.temporaryPassword}
-                          </code>
-                        </td>
-                      </tr>
-                      `
-                          : ''
-                      }
-                    </table>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Primary CTA Button -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 26px 0 20px 0;">
-                <tr>
-                  <td align="center">
-                    <a href="${ctaUrl}" target="_blank" style="display: inline-block; background-color: #0f172a; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 13px 30px; border-radius: 6px; text-align: center; letter-spacing: 0.2px;">
-                      ${ctaLabel}
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <p style="margin: 0 0 24px 0; font-size: 13px; color: #64748b; line-height: 1.5; text-align: center;">
-                You can log in directly with your temporary password, or click the button above to set your permanent password. For security, this link is valid for <strong>48 hours</strong>.
-              </p>
-
-              <!-- Trial Details -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top: 1px solid #f1f5f9; padding-top: 16px; font-size: 13px; color: #64748b;">
-                <tr>
-                  <td style="padding: 4px 0;">Subscription Plan:</td>
-                  <td align="right" style="color: #059669; font-weight: 600; padding: 4px 0;">
-                    30-Day Free Trial
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 4px 0;">Trial Validity:</td>
-                  <td align="right" style="color: #0f172a; font-weight: 600; padding: 4px 0;">
-                    ${data.trialStartDate} &ndash; ${data.trialEndDate}
-                  </td>
-                </tr>
-              </table>
-
-              ${
-                data.setupUrl
-                  ? `
-              <!-- Fallback Link -->
-              <div style="margin-top: 22px; padding-top: 16px; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8; line-height: 1.5;">
-                <p style="margin: 0 0 4px 0;">If the button above does not work, copy and paste this link into your browser:</p>
-                <p style="margin: 0; word-break: break-all;">
-                  <a href="${data.setupUrl}" target="_blank" style="color: #2563eb; text-decoration: underline;">
-                    ${data.setupUrl}
-                  </a>
-                </p>
-              </div>
-              `
-                  : ''
-              }
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f8fafc; padding: 22px 36px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.5;">
-              <p style="margin: 0 0 4px 0;">
-                Need help getting started? Contact our support team at <a href="mailto:support@hotelmanagement.com" style="color: #64748b; text-decoration: underline;">support@hotelmanagement.com</a>.
-              </p>
-              <p style="margin: 0;">
-                &copy; ${new Date().getFullYear()} ${data.hotelName}. Powered by MYOWNPMS.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+  return emailLayout({
+    title: `Welcome to ${BRAND_NAME}`,
+    subtitle: 'Property Management',
+    badgeHtml: `<span style="display:inline-block;background-color:rgba(255,255,255,0.12);color:#d1fae5;font-size:11px;font-weight:600;padding:5px 12px;border:1px solid rgba(209,250,229,0.35);border-radius:999px;">Free Trial Active</span>`,
+    bodyHtml,
+    footerHtml: brandFooter(hotelName),
+    preheader: `${hotelName} is ready on ${BRAND_NAME}. Your trial and login details are inside.`,
+  });
 };
 
 /**
- * Clean & Professional Staff Onboarding Email Template
+ * Staff onboarding welcome email.
  * @param {Object} data
- * @param {string} data.userName
- * @param {string} data.email
- * @param {string} data.role
- * @param {string} data.hotelName
- * @param {string} [data.temporaryPassword]
- * @param {string} [data.setupUrl]
- * @param {string} [data.portalUrl]
- * @returns {string} HTML string
+ * @returns {string}
  */
 const staffUserWelcomeTemplate = (data) => {
-  const portalUrl =
-    data.portalUrl ||
-    process.env.ADMIN_URL ||
-    process.env.WEB_URL ||
-    'https://hotel-management-admin-livid.vercel.app/login';
+  const portalUrl = resolvePortalUrl(data.portalUrl);
   const ctaUrl = data.setupUrl || portalUrl;
-  const ctaLabel = data.setupUrl ? 'Set Up Your Permanent Password' : 'Log In to Staff Portal';
+  const ctaLabel = data.setupUrl ? 'Set Your Permanent Password' : 'Open Staff Portal';
+  const userName = escapeHtml(data.userName || 'Team Member');
+  const hotelName = data.hotelName || 'your hotel';
+  const role = escapeHtml(data.role || 'Staff');
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>Welcome to ${data.hotelName || 'The Team'}</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: #334155;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f1f5f9; padding: 40px 16px;">
-    <tr>
-      <td align="center">
-        <!-- Main Card -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 580px; background-color: #ffffff; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-          <!-- Brand Header -->
-          <tr>
-            <td style="padding: 28px 36px 20px 36px; border-bottom: 1px solid #f1f5f9;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td>
-                    <div style="font-size: 14px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #1e3a8a;">
-                      ${data.hotelName || 'MYOWNPMS'}
-                    </div>
-                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-                      Staff Account Onboarding
-                    </div>
-                  </td>
-                  <td align="right">
-                    <span style="display: inline-block; background-color: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px; border: 1px solid #bfdbfe;">
-                      ${data.role || 'Staff Member'}
-                    </span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+  const rows = [
+    {
+      label: 'Portal',
+      valueHtml: `<a href="${escapeHtml(portalUrl)}" style="color:#1d4ed8;font-weight:500;text-decoration:underline;" target="_blank">${escapeHtml(portalUrl)}</a>`,
+    },
+    {
+      label: 'Login email',
+      valueHtml: `<strong style="font-weight:600;">${escapeHtml(data.email)}</strong>`,
+    },
+    {
+      label: 'Role',
+      valueHtml: `<strong style="font-weight:600;">${role}</strong>`,
+    },
+  ];
 
-          <!-- Content Body -->
-          <tr>
-            <td style="padding: 32px 36px 24px 36px;">
-              <h1 style="margin: 0 0 10px 0; font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1.3;">
-                Welcome, ${data.userName || 'Team Member'}
-              </h1>
-              <p style="margin: 0 0 24px 0; font-size: 15px; color: #475569; line-height: 1.6;">
-                Your staff account has been created for <strong style="color: #0f172a;">${data.hotelName || 'the hotel'}</strong>. You can log in to the management system using the credentials below:
-              </p>
+  if (data.temporaryPassword) {
+    rows.push({
+      label: 'Temporary password',
+      valueHtml: passwordChip(data.temporaryPassword),
+    });
+  }
 
-              <!-- Credentials Card -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 24px;">
-                <tr>
-                  <td style="padding: 18px 22px;">
-                    <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #64748b; margin-bottom: 12px;">
-                      Your Login Credentials
-                    </div>
+  const bodyHtml = `
+    <h1 style="margin:0 0 12px 0;font-size:24px;font-weight:700;color:#0b1f33;line-height:1.3;">
+      Welcome, ${userName}
+    </h1>
+    <p style="margin:0 0 22px 0;font-size:15px;color:#4b5563;line-height:1.7;">
+      Your staff account for <strong style="color:#111827;">${escapeHtml(hotelName)}</strong> is ready.
+      Use the details below to sign in.
+    </p>
+    ${detailCard('Login details', rows)}
+    ${ctaButton(ctaUrl, ctaLabel)}
+    <p style="margin:0 0 8px 0;font-size:13px;color:#6b7280;line-height:1.6;text-align:center;">
+      Sign in with the temporary password, or use the button above to set a permanent password.
+      ${data.setupUrl ? ' The setup link expires in <strong style="color:#374151;">48 hours</strong>.' : ''}
+    </p>
+    ${data.setupUrl ? fallbackLink(data.setupUrl) : ''}
+  `;
 
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px;">
-                      <tr>
-                        <td style="color: #64748b; padding: 6px 0; width: 36%;">Portal URL:</td>
-                        <td style="padding: 6px 0;">
-                          <a href="${portalUrl}" style="color: #2563eb; font-weight: 500; text-decoration: underline;" target="_blank">
-                            ${portalUrl}
-                          </a>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; padding: 6px 0;">Login Email:</td>
-                        <td style="color: #0f172a; font-weight: 600; padding: 6px 0;">
-                          ${data.email}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="color: #64748b; padding: 6px 0;">Assigned Role:</td>
-                        <td style="color: #0f172a; font-weight: 600; padding: 6px 0;">
-                          ${data.role}
-                        </td>
-                      </tr>
-                      ${
-                        data.temporaryPassword
-                          ? `
-                      <tr>
-                        <td style="color: #64748b; padding: 6px 0;">Temporary Password:</td>
-                        <td style="padding: 6px 0;">
-                          <code style="display: inline-block; background-color: #ffffff; border: 1px solid #cbd5e1; padding: 3px 8px; border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 14px; font-weight: 700; color: #0f172a;">
-                            ${data.temporaryPassword}
-                          </code>
-                        </td>
-                      </tr>
-                      `
-                          : ''
-                      }
-                    </table>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Primary CTA Button -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 26px 0 20px 0;">
-                <tr>
-                  <td align="center">
-                    <a href="${ctaUrl}" target="_blank" style="display: inline-block; background-color: #0f172a; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 13px 30px; border-radius: 6px; text-align: center; letter-spacing: 0.2px;">
-                      ${ctaLabel}
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <p style="margin: 0 0 24px 0; font-size: 13px; color: #64748b; line-height: 1.5; text-align: center;">
-                You can log in directly with your temporary password, or click the button above to set your permanent password. This setup link expires in <strong>48 hours</strong>.
-              </p>
-
-              ${
-                data.setupUrl
-                  ? `
-              <!-- Fallback Link -->
-              <div style="margin-top: 22px; padding-top: 16px; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8; line-height: 1.5;">
-                <p style="margin: 0 0 4px 0;">If the button above does not work, copy and paste this link into your browser:</p>
-                <p style="margin: 0; word-break: break-all;">
-                  <a href="${data.setupUrl}" target="_blank" style="color: #2563eb; text-decoration: underline;">
-                    ${data.setupUrl}
-                  </a>
-                </p>
-              </div>
-              `
-                  : ''
-              }
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f8fafc; padding: 22px 36px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.5;">
-              <p style="margin: 0 0 4px 0;">
-                If you have questions about your access, please contact your Hotel Administrator.
-              </p>
-              <p style="margin: 0;">
-                &copy; ${new Date().getFullYear()} ${data.hotelName || 'Hotel'}. Powered by MYOWNPMS.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+  return emailLayout({
+    title: `Welcome to ${hotelName}`,
+    subtitle: 'Staff Invitation',
+    badgeHtml: `<span style="display:inline-block;background-color:rgba(255,255,255,0.12);color:#dbeafe;font-size:11px;font-weight:600;padding:5px 12px;border:1px solid rgba(219,234,254,0.35);border-radius:999px;">${role}</span>`,
+    bodyHtml,
+    footerHtml: brandFooter(hotelName),
+    preheader: `Your ${data.role || 'staff'} account for ${hotelName} is ready.`,
+  });
 };
 
 /**
- * Clean & Professional Password Reset Email Template
+ * Password reset email.
+ * Header is always MYOWNPMS — never APP_NAME / "Hotel Management Backend".
  * @param {Object} params
- * @param {string} params.userName
- * @param {string} params.resetUrl
- * @param {string} [params.hotelName]
- * @param {number} [params.expiryMinutes=30]
- * @returns {string} HTML string
+ * @returns {string}
  */
 const passwordResetLinkTemplate = ({
-  userName = 'Valued User',
+  userName = 'there',
   resetUrl,
-  hotelName = process.env.APP_NAME || 'MYOWNPMS',
+  hotelName,
   expiryMinutes = 30,
 }) => {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>Reset Your Password</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: #334155;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f1f5f9; padding: 40px 16px;">
-    <tr>
-      <td align="center">
-        <!-- Main Card -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 580px; background-color: #ffffff; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-          <!-- Brand Header -->
-          <tr>
-            <td style="padding: 28px 36px 20px 36px; border-bottom: 1px solid #f1f5f9;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td>
-                    <div style="font-size: 13px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #1e3a8a;">
-                      ${hotelName}
-                    </div>
-                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-                      Account Security
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+  const safeName = escapeHtml(userName);
+  const footerName = hotelName || BRAND_NAME;
 
-          <!-- Content Body -->
-          <tr>
-            <td style="padding: 32px 36px 24px 36px;">
-              <h1 style="margin: 0 0 10px 0; font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1.3;">
-                Reset Your Password
-              </h1>
-              <p style="margin: 0 0 24px 0; font-size: 15px; color: #475569; line-height: 1.6;">
-                Hello ${userName},<br><br>
-                We received a request to reset the password for your account. Click the button below to choose a new password:
-              </p>
+  const bodyHtml = `
+    <h1 style="margin:0 0 12px 0;font-size:24px;font-weight:700;color:#0b1f33;line-height:1.3;">
+      Reset your password
+    </h1>
+    <p style="margin:0 0 10px 0;font-size:15px;color:#4b5563;line-height:1.7;">
+      Hello ${safeName},
+    </p>
+    <p style="margin:0 0 8px 0;font-size:15px;color:#4b5563;line-height:1.7;">
+      We received a request to reset the password for your ${BRAND_NAME} account.
+      Use the button below to choose a new password.
+    </p>
+    ${ctaButton(resetUrl, 'Reset Password')}
+    <p style="margin:0 0 8px 0;font-size:13px;color:#6b7280;line-height:1.6;text-align:center;">
+      This link is valid for <strong style="color:#374151;">${escapeHtml(expiryMinutes)} minutes</strong> and can be used only once.
+      If you did not request this change, you can ignore this email.
+    </p>
+    ${fallbackLink(resetUrl)}
+  `;
 
-              <!-- Primary CTA Button -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 26px 0 20px 0;">
-                <tr>
-                  <td align="center">
-                    <a href="${resetUrl}" target="_blank" style="display: inline-block; background-color: #0f172a; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 13px 30px; border-radius: 6px; text-align: center; letter-spacing: 0.2px;">
-                      Reset Password
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <p style="margin: 0 0 24px 0; font-size: 13px; color: #64748b; line-height: 1.5; text-align: center;">
-                This link is valid for <strong>${expiryMinutes} minutes</strong> and can only be used once. If you did not request this, please ignore this email.
-              </p>
-
-              <!-- Fallback Link -->
-              <div style="margin-top: 22px; padding-top: 16px; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8; line-height: 1.5;">
-                <p style="margin: 0 0 4px 0;">If the button above does not work, copy and paste this link into your browser:</p>
-                <p style="margin: 0; word-break: break-all;">
-                  <a href="${resetUrl}" target="_blank" style="color: #2563eb; text-decoration: underline;">
-                    ${resetUrl}
-                  </a>
-                </p>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f8fafc; padding: 22px 36px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.5;">
-              <p style="margin: 0 0 4px 0;">
-                This is an automated security email. Please do not reply directly.
-              </p>
-              <p style="margin: 0;">
-                &copy; ${new Date().getFullYear()} ${hotelName}. All rights reserved.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+  return emailLayout({
+    title: 'Reset Your Password',
+    subtitle: 'Account Security',
+    bodyHtml,
+    footerHtml: brandFooter(footerName),
+    preheader: `Reset your password. This link expires in ${expiryMinutes} minutes.`,
+  });
 };
 
-/**
- * Backward compatibility stub for renderHeroBanner if referenced
- */
+/** @deprecated Kept for older imports. */
 const renderHeroBanner = () => '';
 
 module.exports = {
