@@ -2270,7 +2270,7 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 | \`kpis.trial_hotels\` | Hotels still inside an active TRIAL plan window. |
 | \`kpis.expired_hotels\` | Hotels whose plan is inactive or past \`subscription.end_date\`. |
 | \`kpis.estimated_mrr\` | Monthly revenue from active hotels whose current purchase is paid and unexpired. Uses the purchase amount. \`ANNUAL\` is divided by 12. |
-| \`kpis.total_platform_rooms\`, \`total_staff_users\` | Non-deleted rooms and non-super-admin users. |
+| \`kpis.total_platform_rooms\`, \`total_staff_users\` | Non-deleted rooms and non-deleted staff users. \`HOTEL_ADMIN\` and \`SUPER_ADMIN\` are not counted. |
 | \`kpis.total_bookings_this_month\`, \`total_platform_booking_volume\` | Booking count and \`total_amount\` sum for \`date_range\`. |
 | \`plan_distribution[]\` | Per plan: \`plan_id\`, \`plan_name\`, \`active_hotels_count\`, \`monthly_revenue\`. |
 
@@ -2282,6 +2282,7 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 | \`kpis.month_revenue\` | Collections in \`date_range\`. |
 | \`kpis.total_outstanding_due\` | Sum of \`due_amount\` on open bookings. |
 | \`kpis.occupancy_rate_percentage\` | Current OCCUPIED rooms / total rooms. |
+| \`kpis.active_staff_count\` | Active staff of this hotel. \`HOTEL_ADMIN\` and \`SUPER_ADMIN\` are not counted. |
 | \`today_pulse\` | Checked in today, expected check-outs today, checked out today, in-house guests. |
 | \`room_status_summary\` | Counts for every room status. |
 | \`revenue_by_payment_method\` | Collections in \`date_range\` by method. |

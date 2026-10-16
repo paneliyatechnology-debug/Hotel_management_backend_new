@@ -172,14 +172,15 @@ const countPlatformRooms = async (client = db) => {
 };
 
 /**
- * Staff accounts across the platform (everyone except SUPER_ADMIN).
+ * Staff accounts across the platform.
+ * Hotel admins and super admins are not staff.
  * @param {import('knex').Knex} [client=db]
  * @returns {Promise<number>}
  */
 const countPlatformStaff = async (client = db) => {
   const row = await client('users')
     .whereNull('deleted_at')
-    .whereNot('role', ROLE_CODES.SUPER_ADMIN)
+    .whereNotIn('role', [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.HOTEL_ADMIN])
     .count('id as total')
     .first();
 
@@ -361,7 +362,8 @@ const countHotelOccupiedRooms = async (hotelId, client = db) => {
 };
 
 /**
- * Active staff of a hotel (excludes SUPER_ADMIN).
+ * Active staff of a hotel.
+ * Hotel admins and super admins are not counted.
  * @param {number} hotelId
  * @param {import('knex').Knex} [client=db]
  * @returns {Promise<number>}
@@ -370,7 +372,7 @@ const countHotelActiveStaff = async (hotelId, client = db) => {
   const row = await client('users')
     .where({ hotel_id: hotelId, is_active: true })
     .whereNull('deleted_at')
-    .whereNot('role', ROLE_CODES.SUPER_ADMIN)
+    .whereNotIn('role', [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.HOTEL_ADMIN])
     .count('id as total')
     .first();
 
