@@ -230,6 +230,45 @@ const validateHotelAccess = (req, res, next) => {
 };
 
 /**
+ * Read a valid access token when one is sent, and continue when it is missing or invalid.
+ * Used by the public plan list so a logged-in hotel can be recognized without blocking everyone else.
+ */
+const attachUserIfPresent = async (req, res, next) => {
+  try {
+    let accessToken = req.cookies?.access_token || req.cookies?.accessToken;
+    if (!accessToken && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      accessToken = req.headers.authorization.split(' ')[1];
+    }
+    if (!accessToken) return next();
+
+    let decoded;
+    try {
+      decoded = verifyAccessToken(accessToken);
+    } catch {
+      return next();
+    }
+
+    const user = await userModel.findUserById(decoded.id);
+    if (
+      !user
+      || userModel.isUserDisabled(user)
+      || user.is_active === false
+      || user.is_active === 0
+      || Boolean(user.is_deleted)
+      || Boolean(user.deleted_at)
+    ) {
+      return next();
+    }
+
+    req.user = { ...user, request_meta: getRequestMeta(req) };
+    req.hotel_id = user.hotel_id || decoded.hotel_id || null;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/**
  * Place this before authenticateUser on the plan purchase route only.
  * The hotel must still be active. An inactive or ended plan does not block the call.
  */
@@ -240,6 +279,7 @@ const allowExpiredPlan = (req, res, next) => {
 
 module.exports = {
   authenticateUser,
+  attachUserIfPresent,
   allowExpiredPlan,
   requireRole,
   validateHotelAccess,

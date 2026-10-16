@@ -15,7 +15,7 @@ const createPlanValidator = [
     .isLength({ max: 150 })
     .withMessage('Plan name must not exceed 150 characters.'),
 
-  body('billingCycle')
+  body('billing_cycle')
     .trim()
     .notEmpty()
     .withMessage('Billing cycle is required.')
@@ -38,12 +38,12 @@ const createPlanValidator = [
     .isLength({ max: 100 })
     .withMessage('Plan code must not exceed 100 characters.'),
 
-  body('discountPercent')
+  body('discount_percent')
     .optional()
     .isFloat({ min: 0, max: 100 })
     .withMessage('Discount percent must be between 0 and 100.'),
 
-  body('maxRooms')
+  body('max_rooms')
     .optional()
     .isInt({ min: 1 })
     .withMessage('Max rooms must be a valid positive integer.'),
@@ -59,20 +59,20 @@ const createPlanValidator = [
     .isLength({ max: 100 })
     .withMessage('Badge must not exceed 100 characters.'),
 
-  body('isPopular')
+  body('is_popular')
     .optional()
     .isBoolean()
-    .withMessage('isPopular must be a boolean value.'),
+    .withMessage('is_popular must be a boolean value.'),
 
-  body('isActive')
+  body('is_active')
     .optional()
     .isBoolean()
-    .withMessage('isActive must be a boolean value.'),
+    .withMessage('is_active must be a boolean value.'),
 
-  body('displayOrder')
+  body('display_order')
     .optional()
     .isInt({ min: 0 })
-    .withMessage('displayOrder must be a non-negative integer.'),
+    .withMessage('display_order must be a non-negative integer.'),
 
   body('features')
     .optional()
@@ -104,7 +104,7 @@ const updatePlanValidator = [
     .isLength({ max: 150 })
     .withMessage('Plan name must not exceed 150 characters.'),
 
-  body('billingCycle')
+  body('billing_cycle')
     .optional()
     .trim()
     .toUpperCase()
@@ -125,12 +125,12 @@ const updatePlanValidator = [
     .isLength({ max: 100 })
     .withMessage('Plan code must not exceed 100 characters.'),
 
-  body('discountPercent')
+  body('discount_percent')
     .optional()
     .isFloat({ min: 0, max: 100 })
     .withMessage('Discount percent must be between 0 and 100.'),
 
-  body('maxRooms')
+  body('max_rooms')
     .optional()
     .isInt({ min: 1 })
     .withMessage('Max rooms must be a valid positive integer.'),
@@ -146,20 +146,20 @@ const updatePlanValidator = [
     .isLength({ max: 100 })
     .withMessage('Badge must not exceed 100 characters.'),
 
-  body('isPopular')
+  body('is_popular')
     .optional()
     .isBoolean()
-    .withMessage('isPopular must be a boolean value.'),
+    .withMessage('is_popular must be a boolean value.'),
 
-  body('isActive')
+  body('is_active')
     .optional()
     .isBoolean()
-    .withMessage('isActive must be a boolean value.'),
+    .withMessage('is_active must be a boolean value.'),
 
-  body('displayOrder')
+  body('display_order')
     .optional()
     .isInt({ min: 0 })
-    .withMessage('displayOrder must be a non-negative integer.'),
+    .withMessage('display_order must be a non-negative integer.'),
 
   body('features')
     .optional()
@@ -197,22 +197,32 @@ const deletePlanValidator = [
  * Validation schema for GET /api/v1/subscription-plans query parameters
  */
 const getPlansQueryValidator = [
-  query('billingCycle')
+  query('billing_cycle')
     .optional()
     .trim()
     .toUpperCase()
     .isIn(['MONTHLY', 'ANNUAL'])
     .withMessage('Invalid billing cycle filter. Must be MONTHLY or ANNUAL.'),
 
-  query('isActive')
+  query('is_active')
     .optional()
     .isBoolean()
-    .withMessage('isActive filter must be a boolean (true or false).'),
+    .withMessage('is_active filter must be a boolean (true or false).'),
 
-  query('isPopular')
+  query('is_popular')
     .optional()
     .isBoolean()
-    .withMessage('isPopular filter must be a boolean (true or false).'),
+    .withMessage('is_popular filter must be a boolean (true or false).'),
+
+  query('sort_by')
+    .optional()
+    .isIn(['display_order', 'price', 'name', 'created_at', 'updated_at'])
+    .withMessage('sort_by must be display_order, price, name, created_at, or updated_at.'),
+
+  query('sort_order')
+    .optional()
+    .isIn(['asc', 'desc', 'ASC', 'DESC'])
+    .withMessage('sort_order must be asc or desc.'),
 
   query('page')
     .optional()

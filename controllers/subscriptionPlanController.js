@@ -26,7 +26,7 @@ const createPlan = async (req, res, next) => {
  */
 const getAllPlans = async (req, res, next) => {
   try {
-    const data = await subscriptionPlanService.getAllSubscriptionPlans(req.query);
+    const data = await subscriptionPlanService.getAllSubscriptionPlans(req.query, req.user);
     return success(
       res,
       MESSAGES.PLANS_RETRIEVED_SUCCESS,

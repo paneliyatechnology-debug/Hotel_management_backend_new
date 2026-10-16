@@ -435,12 +435,12 @@ No query keys. No body. Use this after login to know the role and hotel before s
 | Key | Meaning |
 | --- | --- |
 | \`id\`, \`name\`, \`code\` | Plan id, name, and code (for example \`TRIAL\`). |
-| \`billingCycle\` | \`MONTHLY\` or \`ANNUAL\`. |
-| \`price\`, \`discountPercent\`, \`maxRooms\` | Price, discount, and room limit. |
+| \`billing_cycle\` | \`MONTHLY\` or \`ANNUAL\`. |
+| \`price\`, \`discount_percent\`, \`max_rooms\` | Price, discount, and room limit. |
 | \`description\`, \`badge\` | Plan text. |
-| \`isPopular\`, \`isActive\`, \`displayOrder\` | Catalog flags. |
+| \`is_popular\`, \`is_active\`, \`display_order\` | Catalog flags. |
 | \`features\` | String array. |
-| \`createdAt\`, \`updatedAt\`, \`deletedAt\` | Plan timestamps. \`deletedAt\` is set when the plan was archived. |`,
+| \`created_at\`, \`updated_at\`, \`deleted_at\` | Plan timestamps. \`deleted_at\` is set when the plan was archived. |`,
     }),
   ],
 };
@@ -705,7 +705,7 @@ const planFolder = {
   name: '04 Subscription plans',
   description: `Plan catalog. List and get-one are public. Create, update, and delete are super admin only.
 
-Plan JSON uses camelCase. This is different from rooms, bookings, and users, which use snake_case.
+Plan JSON uses snake_case, the same names stored on the plan.
 
 ${envelope}`,
   item: [
@@ -713,27 +713,29 @@ ${envelope}`,
       name: 'List plans',
       method: 'GET',
       events: testScript(saveId('plans.0.id', 'planId')),
-      auth: NO_AUTH,
       raw: '{{baseUrl}}/api/v1/subscription-plans?page=1&limit=10',
       pathSegments: ['api', 'v1', 'subscription-plans'],
       query: [
-        queryParam('billingCycle', 'MONTHLY', 'Optional. MONTHLY or ANNUAL. Case-insensitive. Omit to return both.'),
-        queryParam('isActive', 'true', 'Optional. true or false. Omit to return active and inactive plans.'),
-        queryParam('isPopular', 'true', 'Optional. true or false.', true),
+        queryParam('billing_cycle', 'MONTHLY', 'Optional. MONTHLY or ANNUAL. Case-insensitive. Omit to return both.'),
+        queryParam('is_active', 'true', 'Optional. true or false. Omit to return active and inactive plans.'),
+        queryParam('is_popular', 'true', 'Optional. true or false.', true),
         queryParam('page', '1', 'Optional. Page number, starting at 1. Default 1.'),
         queryParam('limit', '10', 'Optional. Page size, 1 to 100. Default 10.'),
-        queryParam('sortBy', 'display_order', 'Optional. display_order, displayOrder, price, name, created_at, createdAt, updated_at, updatedAt. Default display_order.', true),
-        queryParam('sortOrder', 'asc', 'Optional. asc or desc. Default asc.', true),
+        queryParam('sort_by', 'display_order', 'Optional. display_order, price, name, created_at, or updated_at. Default display_order.', true),
+        queryParam('sort_order', 'asc', 'Optional. asc or desc. Default asc.', true),
       ],
       description: `### GET /api/v1/subscription-plans
-Public. Soft-deleted plans are omitted.
+Public. Soft-deleted plans are omitted. Send the access token when you have one. The list still returns when the token is missing or invalid.
 
 **Query keys** are on the Params tab. Disabled params are documented and are not sent until you enable them.
 
 **Response \`data\`**
 | Key | Type | Meaning |
 | --- | --- | --- |
-| \`plans\` | array | Plan objects. Keys are listed on Create plan. |
+| \`plans\` | array | Plan objects. Keys are listed on Create plan, plus the two flags below. |
+| \`plans[].is_current_plan\` | boolean | \`true\` when the hotel on the access token is on this plan. \`false\` for every other plan, and when there is no hotel on the token. |
+| \`plans[].trial_used\` | boolean | Present only on the plan whose code is \`TRIAL\`. \`true\` when that hotel has a free-trial purchase, including one that already ended. \`false\` when it has not. |
+| \`trial_used\` | boolean | Same answer for the hotel on the token, so it is available even when the trial plan is not on this page. \`false\` when there is no hotel on the token. |
 | \`pagination.total\` | number | Matching plans. |
 | \`pagination.page\` | number | Current page. |
 | \`pagination.limit\` | number | Page size. |
@@ -756,7 +758,7 @@ Public.
 | --- | --- | --- | --- |
 | \`id\` | number | Yes | Plan id. |
 
-**Response \`data\`:** one plan object. Same keys as Create plan, plus \`id\`, \`createdAt\`, \`updatedAt\`, and \`deletedAt\`.`,
+**Response \`data\`:** one plan object. Same keys as Create plan, plus \`id\`, \`created_at\`, \`updated_at\`, and \`deleted_at\`.`,
     }),
     item({
       name: 'Purchase plan',
@@ -773,7 +775,7 @@ ${authNote('HOTEL_ADMIN only. A super admin and hotel staff get 403.')}
 
 Buys the plan for the hotel on the access token. Do not send \`hotel_id\`, \`price\`, or dates. The amount is the plan price. The window starts now and ends after one billing cycle (\`MONTHLY\` adds one month, \`ANNUAL\` adds one year).
 
-An inactive or ended plan does not block this call, so a hotel can renew. A deactivated hotel still gets 403. This records the purchase as \`PAID\` and switches the hotel onto the plan. It does not charge a payment provider.
+An inactive or ended plan does not block this call, so a hotel can renew. A deactivated hotel still gets 403. This records the purchase as \`PAID\` and switches the hotel onto the plan. It does not charge a payment provider. If the hotel already has a purchase that has not ended, that purchase is marked \`EXPIRED\`, its end time is set to now, and auto-renew is turned off. A purchase that already ended is left as it is.
 
 **Path keys**
 | Key | Type | Required | Meaning |
@@ -799,7 +801,7 @@ An inactive or ended plan does not block this call, so a hotel can renew. A deac
 | \`status\` | string | \`PAID\`. |
 | \`auto_renew\` | boolean | Renewal flag. |
 | \`starts_at\`, \`ends_at\` | string | Plan window stored on this purchase. |
-| \`plan\` | object | \`id\`, \`name\`, \`code\`, \`billingCycle\`, \`price\`, \`maxRooms\`. |
+| \`plan\` | object | \`id\`, \`name\`, \`code\`, \`billing_cycle\`, \`price\`, \`max_rooms\`. |
 
 The hotel row stores only \`subscription_plan_id\`. The amount, billing cycle, payment method, \`auto_renew\`, and the start and end dates are stored on this purchase. Access checks and hotel responses read that current purchase.`,
     }),
@@ -811,16 +813,16 @@ The hotel row stores only \`subscription_plan_id\`. The amount, billing cycle, p
       pathSegments: ['api', 'v1', 'subscription-plans'],
       body: jsonBody({
         name: 'Growth Monthly',
-        billingCycle: 'MONTHLY',
+        billing_cycle: 'MONTHLY',
         price: 1999,
         code: 'GROWTH_MONTHLY',
-        discountPercent: 0,
-        maxRooms: 40,
+        discount_percent: 0,
+        max_rooms: 40,
         description: 'For a mid-size property.',
         badge: 'Popular',
-        isPopular: true,
-        isActive: true,
-        displayOrder: 2,
+        is_popular: true,
+        is_active: true,
+        display_order: 2,
         features: ['Front desk', 'GST invoices', 'Up to 40 rooms'],
       }),
       description: `### POST /api/v1/subscription-plans
@@ -830,16 +832,16 @@ ${authNote('SUPER_ADMIN only.')}
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | \`name\` | string | Yes | Plan name. Max 150 characters. |
-| \`billingCycle\` | string | Yes | \`MONTHLY\` or \`ANNUAL\`. Stored uppercase. |
+| \`billing_cycle\` | string | Yes | \`MONTHLY\` or \`ANNUAL\`. Stored uppercase. |
 | \`price\` | number | Yes | Price, 0 or more. |
 | \`code\` | string | No | Unique-looking code. Letters, numbers, hyphen, underscore. Stored uppercase. Max 100. Server can generate one when omitted. |
-| \`discountPercent\` | number | No | 0 to 100. |
-| \`maxRooms\` | number | No | Positive integer room cap. |
+| \`discount_percent\` | number | No | 0 to 100. |
+| \`max_rooms\` | number | No | Positive integer room cap. |
 | \`description\` | string | No | Marketing description. |
 | \`badge\` | string | No | Short label. Max 100. Example: Popular. |
-| \`isPopular\` | boolean | No | Highlight flag. |
-| \`isActive\` | boolean | No | Whether the public list should treat it as active. |
-| \`displayOrder\` | number | No | Sort position, 0 or more. |
+| \`is_popular\` | boolean | No | Highlight flag. |
+| \`is_active\` | boolean | No | Whether the public list should treat it as active. |
+| \`display_order\` | number | No | Sort position, 0 or more. |
 | \`features\` | string array, or one string | No | Feature lines. A string may be comma-separated or newline-separated. |
 
 ${idNote('Use **List plans** to read the new plan.')}`,
@@ -852,16 +854,16 @@ ${idNote('Use **List plans** to read the new plan.')}`,
       variable: [idVar('id', '{{planId}}', 'Required. Plan id to update.')],
       body: jsonBody({
         name: 'Growth Monthly',
-        billingCycle: 'MONTHLY',
+        billing_cycle: 'MONTHLY',
         price: 2499,
         code: 'GROWTH_MONTHLY',
-        discountPercent: 10,
-        maxRooms: 50,
+        discount_percent: 10,
+        max_rooms: 50,
         description: 'For a mid-size property.',
         badge: 'Popular',
-        isPopular: true,
-        isActive: true,
-        displayOrder: 2,
+        is_popular: true,
+        is_active: true,
+        display_order: 2,
         features: ['Front desk', 'GST invoices', 'Up to 50 rooms'],
       }),
       description: `### PUT /api/v1/subscription-plans/:id
@@ -2053,7 +2055,7 @@ Send multipart/form-data. When there is no logo, the same keys can be sent as JS
 ${hotelSettingsBodyKeysDoc}
 | \`total_rooms\` | number | No | Whole number, 0 or more. Does not create rooms. |
 | \`logo\` | file | No | Replaces the current logo. Max 10 MB. |
-| \`subscription_plan_id\` | number | No | Existing plan id. Unknown id returns 404. |
+| \`subscription_plan_id\` | number | No | Existing plan id. Unknown id returns 404. A different plan expires the purchase that has not ended yet, then stores the new plan. |
 | \`subscription_plan_active\` | boolean | No | true or false. |
 | \`subscription_plan_start_date\` | string | No | ISO date. Empty clears it. |
 | \`subscription_plan_end_date\` | string | No | ISO date. Empty clears it. |

@@ -350,7 +350,7 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
       plan_id: assignedPlan.id,
       purchased_by: createdAdminUser.id,
       amount: assignedPlan.price,
-      billing_cycle: assignedPlan.billingCycle,
+      billing_cycle: assignedPlan.billing_cycle,
       payment_method: null,
       status: finalPlanActive ? 'PAID' : 'INACTIVE',
       auto_renew: false,
@@ -638,7 +638,7 @@ const updateHotel = async (id, payload, files = [], reqUser) => {
  * Write subscription window changes onto the hotel's current plan purchase.
  * The hotel row only keeps subscription_plan_id. Dates, active flag, and auto_renew
  * are removed from the hotel update and stored on subscription_plan_purchases.
- * A different plan id inserts a new purchase so earlier purchases stay in history.
+ * A different plan id expires a purchase that has not ended, then inserts the new purchase.
  * @param {Object} existing
  * @param {Object} updates - Hotel column updates. Subscription window keys are removed.
  * @param {Object} payload
@@ -681,16 +681,19 @@ const syncCurrentPurchase = async (existing, updates, payload) => {
 
   const planChanged = !current || Number(current.plan_id) !== Number(planId);
   if (planChanged) {
-    await subscriptionPlanModel.createPurchase({
-      hotel_id: existing.id,
-      plan_id: plan.id,
-      amount: plan.price,
-      billing_cycle: plan.billingCycle,
-      payment_method: null,
-      status,
-      auto_renew: autoRenew,
-      starts_at: startsAt || new Date(),
-      ends_at: endsAt,
+    await db.transaction(async (trx) => {
+      await subscriptionPlanModel.expireOpenPurchases(existing.id, new Date(), trx);
+      await subscriptionPlanModel.createPurchase({
+        hotel_id: existing.id,
+        plan_id: plan.id,
+        amount: plan.price,
+        billing_cycle: plan.billing_cycle,
+        payment_method: null,
+        status,
+        auto_renew: autoRenew,
+        starts_at: startsAt || new Date(),
+        ends_at: endsAt,
+      }, trx);
     });
   } else {
     await subscriptionPlanModel.updatePurchase(current.id, {

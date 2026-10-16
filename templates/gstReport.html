@@ -8,8 +8,9 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     @page { size: A4 landscape; margin: 0; }
-    /* The sheet carries the page margin itself, repeated on every page. */
-    .sheet { padding: 10mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+    /* The sheet carries the page margin itself, repeated on every page.
+       The extra bottom padding leaves room for the footer fixed to each page. */
+    .sheet { padding: 10mm 10mm 16mm 10mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
     html, body { background: #ffffff; }
     body {
       font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
@@ -38,7 +39,18 @@
     .cancelled td { text-decoration: line-through; }
     .notes { margin-top: 10px; font-size: 8px; color: #333; }
     .notes li { margin-left: 14px; }
-    .foot { margin-top: 10px; font-size: 8px; text-align: center; border-top: 1px solid #000; padding-top: 4px; }
+    /* Fixed elements repeat on every printed page, so this sits at the bottom of each one. */
+    .foot {
+      position: fixed;
+      left: 10mm;
+      right: 10mm;
+      bottom: 5mm;
+      background: #ffffff;
+      font-size: 8px;
+      text-align: center;
+      border-top: 1px solid #000;
+      padding-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -73,7 +85,7 @@
   {{ROWS_TABLE}}
 
   <ul class="notes">{{NOTES}}</ul>
-  <div class="foot">&copy; {{YEAR}} <strong>{{HOTEL_NAME}}</strong>. Powered by MYOWNPMS.</div>
 </div>
+<div class="foot">&copy; {{YEAR}} <strong>{{HOTEL_NAME}}</strong>. Powered by MYOWNPMS.</div>
 </body>
 </html>

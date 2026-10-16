@@ -13,7 +13,7 @@ const {
   purchasePlanValidator,
 } = require('../middleware/subscriptionPlanValidator');
 const { validate } = require('../middleware/validation');
-const { authenticateUser, allowExpiredPlan, requireRole } = require('../middleware/auth');
+const { authenticateUser, attachUserIfPresent, allowExpiredPlan, requireRole } = require('../middleware/auth');
 const { ROLE_CODES } = require('../constants');
 
 const router = express.Router();
@@ -26,7 +26,7 @@ const router = express.Router();
  * GET /api/v1/subscription-plans
  * Query non-deleted subscription plans with optional filtering and pagination
  */
-router.get('/', getPlansQueryValidator, validate, subscriptionPlanController.getAllPlans);
+router.get('/', attachUserIfPresent, getPlansQueryValidator, validate, subscriptionPlanController.getAllPlans);
 
 /**
  * POST /api/v1/subscription-plans/:id/purchase

@@ -17,15 +17,15 @@ const DEFAULT_PLANS = [
   {
     name: 'Free Trial',
     code: 'TRIAL',
-    billingCycle: 'MONTHLY',
+    billing_cycle: 'MONTHLY',
     price: 0,
-    discountPercent: 0,
-    maxRooms: 50,
+    discount_percent: 0,
+    max_rooms: 50,
     description: '30-day free trial for a newly registered hotel.',
     badge: 'FREE TRIAL',
-    isPopular: false,
-    isActive: true,
-    displayOrder: 0,
+    is_popular: false,
+    is_active: true,
+    display_order: 0,
     features: [
       '30-day free trial',
       'Up to 50 rooms',
@@ -35,15 +35,15 @@ const DEFAULT_PLANS = [
   {
     name: 'Starter Boutique',
     code: 'MONTHLY_STARTER',
-    billingCycle: 'MONTHLY',
+    billing_cycle: 'MONTHLY',
     price: 4999,
-    discountPercent: 0,
-    maxRooms: 15,
+    discount_percent: 0,
+    max_rooms: 15,
     description: 'Perfect for boutique hotels, B&Bs, and guesthouses up to 15 rooms.',
     badge: '',
-    isPopular: false,
-    isActive: true,
-    displayOrder: 1,
+    is_popular: false,
+    is_active: true,
+    display_order: 1,
     features: [
       'Up to 15 Rooms Inventory',
       'Front Desk & Instant Walk-in Wizard',
@@ -55,15 +55,15 @@ const DEFAULT_PLANS = [
   {
     name: 'Professional Resort',
     code: 'MONTHLY_PRO',
-    billingCycle: 'MONTHLY',
+    billing_cycle: 'MONTHLY',
     price: 9999,
-    discountPercent: 0,
-    maxRooms: 50,
+    discount_percent: 0,
+    max_rooms: 50,
     description: 'Designed for mid-size hotels, resorts, and premium service apartments.',
     badge: 'MOST POPULAR',
-    isPopular: true,
-    isActive: true,
-    displayOrder: 2,
+    is_popular: true,
+    is_active: true,
+    display_order: 2,
     features: [
       'Up to 50 Rooms Inventory',
       'Full PMS Matrix & Reservation Calendar',
@@ -76,15 +76,15 @@ const DEFAULT_PLANS = [
   {
     name: 'Enterprise Multi-Property',
     code: 'MONTHLY_ENTERPRISE',
-    billingCycle: 'MONTHLY',
+    billing_cycle: 'MONTHLY',
     price: 24999,
-    discountPercent: 0,
-    maxRooms: 9999,
+    discount_percent: 0,
+    max_rooms: 9999,
     description: 'For large hotel chains, luxury palaces, and multi-property groups.',
     badge: 'ENTERPRISE',
-    isPopular: false,
-    isActive: true,
-    displayOrder: 3,
+    is_popular: false,
+    is_active: true,
+    display_order: 3,
     features: [
       'Unlimited Room Inventory (Up to 9,999 Rooms)',
       'Multi-Property Central Governance Dashboard',
@@ -96,15 +96,15 @@ const DEFAULT_PLANS = [
   {
     name: 'Starter Boutique (Annual)',
     code: 'ANNUAL_STARTER',
-    billingCycle: 'ANNUAL',
+    billing_cycle: 'ANNUAL',
     price: 49999,
-    discountPercent: 17,
-    maxRooms: 15,
+    discount_percent: 17,
+    max_rooms: 15,
     description: 'Boutique hotels & guesthouses on annual billing (17% savings, 2 months free).',
     badge: '',
-    isPopular: false,
-    isActive: true,
-    displayOrder: 4,
+    is_popular: false,
+    is_active: true,
+    display_order: 4,
     features: [
       'Up to 15 Rooms Inventory',
       'Front Desk & Instant Walk-in Wizard',
@@ -117,15 +117,15 @@ const DEFAULT_PLANS = [
   {
     name: 'Professional Resort (Annual)',
     code: 'ANNUAL_PRO',
-    billingCycle: 'ANNUAL',
+    billing_cycle: 'ANNUAL',
     price: 99999,
-    discountPercent: 17,
-    maxRooms: 50,
+    discount_percent: 17,
+    max_rooms: 50,
     description: 'Mid-size hotels and luxury resorts on annual plan (17% savings, 2 months free).',
     badge: 'BEST VALUE',
-    isPopular: true,
-    isActive: true,
-    displayOrder: 5,
+    is_popular: true,
+    is_active: true,
+    display_order: 5,
     features: [
       'Up to 50 Rooms Inventory',
       'Full PMS Matrix & Reservation Calendar',
@@ -139,15 +139,15 @@ const DEFAULT_PLANS = [
   {
     name: 'Enterprise Multi-Property (Annual)',
     code: 'ANNUAL_ENTERPRISE',
-    billingCycle: 'ANNUAL',
+    billing_cycle: 'ANNUAL',
     price: 249999,
-    discountPercent: 17,
-    maxRooms: 9999,
+    discount_percent: 17,
+    max_rooms: 9999,
     description: 'Large hotel chains and luxury groups on annual enterprise contract.',
     badge: 'ENTERPRISE',
-    isPopular: false,
-    isActive: true,
-    displayOrder: 6,
+    is_popular: false,
+    is_active: true,
+    display_order: 6,
     features: [
       'Unlimited Room Inventory (Up to 9,999 Rooms)',
       'Multi-Property Central Governance Dashboard',
@@ -220,15 +220,15 @@ const generatePlanCode = (billingCycle, name) => {
 const createSubscriptionPlan = async (payload, reqUser = null) => {
   const {
     name,
-    billingCycle,
+    billing_cycle,
     price,
-    discountPercent = 0,
-    maxRooms = 50,
+    discount_percent = 0,
+    max_rooms = 50,
     description = '',
     badge = '',
-    isPopular = false,
-    isActive = true,
-    displayOrder = 1,
+    is_popular = false,
+    is_active = true,
+    display_order = 1,
     features = [],
   } = payload;
 
@@ -238,10 +238,10 @@ const createSubscriptionPlan = async (payload, reqUser = null) => {
     ]);
   }
 
-  const normalizedCycle = (billingCycle || '').trim().toUpperCase();
+  const normalizedCycle = (billing_cycle || '').trim().toUpperCase();
   if (!['MONTHLY', 'ANNUAL'].includes(normalizedCycle)) {
     throw new AppError('Invalid Billing Cycle. Must be either MONTHLY or ANNUAL.', HTTP_STATUS.BAD_REQUEST, [
-      { field: 'billingCycle', message: 'Billing cycle must be either MONTHLY or ANNUAL.' },
+      { field: 'billing_cycle', message: 'Billing cycle must be either MONTHLY or ANNUAL.' },
     ]);
   }
 
@@ -252,17 +252,17 @@ const createSubscriptionPlan = async (payload, reqUser = null) => {
     ]);
   }
 
-  const numDiscount = Number(discountPercent);
+  const numDiscount = Number(discount_percent);
   if (isNaN(numDiscount) || numDiscount < 0 || numDiscount > 100) {
     throw new AppError('Discount percent must be between 0 and 100.', HTTP_STATUS.BAD_REQUEST, [
-      { field: 'discountPercent', message: 'Discount percent must be between 0 and 100.' },
+      { field: 'discount_percent', message: 'Discount percent must be between 0 and 100.' },
     ]);
   }
 
-  const numRooms = Number(maxRooms);
+  const numRooms = Number(max_rooms);
   if (isNaN(numRooms) || numRooms <= 0) {
     throw new AppError('Max rooms must be a valid positive integer.', HTTP_STATUS.BAD_REQUEST, [
-      { field: 'maxRooms', message: 'Max rooms must be a valid positive integer.' },
+      { field: 'max_rooms', message: 'Max rooms must be a valid positive integer.' },
     ]);
   }
 
@@ -284,15 +284,15 @@ const createSubscriptionPlan = async (payload, reqUser = null) => {
   const planData = {
     name: name.trim(),
     code,
-    billingCycle: normalizedCycle,
+    billing_cycle: normalizedCycle,
     price: numPrice,
-    discountPercent: numDiscount,
-    maxRooms: Math.floor(numRooms),
+    discount_percent: numDiscount,
+    max_rooms: Math.floor(numRooms),
     description: (description || '').trim(),
     badge: (badge || '').trim(),
-    isPopular: Boolean(isPopular),
-    isActive: isActive !== undefined ? Boolean(isActive) : true,
-    displayOrder: Number(displayOrder) || 1,
+    is_popular: Boolean(is_popular),
+    is_active: is_active !== undefined ? Boolean(is_active) : true,
+    display_order: Number(display_order) || 1,
   };
 
   const newPlan = await db.transaction(async (trx) => {
@@ -315,35 +315,44 @@ const createSubscriptionPlan = async (payload, reqUser = null) => {
  * @param {Object} query
  * @returns {Promise<Object>}
  */
-const getAllSubscriptionPlans = async (query = {}) => {
+const getAllSubscriptionPlans = async (query = {}, reqUser = null) => {
   const {
-    billingCycle,
-    isActive,
-    isPopular,
+    billing_cycle,
+    is_active,
+    is_popular,
     page = 1,
     limit = 10,
-    sortBy = 'display_order',
-    sortOrder = 'asc',
+    sort_by = 'display_order',
+    sort_order = 'asc',
   } = query;
 
   const numPage = Math.max(1, Number(page) || 1);
   const numLimit = Math.max(1, Number(limit) || 10);
 
-  const { plans, total } = await subscriptionPlanModel.findPlans({
-    billingCycle,
-    isActive,
-    isPopular,
-    page: numPage,
-    limit: numLimit,
-    sortBy,
-    sortOrder,
-    includeDeleted: false,
-  });
+  const [{ plans, total }, usage] = await Promise.all([
+    subscriptionPlanModel.findPlans({
+      billing_cycle,
+      is_active,
+      is_popular,
+      page: numPage,
+      limit: numLimit,
+      sort_by,
+      sort_order,
+      includeDeleted: false,
+    }),
+    subscriptionPlanModel.findHotelPlanUsage(reqUser?.hotel_id),
+  ]);
 
   const totalPages = Math.ceil(total / numLimit) || 1;
+  const markedPlans = plans.map((plan) => ({
+    ...plan,
+    is_current_plan: usage.currentPlanId !== null && Number(plan.id) === Number(usage.currentPlanId),
+    ...(String(plan.code).toUpperCase() === 'TRIAL' ? { trial_used: usage.trialUsed } : {}),
+  }));
 
   return {
-    plans,
+    plans: markedPlans,
+    trial_used: usage.trialUsed,
     pagination: {
       total,
       page: numPage,
@@ -401,12 +410,12 @@ const updateSubscriptionPlan = async (id, payload, reqUser = null) => {
     updateData.name = payload.name.trim();
   }
 
-  if (payload.billingCycle !== undefined) {
-    const cycle = payload.billingCycle.trim().toUpperCase();
+  if (payload.billing_cycle !== undefined) {
+    const cycle = payload.billing_cycle.trim().toUpperCase();
     if (!['MONTHLY', 'ANNUAL'].includes(cycle)) {
       throw new AppError('Invalid Billing Cycle. Must be either MONTHLY or ANNUAL.', HTTP_STATUS.BAD_REQUEST);
     }
-    updateData.billingCycle = cycle;
+    updateData.billing_cycle = cycle;
   }
 
   if (payload.price !== undefined) {
@@ -417,20 +426,20 @@ const updateSubscriptionPlan = async (id, payload, reqUser = null) => {
     updateData.price = numPrice;
   }
 
-  if (payload.discountPercent !== undefined) {
-    const numDiscount = Number(payload.discountPercent);
+  if (payload.discount_percent !== undefined) {
+    const numDiscount = Number(payload.discount_percent);
     if (isNaN(numDiscount) || numDiscount < 0 || numDiscount > 100) {
       throw new AppError('Discount percent must be between 0 and 100.', HTTP_STATUS.BAD_REQUEST);
     }
-    updateData.discountPercent = numDiscount;
+    updateData.discount_percent = numDiscount;
   }
 
-  if (payload.maxRooms !== undefined) {
-    const numRooms = Number(payload.maxRooms);
+  if (payload.max_rooms !== undefined) {
+    const numRooms = Number(payload.max_rooms);
     if (isNaN(numRooms) || numRooms <= 0) {
       throw new AppError('Max rooms must be a valid positive integer.', HTTP_STATUS.BAD_REQUEST);
     }
-    updateData.maxRooms = Math.floor(numRooms);
+    updateData.max_rooms = Math.floor(numRooms);
   }
 
   if (payload.description !== undefined) {
@@ -441,16 +450,16 @@ const updateSubscriptionPlan = async (id, payload, reqUser = null) => {
     updateData.badge = String(payload.badge).trim();
   }
 
-  if (payload.isPopular !== undefined) {
-    updateData.isPopular = Boolean(payload.isPopular);
+  if (payload.is_popular !== undefined) {
+    updateData.is_popular = Boolean(payload.is_popular);
   }
 
-  if (payload.isActive !== undefined) {
-    updateData.isActive = Boolean(payload.isActive);
+  if (payload.is_active !== undefined) {
+    updateData.is_active = Boolean(payload.is_active);
   }
 
-  if (payload.displayOrder !== undefined) {
-    updateData.displayOrder = Number(payload.displayOrder) || 1;
+  if (payload.display_order !== undefined) {
+    updateData.display_order = Number(payload.display_order) || 1;
   }
 
   if (payload.code !== undefined) {
@@ -557,7 +566,7 @@ const purchasePlan = async (planId, payload = {}, reqUser) => {
   if (!plan) {
     throw new AppError('Subscription plan not found.', HTTP_STATUS.NOT_FOUND);
   }
-  if (!plan.isActive) {
+  if (!plan.is_active) {
     throw new AppError('This subscription plan is not available for purchase.', HTTP_STATUS.BAD_REQUEST);
   }
   if (String(plan.code).toUpperCase() === 'TRIAL' || Number(plan.price) <= 0) {
@@ -572,16 +581,18 @@ const purchasePlan = async (planId, payload = {}, reqUser) => {
   const paymentMethod = String(payload.payment_method || 'CASH').trim().toUpperCase();
   const autoRenew = payload.auto_renew !== undefined ? toBoolean(payload.auto_renew) : false;
   const startsAt = new Date();
-  const endsAt = addBillingCycle(startsAt, plan.billingCycle);
+  const endsAt = addBillingCycle(startsAt, plan.billing_cycle);
 
   const purchase = await db.transaction(async (trx) => {
+    await subscriptionPlanModel.expireOpenPurchases(hotelId, startsAt, trx);
+
     const created = await subscriptionPlanModel.createPurchase(
       {
         hotel_id: hotelId,
         plan_id: plan.id,
         purchased_by: reqUser.id,
         amount: plan.price,
-        billing_cycle: plan.billingCycle,
+        billing_cycle: plan.billing_cycle,
         payment_method: paymentMethod,
         auto_renew: autoRenew,
         starts_at: startsAt,
@@ -622,9 +633,9 @@ const purchasePlan = async (planId, payload = {}, reqUser) => {
       id: plan.id,
       name: plan.name,
       code: plan.code,
-      billingCycle: plan.billingCycle,
+      billing_cycle: plan.billing_cycle,
       price: plan.price,
-      maxRooms: plan.maxRooms,
+      max_rooms: plan.max_rooms,
     },
   };
 };

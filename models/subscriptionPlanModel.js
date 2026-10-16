@@ -16,19 +16,19 @@ const formatPlan = (row, features = []) => {
     id: row.id,
     name: row.name,
     code: row.code,
-    billingCycle: row.billing_cycle,
+    billing_cycle: row.billing_cycle,
     price: Number(row.price),
-    discountPercent: Number(row.discount_percent),
-    maxRooms: Number(row.max_rooms),
+    discount_percent: Number(row.discount_percent),
+    max_rooms: Number(row.max_rooms),
     description: row.description || '',
     badge: row.badge || '',
-    isPopular: Boolean(row.is_popular),
-    isActive: Boolean(row.is_active),
-    displayOrder: Number(row.display_order),
+    is_popular: Boolean(row.is_popular),
+    is_active: Boolean(row.is_active),
+    display_order: Number(row.display_order),
     features: Array.isArray(features) ? features : [],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    deletedAt: row.deleted_at || null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    deleted_at: row.deleted_at || null,
   };
 };
 
@@ -126,23 +126,23 @@ const findPlanByCode = async (code, { includeDeleted = false } = {}, client = db
  * @param {Object} filters
  */
 const applyFilters = (query, filters) => {
-  const { billingCycle, isActive, isPopular, includeDeleted = false } = filters;
+  const { billing_cycle, is_active, is_popular, includeDeleted = false } = filters;
 
   if (!includeDeleted) {
     query.whereNull('deleted_at');
   }
 
-  if (billingCycle) {
-    query.whereRaw('UPPER(billing_cycle) = ?', [billingCycle.trim().toUpperCase()]);
+  if (billing_cycle) {
+    query.whereRaw('UPPER(billing_cycle) = ?', [String(billing_cycle).trim().toUpperCase()]);
   }
 
-  if (isActive !== undefined && isActive !== null && isActive !== '') {
-    const activeBool = isActive === true || isActive === 'true' || isActive === 1 || isActive === '1';
+  if (is_active !== undefined && is_active !== null && is_active !== '') {
+    const activeBool = is_active === true || is_active === 'true' || is_active === 1 || is_active === '1';
     query.where('is_active', activeBool);
   }
 
-  if (isPopular !== undefined && isPopular !== null && isPopular !== '') {
-    const popularBool = isPopular === true || isPopular === 'true' || isPopular === 1 || isPopular === '1';
+  if (is_popular !== undefined && is_popular !== null && is_popular !== '') {
+    const popularBool = is_popular === true || is_popular === 'true' || is_popular === 1 || is_popular === '1';
     query.where('is_popular', popularBool);
   }
 
@@ -170,34 +170,30 @@ const countPlans = async (filters = {}, client = db) => {
  */
 const findPlans = async (options = {}, client = db) => {
   const {
-    billingCycle,
-    isActive,
-    isPopular,
+    billing_cycle,
+    is_active,
+    is_popular,
     includeDeleted = false,
     page = 1,
     limit = 10,
-    sortBy = 'display_order',
-    sortOrder = 'asc',
+    sort_by = 'display_order',
+    sort_order = 'asc',
   } = options;
 
-  const total = await countPlans({ billingCycle, isActive, isPopular, includeDeleted }, client);
+  const total = await countPlans({ billing_cycle, is_active, is_popular, includeDeleted }, client);
 
   let query = client('subscription_plans');
-  applyFilters(query, { billingCycle, isActive, isPopular, includeDeleted });
+  applyFilters(query, { billing_cycle, is_active, is_popular, includeDeleted });
 
-  // Map sort keys
   const validSortColumns = {
-    displayOrder: 'display_order',
     display_order: 'display_order',
     price: 'price',
     name: 'name',
-    createdAt: 'created_at',
     created_at: 'created_at',
-    updatedAt: 'updated_at',
     updated_at: 'updated_at',
   };
-  const sortCol = validSortColumns[sortBy] || 'display_order';
-  const direction = String(sortOrder).toLowerCase() === 'desc' ? 'desc' : 'asc';
+  const sortCol = validSortColumns[sort_by] || 'display_order';
+  const direction = String(sort_order).toLowerCase() === 'desc' ? 'desc' : 'asc';
 
   query.orderBy(sortCol, direction);
   if (sortCol !== 'id') {
@@ -235,15 +231,15 @@ const createPlan = async (planData, features = [], trx) => {
     const [id] = await client('subscription_plans').insert({
       name: planData.name,
       code: planData.code,
-      billing_cycle: planData.billingCycle,
+      billing_cycle: planData.billing_cycle,
       price: planData.price,
-      discount_percent: planData.discountPercent ?? 0,
-      max_rooms: planData.maxRooms ?? 50,
+      discount_percent: planData.discount_percent ?? 0,
+      max_rooms: planData.max_rooms ?? 50,
       description: planData.description ?? '',
       badge: planData.badge ?? '',
-      is_popular: Boolean(planData.isPopular),
-      is_active: planData.isActive !== undefined ? Boolean(planData.isActive) : true,
-      display_order: planData.displayOrder ?? 1,
+      is_popular: Boolean(planData.is_popular),
+      is_active: planData.is_active !== undefined ? Boolean(planData.is_active) : true,
+      display_order: planData.display_order ?? 1,
       created_at: new Date(),
       updated_at: new Date(),
       deleted_at: null,
@@ -286,15 +282,15 @@ const updatePlan = async (id, updateData, features, trx) => {
 
     if (updateData.name !== undefined) updateFields.name = updateData.name;
     if (updateData.code !== undefined) updateFields.code = updateData.code;
-    if (updateData.billingCycle !== undefined) updateFields.billing_cycle = updateData.billingCycle;
+    if (updateData.billing_cycle !== undefined) updateFields.billing_cycle = updateData.billing_cycle;
     if (updateData.price !== undefined) updateFields.price = updateData.price;
-    if (updateData.discountPercent !== undefined) updateFields.discount_percent = updateData.discountPercent;
-    if (updateData.maxRooms !== undefined) updateFields.max_rooms = updateData.maxRooms;
+    if (updateData.discount_percent !== undefined) updateFields.discount_percent = updateData.discount_percent;
+    if (updateData.max_rooms !== undefined) updateFields.max_rooms = updateData.max_rooms;
     if (updateData.description !== undefined) updateFields.description = updateData.description;
     if (updateData.badge !== undefined) updateFields.badge = updateData.badge;
-    if (updateData.isPopular !== undefined) updateFields.is_popular = Boolean(updateData.isPopular);
-    if (updateData.isActive !== undefined) updateFields.is_active = Boolean(updateData.isActive);
-    if (updateData.displayOrder !== undefined) updateFields.display_order = updateData.displayOrder;
+    if (updateData.is_popular !== undefined) updateFields.is_popular = Boolean(updateData.is_popular);
+    if (updateData.is_active !== undefined) updateFields.is_active = Boolean(updateData.is_active);
+    if (updateData.display_order !== undefined) updateFields.display_order = updateData.display_order;
 
     await client('subscription_plans').where({ id }).update(updateFields);
 
@@ -394,6 +390,62 @@ const createPurchase = async (data, client = db) => {
 };
 
 /**
+ * Close purchases that are still running when a hotel moves onto a new plan.
+ * A purchase has not expired when it has no end date or the end date is still ahead.
+ * Those rows become EXPIRED and end at `endedAt`. A purchase that already ended is left as it is.
+ * @param {number|string} hotelId
+ * @param {Date} endedAt
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number>} Rows updated
+ */
+const expireOpenPurchases = async (hotelId, endedAt, client = db) => {
+  const at = endedAt instanceof Date ? endedAt : new Date(endedAt);
+  return client(PURCHASES_TABLE)
+    .where({ hotel_id: hotelId })
+    .whereNot('status', 'EXPIRED')
+    .andWhere(function () {
+      this.whereNull('ends_at').orWhere('ends_at', '>', at);
+    })
+    .update({
+      status: 'EXPIRED',
+      ends_at: at,
+      auto_renew: false,
+      updated_at: at,
+    });
+};
+
+/**
+ * The hotel's current plan, and whether it has ever had the free trial.
+ * A missing hotel returns no current plan and trial_used false.
+ * @param {number|string} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<{ currentPlanId: number|null, trialUsed: boolean }>}
+ */
+const findHotelPlanUsage = async (hotelId, client = db) => {
+  const empty = { currentPlanId: null, trialUsed: false };
+  const id = Number(hotelId);
+  if (!id) return empty;
+
+  const hotel = await client('hotels')
+    .where({ id })
+    .whereNull('deleted_at')
+    .select('subscription_plan_id')
+    .first();
+  if (!hotel) return empty;
+
+  const trial = await client('subscription_plan_purchases as pp')
+    .join('subscription_plans as sp', 'sp.id', 'pp.plan_id')
+    .where('pp.hotel_id', id)
+    .whereRaw('UPPER(sp.code) = ?', ['TRIAL'])
+    .first('pp.id');
+
+  return {
+    currentPlanId: hotel.subscription_plan_id || null,
+    trialUsed: Boolean(trial),
+  };
+};
+
+/**
  * Latest purchase for a hotel. That row is the hotel's current subscription window.
  * @param {number|string} hotelId
  * @param {import('knex').Knex} [client=db]
@@ -458,6 +510,8 @@ module.exports = {
   updatePlan,
   softDeletePlan,
   createPurchase,
+  expireOpenPurchases,
+  findHotelPlanUsage,
   findCurrentByHotelId,
   updatePurchase,
   joinCurrentPurchase,
