@@ -30,6 +30,34 @@ const whereBetweenDates = (qb, column, from, to) => {
 const asCount = (value) => Number(value || 0);
 
 /**
+ * Monthly equivalent of one purchase. ANNUAL (and older YEARLY) prices are divided by 12.
+ * @param {*} amount
+ * @param {*} billingCycle
+ * @returns {number}
+ */
+const monthlyFromPurchase = (amount, billingCycle) => {
+  const price = Number(amount) || 0;
+  const cycle = String(billingCycle || '').toUpperCase();
+  if (cycle === 'ANNUAL' || cycle === 'YEARLY') return price / 12;
+  return price;
+};
+
+/**
+ * Current purchase is PAID and has not ended. A null end date never expires.
+ * @param {import('knex').Knex.QueryBuilder} qb
+ * @param {Date} now
+ */
+const wherePurchaseCoversNow = (qb, now) => {
+  qb.where('current_purchase.purchase_status', 'PAID').andWhere(function () {
+    this.whereNull('current_purchase.purchase_ends_at').orWhere(
+      'current_purchase.purchase_ends_at',
+      '>=',
+      now
+    );
+  });
+};
+
+/**
  * Empty room-status map with every known status set to 0.
  * @returns {Object}
  */
@@ -84,14 +112,7 @@ const countTrialHotels = async (client = db) => {
   )
     .whereNull('hotels.deleted_at')
     .whereRaw('UPPER(subscription_plans.code) = ?', ['TRIAL'])
-    .where('current_purchase.purchase_status', 'PAID')
-    .andWhere(function () {
-      this.whereNull('current_purchase.purchase_ends_at').orWhere(
-        'current_purchase.purchase_ends_at',
-        '>=',
-        now
-      );
-    })
+    .modify((qb) => wherePurchaseCoversNow(qb, now))
     .count('hotels.id as total')
     .first();
 
@@ -113,41 +134,30 @@ const countExpiredHotels = async (client = db) => {
         .orWhere('current_purchase.purchase_status', '!=', 'PAID')
         .orWhere('current_purchase.purchase_ends_at', '<', now);
     })
-    .count('id as total')
+    .count('hotels.id as total')
     .first();
 
   return asCount(row?.total);
 };
 
 /**
- * Estimated monthly recurring revenue from active, unexpired paid hotels.
- * YEARLY plan prices are divided by 12.
+ * Estimated monthly recurring revenue from active hotels whose current purchase is paid and unexpired.
+ * Uses the amount stored on that purchase. ANNUAL prices are divided by 12.
  * @param {import('knex').Knex} [client=db]
  * @returns {Promise<number>}
  */
 const estimatePlatformMrr = async (client = db) => {
   const now = new Date();
-  const rows = await joinCurrentPurchase(
-    client('hotels').innerJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
-  )
+  const rows = await joinCurrentPurchase(client('hotels'))
     .whereNull('hotels.deleted_at')
     .where('hotels.is_active', true)
-    .where('current_purchase.purchase_status', 'PAID')
-    .andWhere(function () {
-      this.whereNull('current_purchase.purchase_ends_at').orWhere(
-        'current_purchase.purchase_ends_at',
-        '>=',
-        now
-      );
-    })
-    .select('subscription_plans.billing_cycle', 'subscription_plans.price');
+    .modify((qb) => wherePurchaseCoversNow(qb, now))
+    .select('current_purchase.purchase_amount', 'current_purchase.purchase_billing_cycle');
 
-  const mrr = rows.reduce((sum, row) => {
-    const price = Number(row.price) || 0;
-    const cycle = String(row.billing_cycle || '').toUpperCase();
-    const monthly = cycle === 'YEARLY' ? price / 12 : price;
-    return sum + monthly;
-  }, 0);
+  const mrr = rows.reduce(
+    (sum, row) => sum + monthlyFromPurchase(row.purchase_amount, row.purchase_billing_cycle),
+    0
+  );
 
   return money(mrr);
 };
@@ -197,7 +207,7 @@ const sumPlatformBookingsInRange = async (from, to, client = db) => {
 };
 
 /**
- * Active hotels per plan with estimated monthly revenue for that plan.
+ * Active hotels per plan. Monthly revenue is the sum of their current purchase amounts.
  * @param {import('knex').Knex} [client=db]
  * @returns {Promise<Object[]>}
  */
@@ -209,40 +219,35 @@ const getPlanDistribution = async (client = db) => {
       .where('is_active', true)
       .orderBy('display_order', 'asc')
       .orderBy('id', 'asc')
-      .select('id', 'name', 'billing_cycle', 'price'),
+      .select('id', 'name'),
     joinCurrentPurchase(client('hotels'))
       .whereNull('hotels.deleted_at')
       .where('hotels.is_active', true)
-      .where('current_purchase.purchase_status', 'PAID')
       .whereNotNull('hotels.subscription_plan_id')
-      .andWhere(function () {
-        this.whereNull('current_purchase.purchase_ends_at').orWhere(
-          'current_purchase.purchase_ends_at',
-          '>=',
-          now
-        );
-      })
-      .select('subscription_plan_id')
-      .count('id as total')
-      .groupBy('subscription_plan_id'),
+      .modify((qb) => wherePurchaseCoversNow(qb, now))
+      .select(
+        'hotels.subscription_plan_id',
+        'current_purchase.purchase_amount',
+        'current_purchase.purchase_billing_cycle'
+      ),
   ]);
 
-  const countByPlan = hotelCounts.reduce((acc, row) => {
-    acc[row.subscription_plan_id] = asCount(row.total);
+  const statsByPlan = hotelCounts.reduce((acc, row) => {
+    const planId = row.subscription_plan_id;
+    if (!acc[planId]) acc[planId] = { count: 0, monthly: 0 };
+    acc[planId].count += 1;
+    acc[planId].monthly += monthlyFromPurchase(row.purchase_amount, row.purchase_billing_cycle);
     return acc;
   }, {});
 
   return plans.map((plan) => {
-    const count = countByPlan[plan.id] || 0;
-    const price = Number(plan.price) || 0;
-    const cycle = String(plan.billing_cycle || '').toUpperCase();
-    const monthly = cycle === 'YEARLY' ? price / 12 : price;
+    const stats = statsByPlan[plan.id] || { count: 0, monthly: 0 };
 
     return {
       plan_id: plan.id,
       plan_name: plan.name,
-      active_hotels_count: count,
-      monthly_revenue: money(count * monthly),
+      active_hotels_count: stats.count,
+      monthly_revenue: money(stats.monthly),
     };
   });
 };
@@ -277,9 +282,12 @@ const findHotelDashboardHeader = async (hotelId, client = db) => {
 
   if (!row) return null;
   const hasPlan = row.subscription_plan_id !== null && row.subscription_plan_id !== undefined;
+  const paid = String(row.purchase_status || '').toUpperCase() === 'PAID';
+  const endsAt = row.purchase_ends_at ? new Date(row.purchase_ends_at) : null;
+  const ended = Boolean(endsAt && !Number.isNaN(endsAt.getTime()) && endsAt.getTime() < Date.now());
   return {
     ...row,
-    subscription_plan_active: hasPlan ? String(row.purchase_status || '').toUpperCase() === 'PAID' : true,
+    subscription_plan_active: hasPlan ? paid && !ended : true,
     subscription_plan_start_date: row.purchase_starts_at || null,
     subscription_plan_end_date: row.purchase_ends_at || null,
   };

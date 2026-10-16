@@ -424,7 +424,8 @@ const updatePurchase = async (id, updates, client = db) => {
 
 /**
  * Attach the latest subscription_plan_purchases row as current_purchase.
- * Selected aliases: purchase_status, purchase_starts_at, purchase_ends_at, purchase_auto_renew.
+ * Selected aliases: purchase_status, purchase_starts_at, purchase_ends_at,
+ * purchase_auto_renew, purchase_amount, purchase_billing_cycle.
  * @param {import('knex').Knex.QueryBuilder} query
  * @returns {import('knex').Knex.QueryBuilder}
  */
@@ -434,7 +435,9 @@ const joinCurrentPurchase = (query) =>
            pp.status AS purchase_status,
            pp.starts_at AS purchase_starts_at,
            pp.ends_at AS purchase_ends_at,
-           pp.auto_renew AS purchase_auto_renew
+           pp.auto_renew AS purchase_auto_renew,
+           pp.amount AS purchase_amount,
+           pp.billing_cycle AS purchase_billing_cycle
     FROM ${PURCHASES_TABLE} pp
     INNER JOIN (
       SELECT hotel_id, MAX(id) AS id

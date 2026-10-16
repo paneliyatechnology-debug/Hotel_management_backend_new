@@ -2267,7 +2267,7 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 | \`kpis.total_hotels\`, \`active_hotels\`, \`inactive_hotels\` | Hotels on the platform (not soft-deleted). |
 | \`kpis.trial_hotels\` | Hotels still inside an active TRIAL plan window. |
 | \`kpis.expired_hotels\` | Hotels whose plan is inactive or past \`subscription.end_date\`. |
-| \`kpis.estimated_mrr\` | Sum of active paid plan prices (YEARLY divided by 12). |
+| \`kpis.estimated_mrr\` | Monthly revenue from active hotels whose current purchase is paid and unexpired. Uses the purchase amount. \`ANNUAL\` is divided by 12. |
 | \`kpis.total_platform_rooms\`, \`total_staff_users\` | Non-deleted rooms and non-super-admin users. |
 | \`kpis.total_bookings_this_month\`, \`total_platform_booking_volume\` | Booking count and \`total_amount\` sum for \`date_range\`. |
 | \`plan_distribution[]\` | Per plan: \`plan_id\`, \`plan_name\`, \`active_hotels_count\`, \`monthly_revenue\`. |
@@ -2285,7 +2285,7 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 | \`revenue_by_payment_method\` | Collections in \`date_range\` by method. |
 | \`room_status_graph\` | HOTEL_ADMIN only. \`total_rooms\` and \`statuses[]\`, one entry per room status with \`status\`, \`count\` and \`percentage\` (share of the hotel's rooms, 2 decimals). |
 | \`weekly_revenue_graph\` | HOTEL_ADMIN only. Seven entries, Monday to Sunday of the current week, each with \`date\` (YYYY-MM-DD), \`day\` (for example \`Monday\`) and \`revenue\`. Revenue is the collected payments (\`booking_payments\` PAID / PARTIALLY_PAID) of that day. A day with no payments, or a day still to come, is \`0\`. Not affected by \`date_range\`. |
-| \`subscription_quota\` | Plan limit, rooms used, dates, \`days_left\`, \`is_active\`. |
+| \`subscription_quota\` | Plan limit and rooms used, plus \`plan_start_date\`, \`plan_end_date\`, \`days_left\`, and \`is_active\` from the current purchase. \`is_active\` is false when that purchase is not paid or its end date has passed. |
 
 **Front desk \`data\`**
 | Key | Meaning |
