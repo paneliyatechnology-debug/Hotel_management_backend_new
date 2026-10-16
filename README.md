@@ -234,7 +234,7 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 | `POST` | `/auth/logout` | Clear session cookies | Public |
 | `POST` | `/auth/forgot-password` | Email a reset link | Public |
 | `POST` | `/auth/reset-password` | Reset with `{ token, password }` | Public |
-| `GET` | `/auth/me` | Current user profile | Authenticated |
+| `GET` | `/auth/me` | Current user profile. A hotel admin also receives the full hotel and its subscription plan | Authenticated |
 | `POST` | `/hotel/register` | Register a hotel and start the free trial (optional operational settings: check-in / check-out times, timezone, currency, tax, `gst_enabled`, UPI, amenities, policies) | Public |
 
 ### Own hotel (`HOTEL_ADMIN`)

@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const userModel = require('../models/userModel');
 const hotelModel = require('../models/hotelModel');
+const subscriptionPlanModel = require('../models/subscriptionPlanModel');
 const tokenModel = require('../models/tokenModel');
 const {
   generateAccessToken,
@@ -18,7 +19,7 @@ const { getFrontendBaseUrl } = require('../utils/frontendUrl');
 const auditService = require('./auditService');
 const { assertHotelActive } = require('../utils/hotelScope');
 const { AppError } = require('../utils/response');
-const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES, AUDIT_STATUSES } = require('../constants');
+const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES, AUDIT_STATUSES, ROLE_CODES } = require('../constants');
 
 /**
  * Write an audit log entry for a security event of one user (login, failed login, password reset).
@@ -425,6 +426,30 @@ const changePassword = async (userId, currentPassword, newPassword) => {
 };
 
 /**
+ * Hotel attached to a profile.
+ * A hotel admin receives the full hotel and its subscription plan.
+ * Other hotel roles receive the short summary. A super admin has no hotel.
+ * @param {Object} user
+ * @returns {Promise<Object|null>}
+ */
+const loadProfileHotel = async (user) => {
+  if (!user.hotel_id) return null;
+
+  if (user.role !== ROLE_CODES.HOTEL_ADMIN) {
+    return hotelModel.findHotelSummary(user.hotel_id);
+  }
+
+  const hotel = await hotelModel.findHotelById(user.hotel_id);
+  if (!hotel) return null;
+
+  hotel.subscription.plan = hotel.subscription_plan_id
+    ? await subscriptionPlanModel.findPlanById(hotel.subscription_plan_id, { includeDeleted: true })
+    : null;
+
+  return hotel;
+};
+
+/**
  * Get profile data for authenticated user
  * @param {number|string} userId
  * @returns {Promise<Object>}
@@ -436,8 +461,7 @@ const getProfile = async (userId) => {
     throw new AppError('User not found.', HTTP_STATUS.NOT_FOUND);
   }
 
-  // Super admin has no hotel
-  const hotel = user.hotel_id ? await hotelModel.findHotelSummary(user.hotel_id) : null;
+  const hotel = await loadProfileHotel(user);
 
   return {
     id: user.id,

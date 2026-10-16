@@ -429,7 +429,18 @@ No query keys. No body. Use this after login to know the role and hotel before s
 | \`last_login_at\` | string or null | Last successful login. |
 | \`created_at\` | string | Account created time. |
 | \`updated_at\` | string | Account updated time. |
-| \`hotel\` | object or null | The user's hotel: \`id\`, \`name\`, \`gst_number\`, \`pan_number\` (empty strings when not set). Null for super admin. |`,
+| \`hotel\` | object or null | Null for a super admin. A hotel admin receives the full hotel (same keys as **Get hotel**) plus \`subscription.plan\`. Every other hotel role receives the short summary: \`id\`, \`name\`, \`gst_number\`, \`pan_number\`. |
+
+**\`subscription.plan\`** (hotel admin only, null when the hotel has no plan)
+| Key | Meaning |
+| --- | --- |
+| \`id\`, \`name\`, \`code\` | Plan id, name, and code (for example \`TRIAL\`). |
+| \`billingCycle\` | \`MONTHLY\` or \`ANNUAL\`. |
+| \`price\`, \`discountPercent\`, \`maxRooms\` | Price, discount, and room limit. |
+| \`description\`, \`badge\` | Plan text. |
+| \`isPopular\`, \`isActive\`, \`displayOrder\` | Catalog flags. |
+| \`features\` | String array. |
+| \`createdAt\`, \`updatedAt\`, \`deletedAt\` | Plan timestamps. \`deletedAt\` is set when the plan was archived. |`,
     }),
   ],
 };
@@ -686,7 +697,7 @@ ${hotelSettingsBodyKeysDoc}
 | --- | --- | --- |
 | \`id\` | number | Updated hotel id. |
 
-${idNote('Use **GET /auth/me** to read the updated hotel summary (name, GST, PAN).')}`,
+${idNote('Use **GET /auth/me** as the hotel admin to read the full hotel and its subscription plan.')}`,
     }),
   ],
 };
