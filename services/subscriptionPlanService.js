@@ -9,9 +9,27 @@ const { AppError } = require('../utils/response');
 const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
 
 /**
- * Standard 6 Enterprise default plans
+ * Catalog plans. TRIAL is assigned when a hotel is registered or created without a plan id.
  */
 const DEFAULT_PLANS = [
+  {
+    name: 'Free Trial',
+    code: 'TRIAL',
+    billingCycle: 'MONTHLY',
+    price: 0,
+    discountPercent: 0,
+    maxRooms: 50,
+    description: '30-day free trial for a newly registered hotel.',
+    badge: 'FREE TRIAL',
+    isPopular: false,
+    isActive: true,
+    displayOrder: 0,
+    features: [
+      '30-day free trial',
+      'Up to 50 rooms',
+      'Front desk and bookings',
+    ],
+  },
   {
     name: 'Starter Boutique',
     code: 'MONTHLY_STARTER',

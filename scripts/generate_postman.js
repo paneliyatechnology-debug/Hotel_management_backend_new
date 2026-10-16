@@ -481,10 +481,10 @@ const hotelProvisionFormFields = () => [
   textField('website', 'https://seaside.example', 'Optional. Valid URL. A missing http:// is accepted and treated as https.'),
   ...hotelSettingsFormFields(),
   fileField('logo', 'Optional file. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB.'),
-  textField('subscription_plan_id', '{{planId}}', 'Optional. Plan id from Subscription Plans. Empty starts the default trial plan selection on the server.'),
+  textField('subscription_plan_id', '{{planId}}', 'Optional. Plan id from Subscription Plans. Empty assigns the plan whose code is TRIAL.'),
   textField('subscription_plan_active', 'true', 'Optional. true or false. Defaults to true.'),
   textField('subscription_plan_start_date', '2026-10-14', 'Optional. ISO date (YYYY-MM-DD). Defaults to the trial start (now).'),
-  textField('subscription_plan_end_date', '2026-11-13', 'Optional. ISO date. Defaults to the trial end from system settings (usually 30 days).'),
+  textField('subscription_plan_end_date', '2026-11-13', 'Optional. ISO date. Defaults to 30 days after registration.'),
 ];
 
 const hotelProvisionBodyKeysDoc = `**Required body keys**
@@ -515,10 +515,10 @@ const hotelProvisionBodyKeysDoc = `**Required body keys**
 | \`website\` | string | Valid URL. |
 ${hotelSettingsBodyKeysDoc}
 | \`logo\` | file | Field name \`logo\`, \`logo_image\`, or \`file\`. Max 10 MB. |
-| \`subscription_plan_id\` | number | Plan id. Empty uses the default trial plan. |
+| \`subscription_plan_id\` | number | Plan id. Empty assigns the plan whose code is \`TRIAL\`. |
 | \`subscription_plan_active\` | boolean | true or false. Defaults to true. |
 | \`subscription_plan_start_date\` | string | ISO date. Defaults to now. |
-| \`subscription_plan_end_date\` | string | ISO date. Defaults to the trial end (usually 30 days). |
+| \`subscription_plan_end_date\` | string | ISO date. Defaults to 30 days after registration. |
 
 Do not send \`password\`. The server generates a temporary password and emails it.`;
 
@@ -567,8 +567,8 @@ Trial, slug, check-in time (\`14:00\`), check-out time (\`12:00\`), timezone \`A
 | \`admin.hotel_id\` | number | New hotel id. |
 | \`trial.start_date\` | string | Trial start. |
 | \`trial.end_date\` | string | Trial end. |
-| \`trial.duration\` | number | Length from system settings. Default 30. |
-| \`trial.unit\` | string | \`days\` or \`hours\`. |
+| \`trial.duration\` | number | Always \`30\`. |
+| \`trial.unit\` | string | Always \`days\`. |
 | \`auth.token_type\` | string | \`Bearer\`. |
 | \`auth.access_token\` | string | Access token for the new admin. Saved into \`{{accessToken}}\`. |
 | \`auth.expires_in\` | string | Access token lifetime, usually \`1h\`. |

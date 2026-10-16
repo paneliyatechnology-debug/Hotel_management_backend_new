@@ -8,7 +8,6 @@ const db = require('../database/knex');
 const hotelModel = require('../models/hotelModel');
 const userModel = require('../models/userModel');
 const tokenModel = require('../models/tokenModel');
-const systemSettingsModel = require('../models/systemSettingsModel');
 const subscriptionPlanModel = require('../models/subscriptionPlanModel');
 const s3Service = require('./s3Service');
 const auditService = require('./auditService');
@@ -156,28 +155,21 @@ const generateUniqueHotelSlug = async (name) => {
   return `${baseSlug}-${Date.now().toString(36)}`;
 };
 
+const TRIAL_DAYS = 30;
+
 /**
- * Calculate Trial Start and End dates from SystemSettings
- * @param {Object} settings
+ * Trial window for a newly registered hotel. Always 30 days from now.
  * @returns {{ trialStartDate: Date, trialEndDate: Date, duration: number, unit: string }}
  */
-const calculateTrialDates = (settings) => {
+const calculateTrialDates = () => {
   const trialStartDate = new Date();
-  const duration = Number(settings?.free_trial_value) || 30;
-  const unit = settings?.free_trial_unit === 'hours' ? 'hours' : 'days';
-
-  let trialEndDate;
-  if (unit === 'hours') {
-    trialEndDate = new Date(trialStartDate.getTime() + duration * 60 * 60 * 1000);
-  } else {
-    trialEndDate = new Date(trialStartDate.getTime() + duration * 24 * 60 * 60 * 1000);
-  }
+  const trialEndDate = new Date(trialStartDate.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
 
   return {
     trialStartDate,
     trialEndDate,
-    duration,
-    unit,
+    duration: TRIAL_DAYS,
+    unit: 'days',
   };
 };
 
@@ -250,9 +242,8 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
     );
   }
 
-  // 3. Free Trial Duration Calculation
-  const systemSettings = await systemSettingsModel.getSettings();
-  const { trialStartDate, trialEndDate, duration, unit } = calculateTrialDates(systemSettings);
+  // 3. Free trial is a fixed 30 days from registration.
+  const { trialStartDate, trialEndDate, duration, unit } = calculateTrialDates();
 
   // 4. Secure Temporary Password & Setup Token Generation (Temp Password Flow)
   const rawTempPassword = generateSecureTempPassword();
@@ -298,50 +289,14 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
     }
 
     // 2. Create Hotel record referencing owner_id (duplicate owner_name, owner_email, owner_phone removed)
-    // Find trial plan and set as default plan, ensuring it is active
+    // No plan id means the catalog plan whose code is TRIAL.
     let finalPlanId = payload.subscription_plan_id || payload.subscriptionPlanId || null;
     if (!finalPlanId) {
-      let trialPlan = await db('subscription_plans')
-        .whereNull('deleted_at')
-        .andWhere((qb) => {
-          qb.where('code', 'like', '%TRIAL%')
-            .orWhere('name', 'like', '%Trial%')
-            .orWhere('price', 0);
-        })
-        .first();
-
+      const trialPlan = await subscriptionPlanModel.findPlanByCode('TRIAL');
       if (!trialPlan) {
-        trialPlan = await db('subscription_plans')
-          .where('code', 'like', '%TRIAL%')
-          .orWhere('name', 'like', '%Trial%')
-          .first();
+        throw new AppError('Trial subscription plan (code TRIAL) is not configured.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
-
-      if (trialPlan) {
-        if (!trialPlan.is_active || trialPlan.deleted_at) {
-          await db('subscription_plans')
-            .where({ id: trialPlan.id })
-            .update({ is_active: true, deleted_at: null, updated_at: new Date() });
-        }
-        finalPlanId = trialPlan.id;
-      } else {
-        const [newTrialId] = await db('subscription_plans').insert({
-          name: 'Free Trial',
-          code: 'TRIAL',
-          billing_cycle: 'MONTHLY',
-          price: 0.00,
-          discount_percent: 0.00,
-          max_rooms: 50,
-          description: '30-Day Free Trial plan for newly registered hotels.',
-          badge: 'FREE TRIAL',
-          is_popular: false,
-          is_active: true,
-          display_order: 0,
-          created_at: new Date(),
-          updated_at: new Date(),
-        });
-        finalPlanId = newTrialId;
-      }
+      finalPlanId = trialPlan.id;
     } else {
       finalPlanId = Number(finalPlanId);
     }
@@ -749,7 +704,6 @@ const deleteHotel = async (id, reqUser) => {
 
 module.exports = {
   generateUniqueHotelSlug,
-  calculateTrialDates,
   registerHotel,
   createHotel,
   getHotels,
