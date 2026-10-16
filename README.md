@@ -235,16 +235,22 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 | `POST` | `/auth/forgot-password` | Email a reset link | Public |
 | `POST` | `/auth/reset-password` | Reset with `{ token, password }` | Public |
 | `GET` | `/auth/me` | Current user profile | Authenticated |
-| `POST` | `/hotel/register` | Register a hotel and start the free trial | Public |
+| `POST` | `/hotel/register` | Register a hotel and start the free trial (optional operational settings: check-in / check-out times, timezone, currency, tax, `gst_enabled`, UPI, amenities, policies) | Public |
+
+### Own hotel (`HOTEL_ADMIN`)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `PUT` | `/hotels/me` | Update the profile and operational settings of your own hotel (name, address, GST / PAN, `gst_enabled`, bank details, website, type, logo, `check_in_time`, `check_out_time`, `timezone`, `currency`, `tax_percentage`, `upi_id`, `late_checkout_grace_minutes`, `amenities`, `policies`). Sending `owner_email` or `owner_phone` returns `400`. Plan, `total_rooms` and active status are ignored. |
 
 ### Hotels (`SUPER_ADMIN` only)
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/hotels` | Create a hotel and its owner account (multipart for the logo). The owner gets a welcome email. |
+| `POST` | `/hotels` | Create a hotel and its owner account (multipart for the logo; same optional operational settings as register). The owner gets a welcome email. |
 | `GET` | `/hotels` | List hotels (filters: `search`, `is_active`, `subscription_plan_id`, `subscription_plan_active`, `page`, `limit`, `sort_by`, `sort_order`) |
 | `GET` | `/hotels/:id` | Hotel details with owner |
-| `PUT` | `/hotels/:id` | Update details, logo and subscription |
+| `PUT` | `/hotels/:id` | Update details, logo, operational settings (`check_in_time`, `check_out_time`, timezone, currency, tax, `gst_enabled`, UPI, amenities, policies) and subscription |
 | `PATCH` | `/hotels/:id/active-status` | Switch a hotel on or off with `{ "is_active": true \| false }` |
 | `DELETE` | `/hotels/:id` | Soft delete the hotel and its users (they can no longer sign in) |
 

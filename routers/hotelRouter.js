@@ -1,6 +1,6 @@
 /**
  * Hotel Router.
- * Public hotel registration, plus hotel management for the super admin only.
+ * Public hotel registration, hotel management for the super admin, and own-hotel update for the hotel admin.
  */
 const express = require('express');
 const hotelController = require('../controllers/hotelController');
@@ -9,6 +9,7 @@ const {
   hotelIdValidator,
   getHotelsQueryValidator,
   updateHotelValidator,
+  updateOwnHotelValidator,
   updateHotelActiveStatusValidator,
 } = require('../middleware/hotelValidator');
 const { validate } = require('../middleware/validation');
@@ -31,6 +32,25 @@ const superAdminOnly = [authenticateUser, requireRole(ROLE_CODES.SUPER_ADMIN)];
  * Other fields may be JSON. The logo is a form-data file.
  */
 router.post('/register', uploadRoomImages, registerHotelValidator, validate, hotelController.registerHotel);
+
+// ==========================================
+// Hotel Admin: own hotel
+// ==========================================
+
+/**
+ * PUT /api/v1/hotels/me
+ * Update the logged-in hotel admin's own hotel profile. The logo is a form-data file.
+ * Owner email and phone cannot be changed here. Must stay above the /:id routes.
+ */
+router.put(
+  '/me',
+  authenticateUser,
+  requireRole(ROLE_CODES.HOTEL_ADMIN),
+  uploadRoomImages,
+  updateOwnHotelValidator,
+  validate,
+  hotelController.updateOwnHotel
+);
 
 // ==========================================
 // Super Admin Hotel Management

@@ -518,13 +518,13 @@
                   "key": "gst_number",
                   "value": "27AAAAA0000A1Z5",
                   "type": "text",
-                  "description": "Optional. 15-character GSTIN. Empty is allowed. Stored uppercase. Turns GST on for the hotel when present."
+                  "description": "Optional. 15-character GSTIN (e.g. 27AAAAA0000A1Z5). Empty is allowed. Stored uppercase. When gst_enabled is omitted, a GST number turns GST on."
                 },
                 {
                   "key": "pan_number",
                   "value": "AAAAA0000A",
                   "type": "text",
-                  "description": "Optional. 10-character PAN. Empty is allowed. Stored uppercase."
+                  "description": "Optional. 10-character PAN (e.g. AAAAA0000A). Empty is allowed. Stored uppercase."
                 },
                 {
                   "key": "bank_name",
@@ -569,16 +569,70 @@
                   "description": "Optional. Free text, max 100 characters. Example: Boutique Hotel, Resort, Lodge."
                 },
                 {
-                  "key": "upi_id",
-                  "value": "seaside@upi",
-                  "type": "text",
-                  "description": "Optional. UPI id shown for payments. Stored in hotel settings."
-                },
-                {
                   "key": "website",
                   "value": "https://seaside.example",
                   "type": "text",
                   "description": "Optional. Valid URL. A missing http:// is accepted and treated as https."
+                },
+                {
+                  "key": "check_in_time",
+                  "value": "14:00",
+                  "type": "text",
+                  "description": "Optional. HH:mm 24-hour. Default 14:00 on create. Stored in hotel.settings.check_in_time."
+                },
+                {
+                  "key": "check_out_time",
+                  "value": "12:00",
+                  "type": "text",
+                  "description": "Optional. HH:mm 24-hour. Default 12:00 on create. Stored in hotel.settings.check_out_time."
+                },
+                {
+                  "key": "timezone",
+                  "value": "Asia/Kolkata",
+                  "type": "text",
+                  "description": "Optional. Max 50 characters. Default Asia/Kolkata on create."
+                },
+                {
+                  "key": "currency",
+                  "value": "INR",
+                  "type": "text",
+                  "description": "Optional. 3 to 10 characters. Default INR on create."
+                },
+                {
+                  "key": "tax_percentage",
+                  "value": "18",
+                  "type": "text",
+                  "description": "Optional. Number from 0 to 100. Default 18 on create. Stored in hotel.settings.tax_percentage."
+                },
+                {
+                  "key": "gst_enabled",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Optional. true or false. Stored in hotel.settings.gst_enabled. On create, when omitted, GST is on only if a GST number was sent. On update, send true or false to change it."
+                },
+                {
+                  "key": "upi_id",
+                  "value": "seaside@upi",
+                  "type": "text",
+                  "description": "Optional. UPI id for payments. Max 100. Empty clears it. Stored in hotel.settings.upi_id."
+                },
+                {
+                  "key": "late_checkout_grace_minutes",
+                  "value": "10",
+                  "type": "text",
+                  "description": "Optional. Integer 0 to 1440. Default 10 on create."
+                },
+                {
+                  "key": "amenities",
+                  "value": "[\"Free WiFi\",\"24/7 Room Service\",\"Air Conditioning\"]",
+                  "type": "text",
+                  "description": "Optional. JSON array or comma-separated list. Stored in hotel.settings.amenities."
+                },
+                {
+                  "key": "policies",
+                  "value": "[\"Valid Government ID required at check-in\",\"No smoking in standard rooms\"]",
+                  "type": "text",
+                  "description": "Optional. JSON array or comma-separated list. Stored in hotel.settings.policies."
                 },
                 {
                   "key": "logo",
@@ -588,31 +642,27 @@
                 },
                 {
                   "key": "subscription_plan_id",
-                  "value": "",
+                  "value": "{{planId}}",
                   "type": "text",
-                  "description": "Optional. Plan id from Subscription Plans. Empty starts the default trial plan selection on the server.",
-                  "disabled": true
+                  "description": "Optional. Plan id from Subscription Plans. Empty starts the default trial plan selection on the server."
                 },
                 {
                   "key": "subscription_plan_active",
                   "value": "true",
                   "type": "text",
-                  "description": "Optional. true or false. Defaults to true.",
-                  "disabled": true
+                  "description": "Optional. true or false. Defaults to true."
                 },
                 {
                   "key": "subscription_plan_start_date",
-                  "value": "",
+                  "value": "2026-10-14",
                   "type": "text",
-                  "description": "Optional. ISO date. Defaults to the trial start (now).",
-                  "disabled": true
+                  "description": "Optional. ISO date (YYYY-MM-DD). Defaults to the trial start (now)."
                 },
                 {
                   "key": "subscription_plan_end_date",
-                  "value": "",
+                  "value": "2026-11-13",
                   "type": "text",
-                  "description": "Optional. ISO date. Defaults to the trial end from system settings (usually 30 days).",
-                  "disabled": true
+                  "description": "Optional. ISO date. Defaults to the trial end from system settings (usually 30 days)."
                 }
               ]
             },
@@ -628,7 +678,264 @@
                 "register"
               ]
             },
-            "description": "### POST /api/v1/hotels/register\nPublic. Same route: `POST /api/v1/hotel/register`.\n\nCreates the property as `ACTIVE`, creates a `HOTEL_ADMIN`, emails a temporary password and a 48-hour setup link, and returns an access token. The frontend does not choose the password. The server generates one.\n\nA duplicate `owner_email` returns 409.\n\n**Body keys** are on the form-data rows. Each row has its own description. Do not send `password`. It is not used.\n\nTrial, slug, check-in time (`14:00`), check-out time (`12:00`), timezone `Asia/Kolkata`, currency `INR`, and tax 18 are set by the server.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `hotel` | object | Saved hotel. See hotel object below. |\n| `admin.id` | number | New hotel admin user id. |\n| `admin.name` | string | Owner name. |\n| `admin.email` | string | Login email. |\n| `admin.role` | string | Always `HOTEL_ADMIN`. |\n| `admin.is_active` | boolean | Active flag. |\n| `admin.hotel_id` | number | New hotel id. |\n| `trial.start_date` | string | Trial start. |\n| `trial.end_date` | string | Trial end. |\n| `trial.duration` | number | Length from system settings. Default 30. |\n| `trial.unit` | string | `days` or `hours`. |\n| `auth.token_type` | string | `Bearer`. |\n| `auth.access_token` | string | Access token for the new admin. Saved into `{{accessToken}}`. |\n| `auth.expires_in` | string | Access token lifetime, usually `1h`. |\n\n**Hotel object keys**\n| Key | Meaning |\n| --- | --- |\n| `id`, `name`, `slug` | Id, display name, URL slug. |\n| `owner_id` | Hotel admin user id. |\n| `address`, `city`, `state`, `country`, `pincode` | Location. |\n| `gst_number`, `pan_number` | Tax ids. Empty string when omitted. |\n| `bank_name`, `bank_account_holder`, `bank_account_number`, `bank_ifsc_code`, `bank_branch` | Bank details printed on the booking bill and folio PDFs. Empty string when not set. |\n| `total_rooms`, `hotel_type`, `website`, `logo` | Profile. `logo` is a full URL. |\n| `is_active` | `true` on registration. A super admin can switch a hotel off. |\n| `subscription_plan_id`, `subscription_plan_active` | Plan link and whether it is active. |\n| `subscription_plan_start_date`, `subscription_plan_end_date` | Plan window. |\n| `subscription.plan_id`, `subscription.active`, `subscription.start_date`, `subscription.end_date`, `subscription.auto_renew` | Same subscription data, grouped. `auto_renew` is false at registration. |\n| `settings.check_in_time`, `settings.check_out_time` | Default `14:00` and `12:00`. |\n| `settings.timezone`, `settings.currency`, `settings.tax_percentage` | `Asia/Kolkata`, `INR`, `18`. |\n| `settings.gst_enabled` | True when a GST number was sent. |\n| `settings.upi_id` | UPI id, or empty. |\n| `settings.late_checkout_grace_minutes` | Default 10. |\n| `settings.amenities` | Default string array. |\n| `settings.policies` | Default string array. |\n| `owner` | Present when the owner join is loaded: `id`, `name`, `email`. |\n| `created_at`, `updated_at`, `deleted_at` | Timestamps. `deleted_at` is null. |"
+            "description": "### POST /api/v1/hotels/register\nPublic. Same route: `POST /api/v1/hotel/register`.\n\nCreates the property as `ACTIVE`, creates a `HOTEL_ADMIN`, emails a temporary password and a 48-hour setup link, and returns an access token. The frontend does not choose the password. The server generates one.\n\nA duplicate `owner_email` returns 409.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON. Every required and optional key is on the Body form-data rows (all optional fields are enabled).\n\n**Required body keys**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `name` | string | Property name. Max 150. A URL slug is generated from this. |\n| `owner_name` | string | Owner / general manager name. Max 150. Becomes the hotel admin display name. |\n| `owner_email` | string | Hotel admin login email. Must be unique among active users. |\n| `owner_phone` | string | Indian mobile. 10 digits starting with 6–9. |\n| `address` | string | Street address. |\n| `city` | string | Max 100. |\n| `state` | string | Max 100. |\n| `pincode` | string | 6-digit Indian PIN code. |\n\n**Optional body keys** (all included and enabled on the Body form-data rows)\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `country` | string | Defaults to India. Max 100. |\n| `gst_number` | string | 15-character GSTIN. Empty allowed. Stored uppercase. When `gst_enabled` is omitted, a GST number turns GST on. |\n| `pan_number` | string | 10-character PAN. Empty allowed. Stored uppercase. |\n| `bank_name` | string | Bank name on bills and folios. Max 150. |\n| `bank_account_holder` | string | Account holder name. Max 150. |\n| `bank_account_number` | string | 9 to 18 digits. |\n| `bank_ifsc_code` | string | 11-character IFSC. Stored uppercase. |\n| `bank_branch` | string | Branch name. Max 150. |\n| `total_rooms` | number | Whole number, 0 or more. Does not create rooms. |\n| `hotel_type` | string | Free text, max 100. |\n| `website` | string | Valid URL. |\n| `check_in_time` | string | HH:mm 24-hour. Default `14:00` on create. |\n| `check_out_time` | string | HH:mm 24-hour. Default `12:00` on create. |\n| `timezone` | string | Max 50. Default `Asia/Kolkata` on create. |\n| `currency` | string | 3 to 10 chars. Default `INR` on create. |\n| `tax_percentage` | number | 0 to 100. Default `18` on create. |\n| `gst_enabled` | boolean | true or false. Returned in `settings.gst_enabled`. On create, omitted means true only when a GST number was sent. On update, send it to change the stored value. Omitting it leaves the current value. |\n| `upi_id` | string | UPI id. Max 100. Empty clears it. |\n| `late_checkout_grace_minutes` | number | Integer 0 to 1440. Default `10` on create. |\n| `amenities` | string / array | JSON array or comma-separated list. |\n| `policies` | string / array | JSON array or comma-separated list. |\n| `logo` | file | Field name `logo`, `logo_image`, or `file`. Max 10 MB. |\n| `subscription_plan_id` | number | Plan id. Empty uses the default trial plan. |\n| `subscription_plan_active` | boolean | true or false. Defaults to true. |\n| `subscription_plan_start_date` | string | ISO date. Defaults to now. |\n| `subscription_plan_end_date` | string | ISO date. Defaults to the trial end (usually 30 days). |\n\nDo not send `password`. The server generates a temporary password and emails it.\n\nTrial, slug, check-in time (`14:00`), check-out time (`12:00`), timezone `Asia/Kolkata`, currency `INR`, and tax 18 are set by the server.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `hotel` | object | Saved hotel. See hotel object below. |\n| `admin.id` | number | New hotel admin user id. |\n| `admin.name` | string | Owner name. |\n| `admin.email` | string | Login email. |\n| `admin.role` | string | Always `HOTEL_ADMIN`. |\n| `admin.is_active` | boolean | Active flag. |\n| `admin.hotel_id` | number | New hotel id. |\n| `trial.start_date` | string | Trial start. |\n| `trial.end_date` | string | Trial end. |\n| `trial.duration` | number | Length from system settings. Default 30. |\n| `trial.unit` | string | `days` or `hours`. |\n| `auth.token_type` | string | `Bearer`. |\n| `auth.access_token` | string | Access token for the new admin. Saved into `{{accessToken}}`. |\n| `auth.expires_in` | string | Access token lifetime, usually `1h`. |\n\n**Hotel object keys**\n| Key | Meaning |\n| --- | --- |\n| `id`, `name`, `slug` | Id, display name, URL slug. |\n| `owner_id` | Hotel admin user id. |\n| `address`, `city`, `state`, `country`, `pincode` | Location. |\n| `gst_number`, `pan_number` | Tax ids. Empty string when omitted. |\n| `bank_name`, `bank_account_holder`, `bank_account_number`, `bank_ifsc_code`, `bank_branch` | Bank details printed on the booking bill and folio PDFs. Empty string when not set. |\n| `total_rooms`, `hotel_type`, `website`, `logo` | Profile. `logo` is a full URL. |\n| `is_active` | `true` on registration. A super admin can switch a hotel off. |\n| `subscription_plan_id`, `subscription_plan_active` | Plan link and whether it is active. |\n| `subscription_plan_start_date`, `subscription_plan_end_date` | Plan window. |\n| `subscription.plan_id`, `subscription.active`, `subscription.start_date`, `subscription.end_date`, `subscription.auto_renew` | Same subscription data, grouped. `auto_renew` is false at registration. |\n| `settings.check_in_time`, `settings.check_out_time` | Default `14:00` and `12:00`. |\n| `settings.timezone`, `settings.currency`, `settings.tax_percentage` | `Asia/Kolkata`, `INR`, `18`. |\n| `settings.gst_enabled` | Whether GST is enabled. On create this is the sent `gst_enabled`, or true when a GST number was sent and `gst_enabled` was omitted. |\n| `settings.upi_id` | UPI id, or empty. |\n| `settings.late_checkout_grace_minutes` | Default 10. |\n| `settings.amenities` | Default string array. |\n| `settings.policies` | Default string array. |\n| `owner` | Present when the owner join is loaded: `id`, `name`, `email`. |\n| `created_at`, `updated_at`, `deleted_at` | Timestamps. `deleted_at` is null. |"
+          }
+        },
+        {
+          "name": "Update my hotel (hotel admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Seaside Residency",
+                  "type": "text",
+                  "description": "Optional. Hotel display name. Max 150 characters. Cannot be empty when sent."
+                },
+                {
+                  "key": "address",
+                  "value": "12 Marine Drive",
+                  "type": "text",
+                  "description": "Optional. Street address. Cannot be empty when sent."
+                },
+                {
+                  "key": "city",
+                  "value": "Mumbai",
+                  "type": "text",
+                  "description": "Optional. Max 100 characters. Cannot be empty when sent."
+                },
+                {
+                  "key": "state",
+                  "value": "Maharashtra",
+                  "type": "text",
+                  "description": "Optional. Max 100 characters. Cannot be empty when sent."
+                },
+                {
+                  "key": "country",
+                  "value": "India",
+                  "type": "text",
+                  "description": "Optional. Max 100 characters."
+                },
+                {
+                  "key": "pincode",
+                  "value": "400001",
+                  "type": "text",
+                  "description": "Optional. 6-digit Indian PIN code."
+                },
+                {
+                  "key": "gst_number",
+                  "value": "27AAAAA0000A1Z5",
+                  "type": "text",
+                  "description": "Optional. 15-character GSTIN (e.g. 27AAAAA0000A1Z5). Empty clears it. Does not change gst_enabled. Stored uppercase."
+                },
+                {
+                  "key": "pan_number",
+                  "value": "AAAAA0000A",
+                  "type": "text",
+                  "description": "Optional. 10-character PAN (e.g. AAAAA0000A). Empty clears it. Stored uppercase."
+                },
+                {
+                  "key": "bank_name",
+                  "value": "HDFC Bank",
+                  "type": "text",
+                  "description": "Optional. Bank name printed on bills and folios. Empty clears it. Max 150 characters."
+                },
+                {
+                  "key": "bank_account_holder",
+                  "value": "Seaside Residency",
+                  "type": "text",
+                  "description": "Optional. Account holder name. Empty clears it. Max 150 characters."
+                },
+                {
+                  "key": "bank_account_number",
+                  "value": "123456789012",
+                  "type": "text",
+                  "description": "Optional. 9 to 18 digits. Empty clears it."
+                },
+                {
+                  "key": "bank_ifsc_code",
+                  "value": "HDFC0001234",
+                  "type": "text",
+                  "description": "Optional. 11-character IFSC (e.g. HDFC0001234). Empty clears it. Stored uppercase."
+                },
+                {
+                  "key": "bank_branch",
+                  "value": "Marine Drive, Mumbai",
+                  "type": "text",
+                  "description": "Optional. Branch name. Empty clears it. Max 150 characters."
+                },
+                {
+                  "key": "hotel_type",
+                  "value": "Boutique Hotel",
+                  "type": "text",
+                  "description": "Optional. Free text, max 100 characters. Example: Boutique Hotel, Resort, Lodge."
+                },
+                {
+                  "key": "website",
+                  "value": "https://seaside.example",
+                  "type": "text",
+                  "description": "Optional. Valid URL. A missing http:// is accepted and treated as https."
+                },
+                {
+                  "key": "check_in_time",
+                  "value": "14:00",
+                  "type": "text",
+                  "description": "Optional. HH:mm 24-hour. Default 14:00 on create. Stored in hotel.settings.check_in_time."
+                },
+                {
+                  "key": "check_out_time",
+                  "value": "12:00",
+                  "type": "text",
+                  "description": "Optional. HH:mm 24-hour. Default 12:00 on create. Stored in hotel.settings.check_out_time."
+                },
+                {
+                  "key": "timezone",
+                  "value": "Asia/Kolkata",
+                  "type": "text",
+                  "description": "Optional. Max 50 characters. Default Asia/Kolkata on create."
+                },
+                {
+                  "key": "currency",
+                  "value": "INR",
+                  "type": "text",
+                  "description": "Optional. 3 to 10 characters. Default INR on create."
+                },
+                {
+                  "key": "tax_percentage",
+                  "value": "18",
+                  "type": "text",
+                  "description": "Optional. Number from 0 to 100. Default 18 on create. Stored in hotel.settings.tax_percentage."
+                },
+                {
+                  "key": "gst_enabled",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Optional. true or false. Stored in hotel.settings.gst_enabled. On create, when omitted, GST is on only if a GST number was sent. On update, send true or false to change it."
+                },
+                {
+                  "key": "upi_id",
+                  "value": "seaside@upi",
+                  "type": "text",
+                  "description": "Optional. UPI id for payments. Max 100. Empty clears it. Stored in hotel.settings.upi_id."
+                },
+                {
+                  "key": "late_checkout_grace_minutes",
+                  "value": "10",
+                  "type": "text",
+                  "description": "Optional. Integer 0 to 1440. Default 10 on create."
+                },
+                {
+                  "key": "amenities",
+                  "value": "[\"Free WiFi\",\"24/7 Room Service\",\"Air Conditioning\"]",
+                  "type": "text",
+                  "description": "Optional. JSON array or comma-separated list. Stored in hotel.settings.amenities."
+                },
+                {
+                  "key": "policies",
+                  "value": "[\"Valid Government ID required at check-in\",\"No smoking in standard rooms\"]",
+                  "type": "text",
+                  "description": "Optional. JSON array or comma-separated list. Stored in hotel.settings.policies."
+                },
+                {
+                  "key": "logo",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional file. Replaces the current logo. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB."
+                },
+                {
+                  "key": "owner_email",
+                  "value": "owner@seaside.example",
+                  "type": "text",
+                  "description": "LOCKED. Do not send. Returns 400: owner_email cannot be updated.",
+                  "disabled": true
+                },
+                {
+                  "key": "owner_phone",
+                  "value": "9876543210",
+                  "type": "text",
+                  "description": "LOCKED. Do not send. Returns 400: owner_phone cannot be updated.",
+                  "disabled": true
+                },
+                {
+                  "key": "total_rooms",
+                  "value": "24",
+                  "type": "text",
+                  "description": "Ignored on this route. Only a super admin can change total_rooms (PUT /hotels/:id).",
+                  "disabled": true
+                },
+                {
+                  "key": "subscription_plan_id",
+                  "value": "{{planId}}",
+                  "type": "text",
+                  "description": "Ignored on this route. Only a super admin can change the plan.",
+                  "disabled": true
+                },
+                {
+                  "key": "subscription_plan_active",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Ignored on this route. Only a super admin can change this.",
+                  "disabled": true
+                },
+                {
+                  "key": "subscription_plan_start_date",
+                  "value": "2026-10-14",
+                  "type": "text",
+                  "description": "Ignored on this route. Only a super admin can change this.",
+                  "disabled": true
+                },
+                {
+                  "key": "subscription_plan_end_date",
+                  "value": "2027-10-14",
+                  "type": "text",
+                  "description": "Ignored on this route. Only a super admin can change this.",
+                  "disabled": true
+                },
+                {
+                  "key": "auto_renew",
+                  "value": "false",
+                  "type": "text",
+                  "description": "Ignored on this route. Only a super admin can change this.",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Ignored on this route. Use Update hotel active status (super admin).",
+                  "disabled": true
+                },
+                {
+                  "key": "slug",
+                  "value": "seaside-residency",
+                  "type": "text",
+                  "description": "Ignored. The slug never changes on update.",
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                "me"
+              ]
+            },
+            "description": "### PUT /api/v1/hotels/me\n**Who can call this:** HOTEL_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nUpdates the profile of the logged-in hotel admin's own hotel. The hotel is read from the access token. Send only the keys that change. At least one accepted key is required.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON.\n\nDisabled form-data rows are documented in the Body tab. They are not sent until you enable them. Leave the LOCKED and Ignored rows disabled.\n\n**Accepted body keys** (all optional; send at least one)\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `name` | string | No | Hotel display name. Max 150. Cannot be empty when sent. |\n| `address` | string | No | Street address. Cannot be empty when sent. |\n| `city` | string | No | Max 100. Cannot be empty when sent. |\n| `state` | string | No | Max 100. Cannot be empty when sent. |\n| `country` | string | No | Max 100. |\n| `pincode` | string | No | 6-digit Indian PIN code. |\n| `gst_number` | string | No | 15-character GSTIN. Empty clears it. Does not change `gst_enabled`. Stored uppercase. |\n| `pan_number` | string | No | 10-character PAN. Empty clears it. Stored uppercase. |\n| `bank_name` | string | No | Bank name on bills and folios. Empty clears it. Max 150. |\n| `bank_account_holder` | string | No | Account holder name. Empty clears it. Max 150. |\n| `bank_account_number` | string | No | 9 to 18 digits. Empty clears it. |\n| `bank_ifsc_code` | string | No | 11-character IFSC. Empty clears it. Stored uppercase. |\n| `bank_branch` | string | No | Branch name. Empty clears it. Max 150. |\n| `hotel_type` | string | No | Free text, max 100. |\n| `website` | string | No | Valid URL. A missing http:// is treated as https. |\n| `check_in_time` | string | HH:mm 24-hour. Default `14:00` on create. |\n| `check_out_time` | string | HH:mm 24-hour. Default `12:00` on create. |\n| `timezone` | string | Max 50. Default `Asia/Kolkata` on create. |\n| `currency` | string | 3 to 10 chars. Default `INR` on create. |\n| `tax_percentage` | number | 0 to 100. Default `18` on create. |\n| `gst_enabled` | boolean | true or false. Returned in `settings.gst_enabled`. On create, omitted means true only when a GST number was sent. On update, send it to change the stored value. Omitting it leaves the current value. |\n| `upi_id` | string | UPI id. Max 100. Empty clears it. |\n| `late_checkout_grace_minutes` | number | Integer 0 to 1440. Default `10` on create. |\n| `amenities` | string / array | JSON array or comma-separated list. |\n| `policies` | string / array | JSON array or comma-separated list. |\n| `logo` | file | No | Replaces the current logo. Field name `logo`, `logo_image`, or `file`. Max 10 MB. |\n\n**Locked keys** (sending any returns 400 and nothing is saved)\n| Key | Result |\n| --- | --- |\n| `owner_email`, `owner_phone` | 400. Owner contact details cannot be updated. |\n\n**Ignored keys** (accepted by the form but not saved on this route)\n| Key | Who changes it |\n| --- | --- |\n| `total_rooms`, `subscription_plan_id`, `subscription_plan_active`, `subscription_plan_start_date`, `subscription_plan_end_date`, `auto_renew` | Super admin: **Update hotel**. |\n| `is_active` | Super admin: **Update hotel active status**. |\n| `slug` | Never. Set at registration. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Updated hotel id. |\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **GET /auth/me** to read the updated hotel summary (name, GST, PAN)."
           }
         }
       ]
@@ -2684,13 +2991,13 @@
                   "key": "name",
                   "value": "Seaside Residency",
                   "type": "text",
-                  "description": "Required. Property name. Max 150 characters."
+                  "description": "Required. Property name. Max 150 characters. A URL slug is generated from this."
                 },
                 {
                   "key": "owner_name",
                   "value": "Asha Patel",
                   "type": "text",
-                  "description": "Required. Owner name. Max 150 characters."
+                  "description": "Required. Owner or general manager name. Max 150 characters. This becomes the hotel admin display name."
                 },
                 {
                   "key": "owner_email",
@@ -2702,7 +3009,7 @@
                   "key": "owner_phone",
                   "value": "9876543210",
                   "type": "text",
-                  "description": "Required. Indian mobile. 10 digits starting with 6, 7, 8, or 9."
+                  "description": "Required. Indian mobile. 10 digits starting with 6, 7, 8, or 9. +91 and leading 0 are stripped."
                 },
                 {
                   "key": "address",
@@ -2726,8 +3033,7 @@
                   "key": "country",
                   "value": "India",
                   "type": "text",
-                  "description": "Optional. Defaults to India.",
-                  "disabled": true
+                  "description": "Optional. Defaults to India. Max 100 characters."
                 },
                 {
                   "key": "pincode",
@@ -2739,84 +3045,151 @@
                   "key": "gst_number",
                   "value": "27AAAAA0000A1Z5",
                   "type": "text",
-                  "description": "Optional. 15-character GSTIN. Stored uppercase.",
-                  "disabled": true
+                  "description": "Optional. 15-character GSTIN (e.g. 27AAAAA0000A1Z5). Empty is allowed. Stored uppercase. When gst_enabled is omitted, a GST number turns GST on."
                 },
                 {
                   "key": "pan_number",
                   "value": "AAAAA0000A",
                   "type": "text",
-                  "description": "Optional. 10-character PAN. Stored uppercase.",
-                  "disabled": true
+                  "description": "Optional. 10-character PAN (e.g. AAAAA0000A). Empty is allowed. Stored uppercase."
                 },
                 {
                   "key": "bank_name",
                   "value": "HDFC Bank",
                   "type": "text",
-                  "description": "Optional. Bank name printed on bills and folios. Max 150 characters.",
-                  "disabled": true
+                  "description": "Optional. Bank name printed on bills and folios. Max 150 characters."
                 },
                 {
                   "key": "bank_account_holder",
                   "value": "Seaside Residency",
                   "type": "text",
-                  "description": "Optional. Account holder name. Max 150 characters.",
-                  "disabled": true
+                  "description": "Optional. Account holder name. Max 150 characters."
                 },
                 {
                   "key": "bank_account_number",
                   "value": "123456789012",
                   "type": "text",
-                  "description": "Optional. 9 to 18 digits.",
-                  "disabled": true
+                  "description": "Optional. 9 to 18 digits."
                 },
                 {
                   "key": "bank_ifsc_code",
                   "value": "HDFC0001234",
                   "type": "text",
-                  "description": "Optional. 11-character IFSC code. Stored uppercase.",
-                  "disabled": true
+                  "description": "Optional. 11-character IFSC code. Stored uppercase."
                 },
                 {
                   "key": "bank_branch",
                   "value": "Marine Drive, Mumbai",
                   "type": "text",
-                  "description": "Optional. Branch name. Max 150 characters.",
-                  "disabled": true
+                  "description": "Optional. Branch name. Max 150 characters."
                 },
                 {
                   "key": "total_rooms",
                   "value": "24",
                   "type": "text",
-                  "description": "Optional. Whole number, 0 or more. Inventory count only.",
-                  "disabled": true
+                  "description": "Optional. Whole number, 0 or more. Inventory count only. It does not create rooms."
                 },
                 {
                   "key": "hotel_type",
                   "value": "Boutique Hotel",
                   "type": "text",
-                  "description": "Optional. Free text, max 100 characters.",
-                  "disabled": true
+                  "description": "Optional. Free text, max 100 characters. Example: Boutique Hotel, Resort, Lodge."
                 },
                 {
                   "key": "website",
                   "value": "https://seaside.example",
                   "type": "text",
-                  "description": "Optional. Valid URL.",
-                  "disabled": true
+                  "description": "Optional. Valid URL. A missing http:// is accepted and treated as https."
+                },
+                {
+                  "key": "check_in_time",
+                  "value": "14:00",
+                  "type": "text",
+                  "description": "Optional. HH:mm 24-hour. Default 14:00 on create. Stored in hotel.settings.check_in_time."
+                },
+                {
+                  "key": "check_out_time",
+                  "value": "12:00",
+                  "type": "text",
+                  "description": "Optional. HH:mm 24-hour. Default 12:00 on create. Stored in hotel.settings.check_out_time."
+                },
+                {
+                  "key": "timezone",
+                  "value": "Asia/Kolkata",
+                  "type": "text",
+                  "description": "Optional. Max 50 characters. Default Asia/Kolkata on create."
+                },
+                {
+                  "key": "currency",
+                  "value": "INR",
+                  "type": "text",
+                  "description": "Optional. 3 to 10 characters. Default INR on create."
+                },
+                {
+                  "key": "tax_percentage",
+                  "value": "18",
+                  "type": "text",
+                  "description": "Optional. Number from 0 to 100. Default 18 on create. Stored in hotel.settings.tax_percentage."
+                },
+                {
+                  "key": "gst_enabled",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Optional. true or false. Stored in hotel.settings.gst_enabled. On create, when omitted, GST is on only if a GST number was sent. On update, send true or false to change it."
+                },
+                {
+                  "key": "upi_id",
+                  "value": "seaside@upi",
+                  "type": "text",
+                  "description": "Optional. UPI id for payments. Max 100. Empty clears it. Stored in hotel.settings.upi_id."
+                },
+                {
+                  "key": "late_checkout_grace_minutes",
+                  "value": "10",
+                  "type": "text",
+                  "description": "Optional. Integer 0 to 1440. Default 10 on create."
+                },
+                {
+                  "key": "amenities",
+                  "value": "[\"Free WiFi\",\"24/7 Room Service\",\"Air Conditioning\"]",
+                  "type": "text",
+                  "description": "Optional. JSON array or comma-separated list. Stored in hotel.settings.amenities."
+                },
+                {
+                  "key": "policies",
+                  "value": "[\"Valid Government ID required at check-in\",\"No smoking in standard rooms\"]",
+                  "type": "text",
+                  "description": "Optional. JSON array or comma-separated list. Stored in hotel.settings.policies."
                 },
                 {
                   "key": "logo",
                   "type": "file",
                   "src": [],
-                  "description": "Optional file. Field name logo, logo_image, or file. Max 10 MB."
+                  "description": "Optional file. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB."
                 },
                 {
                   "key": "subscription_plan_id",
-                  "value": "",
+                  "value": "{{planId}}",
                   "type": "text",
-                  "description": "Optional. Plan id. Empty uses the default trial plan.",
-                  "disabled": true
+                  "description": "Optional. Plan id from Subscription Plans. Empty starts the default trial plan selection on the server."
+                },
+                {
+                  "key": "subscription_plan_active",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Optional. true or false. Defaults to true."
+                },
+                {
+                  "key": "subscription_plan_start_date",
+                  "value": "2026-10-14",
+                  "type": "text",
+                  "description": "Optional. ISO date (YYYY-MM-DD). Defaults to the trial start (now)."
+                },
+                {
+                  "key": "subscription_plan_end_date",
+                  "value": "2026-11-13",
+                  "type": "text",
+                  "description": "Optional. ISO date. Defaults to the trial end from system settings (usually 30 days)."
                 }
               ]
             },
@@ -2831,7 +3204,7 @@
                 "hotels"
               ]
             },
-            "description": "### POST /api/v1/hotels\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nCreates the hotel as `ACTIVE` with the free trial, creates its `HOTEL_ADMIN` owner, and emails the owner a temporary password and a 48-hour setup link. Nobody is signed in and no token is returned.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON. A duplicate `owner_email` returns 409.\n\n**Body keys** are on the form-data rows. Each row has its own description.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **List hotels** to read the new hotel."
+            "description": "### POST /api/v1/hotels\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nCreates the hotel as `ACTIVE` with the free trial, creates its `HOTEL_ADMIN` owner, and emails the owner a temporary password and a 48-hour setup link. Nobody is signed in and no token is returned.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON. A duplicate `owner_email` returns 409.\n\nEvery required and optional key is on the Body form-data rows (all optional fields are enabled). Same fields as **Register hotel**.\n\n**Required body keys**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `name` | string | Property name. Max 150. A URL slug is generated from this. |\n| `owner_name` | string | Owner / general manager name. Max 150. Becomes the hotel admin display name. |\n| `owner_email` | string | Hotel admin login email. Must be unique among active users. |\n| `owner_phone` | string | Indian mobile. 10 digits starting with 6–9. |\n| `address` | string | Street address. |\n| `city` | string | Max 100. |\n| `state` | string | Max 100. |\n| `pincode` | string | 6-digit Indian PIN code. |\n\n**Optional body keys** (all included and enabled on the Body form-data rows)\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `country` | string | Defaults to India. Max 100. |\n| `gst_number` | string | 15-character GSTIN. Empty allowed. Stored uppercase. When `gst_enabled` is omitted, a GST number turns GST on. |\n| `pan_number` | string | 10-character PAN. Empty allowed. Stored uppercase. |\n| `bank_name` | string | Bank name on bills and folios. Max 150. |\n| `bank_account_holder` | string | Account holder name. Max 150. |\n| `bank_account_number` | string | 9 to 18 digits. |\n| `bank_ifsc_code` | string | 11-character IFSC. Stored uppercase. |\n| `bank_branch` | string | Branch name. Max 150. |\n| `total_rooms` | number | Whole number, 0 or more. Does not create rooms. |\n| `hotel_type` | string | Free text, max 100. |\n| `website` | string | Valid URL. |\n| `check_in_time` | string | HH:mm 24-hour. Default `14:00` on create. |\n| `check_out_time` | string | HH:mm 24-hour. Default `12:00` on create. |\n| `timezone` | string | Max 50. Default `Asia/Kolkata` on create. |\n| `currency` | string | 3 to 10 chars. Default `INR` on create. |\n| `tax_percentage` | number | 0 to 100. Default `18` on create. |\n| `gst_enabled` | boolean | true or false. Returned in `settings.gst_enabled`. On create, omitted means true only when a GST number was sent. On update, send it to change the stored value. Omitting it leaves the current value. |\n| `upi_id` | string | UPI id. Max 100. Empty clears it. |\n| `late_checkout_grace_minutes` | number | Integer 0 to 1440. Default `10` on create. |\n| `amenities` | string / array | JSON array or comma-separated list. |\n| `policies` | string / array | JSON array or comma-separated list. |\n| `logo` | file | Field name `logo`, `logo_image`, or `file`. Max 10 MB. |\n| `subscription_plan_id` | number | Plan id. Empty uses the default trial plan. |\n| `subscription_plan_active` | boolean | true or false. Defaults to true. |\n| `subscription_plan_start_date` | string | ISO date. Defaults to now. |\n| `subscription_plan_end_date` | string | ISO date. Defaults to the trial end (usually 30 days). |\n\nDo not send `password`. The server generates a temporary password and emails it.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | New hotel id. Saved into `{{targetHotelId}}`. |\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **List hotels** or **Get hotel** to read the new hotel."
           }
         },
         {
@@ -2976,153 +3349,193 @@
                   "key": "name",
                   "value": "Seaside Residency",
                   "type": "text",
-                  "description": "Optional. Max 150 characters."
+                  "description": "Optional. Hotel display name. Max 150 characters. Cannot be empty when sent."
                 },
                 {
                   "key": "address",
                   "value": "12 Marine Drive",
                   "type": "text",
-                  "description": "Optional. Cannot be empty.",
-                  "disabled": true
+                  "description": "Optional. Street address. Cannot be empty when sent."
                 },
                 {
                   "key": "city",
                   "value": "Mumbai",
                   "type": "text",
-                  "description": "Optional. Max 100 characters.",
-                  "disabled": true
+                  "description": "Optional. Max 100 characters. Cannot be empty when sent."
                 },
                 {
                   "key": "state",
                   "value": "Maharashtra",
                   "type": "text",
-                  "description": "Optional. Max 100 characters.",
-                  "disabled": true
+                  "description": "Optional. Max 100 characters. Cannot be empty when sent."
                 },
                 {
                   "key": "country",
                   "value": "India",
                   "type": "text",
-                  "description": "Optional. Max 100 characters.",
-                  "disabled": true
+                  "description": "Optional. Max 100 characters."
                 },
                 {
                   "key": "pincode",
                   "value": "400001",
                   "type": "text",
-                  "description": "Optional. 6-digit Indian PIN code.",
-                  "disabled": true
+                  "description": "Optional. 6-digit Indian PIN code."
                 },
                 {
                   "key": "gst_number",
                   "value": "27AAAAA0000A1Z5",
                   "type": "text",
-                  "description": "Optional. 15-character GSTIN. Empty clears it and turns GST off.",
-                  "disabled": true
+                  "description": "Optional. 15-character GSTIN. Empty clears it. Does not change gst_enabled. Stored uppercase."
                 },
                 {
                   "key": "pan_number",
                   "value": "AAAAA0000A",
                   "type": "text",
-                  "description": "Optional. 10-character PAN. Empty clears it.",
-                  "disabled": true
+                  "description": "Optional. 10-character PAN. Empty clears it. Stored uppercase."
                 },
                 {
                   "key": "bank_name",
                   "value": "HDFC Bank",
                   "type": "text",
-                  "description": "Optional. Bank name. Empty clears it. Max 150 characters.",
-                  "disabled": true
+                  "description": "Optional. Bank name printed on bills and folios. Empty clears it. Max 150 characters."
                 },
                 {
                   "key": "bank_account_holder",
                   "value": "Seaside Residency",
                   "type": "text",
-                  "description": "Optional. Account holder name. Empty clears it. Max 150 characters.",
-                  "disabled": true
+                  "description": "Optional. Account holder name. Empty clears it. Max 150 characters."
                 },
                 {
                   "key": "bank_account_number",
                   "value": "123456789012",
                   "type": "text",
-                  "description": "Optional. 9 to 18 digits. Empty clears it.",
-                  "disabled": true
+                  "description": "Optional. 9 to 18 digits. Empty clears it."
                 },
                 {
                   "key": "bank_ifsc_code",
                   "value": "HDFC0001234",
                   "type": "text",
-                  "description": "Optional. 11-character IFSC code. Empty clears it. Stored uppercase.",
-                  "disabled": true
+                  "description": "Optional. 11-character IFSC. Empty clears it. Stored uppercase."
                 },
                 {
                   "key": "bank_branch",
                   "value": "Marine Drive, Mumbai",
                   "type": "text",
-                  "description": "Optional. Branch name. Empty clears it. Max 150 characters.",
-                  "disabled": true
-                },
-                {
-                  "key": "total_rooms",
-                  "value": "24",
-                  "type": "text",
-                  "description": "Optional. Whole number, 0 or more.",
-                  "disabled": true
+                  "description": "Optional. Branch name. Empty clears it. Max 150 characters."
                 },
                 {
                   "key": "hotel_type",
                   "value": "Boutique Hotel",
                   "type": "text",
-                  "description": "Optional. Max 100 characters.",
-                  "disabled": true
+                  "description": "Optional. Free text, max 100 characters."
                 },
                 {
                   "key": "website",
                   "value": "https://seaside.example",
                   "type": "text",
-                  "description": "Optional. Valid URL.",
-                  "disabled": true
+                  "description": "Optional. Valid URL. A missing http:// is accepted and treated as https."
+                },
+                {
+                  "key": "check_in_time",
+                  "value": "14:00",
+                  "type": "text",
+                  "description": "Optional. HH:mm 24-hour. Default 14:00 on create. Stored in hotel.settings.check_in_time."
+                },
+                {
+                  "key": "check_out_time",
+                  "value": "12:00",
+                  "type": "text",
+                  "description": "Optional. HH:mm 24-hour. Default 12:00 on create. Stored in hotel.settings.check_out_time."
+                },
+                {
+                  "key": "timezone",
+                  "value": "Asia/Kolkata",
+                  "type": "text",
+                  "description": "Optional. Max 50 characters. Default Asia/Kolkata on create."
+                },
+                {
+                  "key": "currency",
+                  "value": "INR",
+                  "type": "text",
+                  "description": "Optional. 3 to 10 characters. Default INR on create."
+                },
+                {
+                  "key": "tax_percentage",
+                  "value": "18",
+                  "type": "text",
+                  "description": "Optional. Number from 0 to 100. Default 18 on create. Stored in hotel.settings.tax_percentage."
+                },
+                {
+                  "key": "gst_enabled",
+                  "value": "true",
+                  "type": "text",
+                  "description": "Optional. true or false. Stored in hotel.settings.gst_enabled. On create, when omitted, GST is on only if a GST number was sent. On update, send true or false to change it."
+                },
+                {
+                  "key": "upi_id",
+                  "value": "seaside@upi",
+                  "type": "text",
+                  "description": "Optional. UPI id for payments. Max 100. Empty clears it. Stored in hotel.settings.upi_id."
+                },
+                {
+                  "key": "late_checkout_grace_minutes",
+                  "value": "10",
+                  "type": "text",
+                  "description": "Optional. Integer 0 to 1440. Default 10 on create."
+                },
+                {
+                  "key": "amenities",
+                  "value": "[\"Free WiFi\",\"24/7 Room Service\",\"Air Conditioning\"]",
+                  "type": "text",
+                  "description": "Optional. JSON array or comma-separated list. Stored in hotel.settings.amenities."
+                },
+                {
+                  "key": "policies",
+                  "value": "[\"Valid Government ID required at check-in\",\"No smoking in standard rooms\"]",
+                  "type": "text",
+                  "description": "Optional. JSON array or comma-separated list. Stored in hotel.settings.policies."
+                },
+                {
+                  "key": "total_rooms",
+                  "value": "24",
+                  "type": "text",
+                  "description": "Optional. Whole number, 0 or more. Inventory count only. It does not create rooms."
                 },
                 {
                   "key": "logo",
                   "type": "file",
                   "src": [],
-                  "description": "Optional file. Replaces the current logo. Field name logo, logo_image, or file. Max 10 MB."
+                  "description": "Optional file. Replaces the current logo. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB."
                 },
                 {
                   "key": "subscription_plan_id",
                   "value": "{{planId}}",
                   "type": "text",
-                  "description": "Optional. Existing plan id.",
-                  "disabled": true
+                  "description": "Optional. Existing plan id from Subscription Plans. Unknown id returns 404."
                 },
                 {
                   "key": "subscription_plan_active",
                   "value": "true",
                   "type": "text",
-                  "description": "Optional. true or false.",
-                  "disabled": true
+                  "description": "Optional. true or false."
                 },
                 {
                   "key": "subscription_plan_start_date",
                   "value": "2026-10-14",
                   "type": "text",
-                  "description": "Optional. ISO date.",
-                  "disabled": true
+                  "description": "Optional. ISO date (YYYY-MM-DD or full ISO). Empty clears it."
                 },
                 {
                   "key": "subscription_plan_end_date",
                   "value": "2027-10-14",
                   "type": "text",
-                  "description": "Optional. ISO date.",
-                  "disabled": true
+                  "description": "Optional. ISO date. Empty clears it. A missing end date means the plan never expires."
                 },
                 {
                   "key": "auto_renew",
                   "value": "false",
                   "type": "text",
-                  "description": "Optional. true or false.",
-                  "disabled": true
+                  "description": "Optional. true or false."
                 }
               ]
             },
@@ -3145,7 +3558,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/hotels/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys that change. At least one key is required. The slug and the owner account do not change here. Owner and staff accounts are managed in Staff users. To switch a hotel on or off use Update hotel active status.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. |\n\n**Body keys** — all optional. They are on the form-data rows.\n\nAn unknown `subscription_plan_id` returns 404.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get hotel** to read the updated hotel."
+            "description": "### PUT /api/v1/hotels/:id\n**Who can call this:** SUPER_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nSend only the keys that change. At least one key is required. The slug and the owner account do not change here. Owner and staff accounts are managed in Staff users. To switch a hotel on or off use **Update hotel active status**.\n\nSend multipart/form-data. When there is no logo, the same keys can be sent as JSON. Every optional key is on the Body form-data rows and is enabled.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Hotel id. |\n\n**Accepted body keys** (all optional; send at least one)\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `name` | string | No | Hotel display name. Max 150. Cannot be empty when sent. |\n| `address` | string | No | Street address. Cannot be empty when sent. |\n| `city` | string | No | Max 100. Cannot be empty when sent. |\n| `state` | string | No | Max 100. Cannot be empty when sent. |\n| `country` | string | No | Max 100. |\n| `pincode` | string | No | 6-digit Indian PIN code. |\n| `gst_number` | string | No | 15-character GSTIN. Empty clears it. Does not change `gst_enabled`. Stored uppercase. |\n| `pan_number` | string | No | 10-character PAN. Empty clears it. Stored uppercase. |\n| `bank_name` | string | No | Bank name on bills and folios. Empty clears it. Max 150. |\n| `bank_account_holder` | string | No | Account holder name. Empty clears it. Max 150. |\n| `bank_account_number` | string | No | 9 to 18 digits. Empty clears it. |\n| `bank_ifsc_code` | string | No | 11-character IFSC. Empty clears it. Stored uppercase. |\n| `bank_branch` | string | No | Branch name. Empty clears it. Max 150. |\n| `hotel_type` | string | No | Free text, max 100. |\n| `website` | string | No | Valid URL. |\n| `check_in_time` | string | HH:mm 24-hour. Default `14:00` on create. |\n| `check_out_time` | string | HH:mm 24-hour. Default `12:00` on create. |\n| `timezone` | string | Max 50. Default `Asia/Kolkata` on create. |\n| `currency` | string | 3 to 10 chars. Default `INR` on create. |\n| `tax_percentage` | number | 0 to 100. Default `18` on create. |\n| `gst_enabled` | boolean | true or false. Returned in `settings.gst_enabled`. On create, omitted means true only when a GST number was sent. On update, send it to change the stored value. Omitting it leaves the current value. |\n| `upi_id` | string | UPI id. Max 100. Empty clears it. |\n| `late_checkout_grace_minutes` | number | Integer 0 to 1440. Default `10` on create. |\n| `amenities` | string / array | JSON array or comma-separated list. |\n| `policies` | string / array | JSON array or comma-separated list. |\n| `total_rooms` | number | No | Whole number, 0 or more. Does not create rooms. |\n| `logo` | file | No | Replaces the current logo. Max 10 MB. |\n| `subscription_plan_id` | number | No | Existing plan id. Unknown id returns 404. |\n| `subscription_plan_active` | boolean | No | true or false. |\n| `subscription_plan_start_date` | string | No | ISO date. Empty clears it. |\n| `subscription_plan_end_date` | string | No | ISO date. Empty clears it. |\n| `auto_renew` | boolean | No | true or false. |\n\n**Not changed here**\n| Key | Note |\n| --- | --- |\n| `slug`, `owner_email`, `owner_phone` | Never changed by this API. |\n| `is_active` | Use **Update hotel active status**. |\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Updated hotel id. |\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get hotel** to read the updated hotel."
           }
         },
         {

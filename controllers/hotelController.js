@@ -80,6 +80,19 @@ const updateHotel = async (req, res, next) => {
 };
 
 /**
+ * PUT /api/v1/hotels/me (hotel admin)
+ * Update the hotel profile of the logged-in hotel admin. Owner email and phone cannot be changed.
+ */
+const updateOwnHotel = async (req, res, next) => {
+  try {
+    const data = await hotelService.updateOwnHotel(req.body, req.files, req.user);
+    return success(res, MESSAGES.HOTEL_UPDATED_SUCCESS, data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * PATCH /api/v1/hotels/:id/active-status (super admin)
  * Switch a hotel on or off.
  */
@@ -111,6 +124,7 @@ module.exports = {
   getHotels,
   getHotelById,
   updateHotel,
+  updateOwnHotel,
   updateHotelActiveStatus,
   deleteHotel,
 };

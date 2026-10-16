@@ -129,6 +129,89 @@ const websiteRule = () =>
       return true;
     });
 
+const TIME_HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const parseListInput = (value, field) => {
+  if (value === undefined || value === null || value === '') return [];
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  const text = String(value).trim();
+  if (text.startsWith('[')) {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (_) {
+      throw new Error(`${field} must be a JSON array or a comma-separated list.`);
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error(`${field} must be a JSON array or a comma-separated list.`);
+    }
+    return parsed.map((item) => String(item).trim()).filter(Boolean);
+  }
+  return text.split(',').map((item) => item.trim()).filter(Boolean);
+};
+
+// Operational settings stored on the hotels row (also returned under hotel.settings).
+const hotelSettingsRules = () => [
+  body('check_in_time')
+    .optional({ checkFalsy: true })
+    .trim()
+    .matches(TIME_HHMM)
+    .withMessage('check_in_time must be HH:mm in 24-hour format (e.g. 14:00).'),
+
+  body('check_out_time')
+    .optional({ checkFalsy: true })
+    .trim()
+    .matches(TIME_HHMM)
+    .withMessage('check_out_time must be HH:mm in 24-hour format (e.g. 12:00).'),
+
+  body('timezone')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('timezone cannot exceed 50 characters.'),
+
+  body('currency')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ min: 3, max: 10 })
+    .withMessage('currency must be 3 to 10 characters (e.g. INR).'),
+
+  body('tax_percentage')
+    .optional({ checkFalsy: true })
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('tax_percentage must be a number between 0 and 100.'),
+
+  body('gst_enabled')
+    .optional()
+    .isBoolean()
+    .withMessage('gst_enabled must be a boolean (true or false).'),
+
+  body('upi_id')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('upi_id cannot exceed 100 characters.'),
+
+  body('late_checkout_grace_minutes')
+    .optional({ checkFalsy: true })
+    .isInt({ min: 0, max: 1440 })
+    .withMessage('late_checkout_grace_minutes must be an integer from 0 to 1440.'),
+
+  body('amenities')
+    .optional({ checkFalsy: true })
+    .custom((val) => {
+      parseListInput(val, 'amenities');
+      return true;
+    }),
+
+  body('policies')
+    .optional({ checkFalsy: true })
+    .custom((val) => {
+      parseListInput(val, 'policies');
+      return true;
+    }),
+];
+
 // ==========================================
 // POST /hotels/register and POST /hotels
 // ==========================================
@@ -209,11 +292,8 @@ const registerHotelValidator = [
     .trim()
     .isLength({ max: 100 }),
 
-  body('upi_id')
-    .optional()
-    .trim(),
-
   websiteRule(),
+  ...hotelSettingsRules(),
 
   body('subscription_plan_id')
     .optional({ checkFalsy: true })
@@ -279,9 +359,8 @@ const getHotelsQueryValidator = [
     .withMessage('sort_order must be asc or desc.'),
 ];
 
-const updateHotelValidator = [
-  ...hotelIdValidator,
-
+// Hotel profile fields every update may carry. Used by the super admin and the hotel admin updates.
+const hotelProfileUpdateRules = () => [
   body('name')
     .optional()
     .trim()
@@ -319,7 +398,6 @@ const updateHotelValidator = [
   gstNumberRule(),
   panNumberRule(),
   ...bankDetailRules(),
-  totalRoomsRule(),
 
   body('hotel_type')
     .optional()
@@ -327,6 +405,13 @@ const updateHotelValidator = [
     .isLength({ max: 100 }),
 
   websiteRule(),
+  ...hotelSettingsRules(),
+];
+
+const updateHotelValidator = [
+  ...hotelIdValidator,
+  ...hotelProfileUpdateRules(),
+  totalRoomsRule(),
 
   body('subscription_plan_id')
     .optional()
@@ -354,6 +439,9 @@ const updateHotelValidator = [
     .withMessage('auto_renew must be a boolean'),
 ];
 
+// Hotel admin: own hotel profile only. Locked fields are refused by the service.
+const updateOwnHotelValidator = hotelProfileUpdateRules();
+
 const updateHotelActiveStatusValidator = [
   ...hotelIdValidator,
 
@@ -369,6 +457,7 @@ module.exports = {
   hotelIdValidator,
   getHotelsQueryValidator,
   updateHotelValidator,
+  updateOwnHotelValidator,
   updateHotelActiveStatusValidator,
   validateIndianMobile,
 };

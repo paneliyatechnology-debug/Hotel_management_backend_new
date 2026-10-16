@@ -434,6 +434,94 @@ No query keys. No body. Use this after login to know the role and hotel before s
   ],
 };
 
+const hotelSettingsFormFields = () => [
+  textField('check_in_time', '14:00', 'Optional. HH:mm 24-hour. Default 14:00 on create. Stored in hotel.settings.check_in_time.'),
+  textField('check_out_time', '12:00', 'Optional. HH:mm 24-hour. Default 12:00 on create. Stored in hotel.settings.check_out_time.'),
+  textField('timezone', 'Asia/Kolkata', 'Optional. Max 50 characters. Default Asia/Kolkata on create.'),
+  textField('currency', 'INR', 'Optional. 3 to 10 characters. Default INR on create.'),
+  textField('tax_percentage', '18', 'Optional. Number from 0 to 100. Default 18 on create. Stored in hotel.settings.tax_percentage.'),
+  textField('gst_enabled', 'true', 'Optional. true or false. Stored in hotel.settings.gst_enabled. On create, when omitted, GST is on only if a GST number was sent. On update, send true or false to change it.'),
+  textField('upi_id', 'seaside@upi', 'Optional. UPI id for payments. Max 100. Empty clears it. Stored in hotel.settings.upi_id.'),
+  textField('late_checkout_grace_minutes', '10', 'Optional. Integer 0 to 1440. Default 10 on create.'),
+  textField('amenities', '["Free WiFi","24/7 Room Service","Air Conditioning"]', 'Optional. JSON array or comma-separated list. Stored in hotel.settings.amenities.'),
+  textField('policies', '["Valid Government ID required at check-in","No smoking in standard rooms"]', 'Optional. JSON array or comma-separated list. Stored in hotel.settings.policies.'),
+];
+
+const hotelSettingsBodyKeysDoc = `| \`check_in_time\` | string | HH:mm 24-hour. Default \`14:00\` on create. |
+| \`check_out_time\` | string | HH:mm 24-hour. Default \`12:00\` on create. |
+| \`timezone\` | string | Max 50. Default \`Asia/Kolkata\` on create. |
+| \`currency\` | string | 3 to 10 chars. Default \`INR\` on create. |
+| \`tax_percentage\` | number | 0 to 100. Default \`18\` on create. |
+| \`gst_enabled\` | boolean | true or false. Returned in \`settings.gst_enabled\`. On create, omitted means true only when a GST number was sent. On update, send it to change the stored value. Omitting it leaves the current value. |
+| \`upi_id\` | string | UPI id. Max 100. Empty clears it. |
+| \`late_checkout_grace_minutes\` | number | Integer 0 to 1440. Default \`10\` on create. |
+| \`amenities\` | string / array | JSON array or comma-separated list. |
+| \`policies\` | string / array | JSON array or comma-separated list. |`;
+
+// Form-data for Register hotel and Create hotel. Every accepted field is listed. Optional fields are enabled.
+const hotelProvisionFormFields = () => [
+  textField('name', 'Seaside Residency', 'Required. Property name. Max 150 characters. A URL slug is generated from this.'),
+  textField('owner_name', 'Asha Patel', 'Required. Owner or general manager name. Max 150 characters. This becomes the hotel admin display name.'),
+  textField('owner_email', 'owner@seaside.example', 'Required. Hotel admin login email. Must be unique among active users.'),
+  textField('owner_phone', '9876543210', 'Required. Indian mobile. 10 digits starting with 6, 7, 8, or 9. +91 and leading 0 are stripped.'),
+  textField('address', '12 Marine Drive', 'Required. Street address.'),
+  textField('city', 'Mumbai', 'Required. Max 100 characters.'),
+  textField('state', 'Maharashtra', 'Required. Max 100 characters.'),
+  textField('country', 'India', 'Optional. Defaults to India. Max 100 characters.'),
+  textField('pincode', '400001', 'Required. 6-digit Indian PIN code.'),
+  textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN (e.g. 27AAAAA0000A1Z5). Empty is allowed. Stored uppercase. When gst_enabled is omitted, a GST number turns GST on.'),
+  textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN (e.g. AAAAA0000A). Empty is allowed. Stored uppercase.'),
+  textField('bank_name', 'HDFC Bank', 'Optional. Bank name printed on bills and folios. Max 150 characters.'),
+  textField('bank_account_holder', 'Seaside Residency', 'Optional. Account holder name. Max 150 characters.'),
+  textField('bank_account_number', '123456789012', 'Optional. 9 to 18 digits.'),
+  textField('bank_ifsc_code', 'HDFC0001234', 'Optional. 11-character IFSC code. Stored uppercase.'),
+  textField('bank_branch', 'Marine Drive, Mumbai', 'Optional. Branch name. Max 150 characters.'),
+  textField('total_rooms', '24', 'Optional. Whole number, 0 or more. Inventory count only. It does not create rooms.'),
+  textField('hotel_type', 'Boutique Hotel', 'Optional. Free text, max 100 characters. Example: Boutique Hotel, Resort, Lodge.'),
+  textField('website', 'https://seaside.example', 'Optional. Valid URL. A missing http:// is accepted and treated as https.'),
+  ...hotelSettingsFormFields(),
+  fileField('logo', 'Optional file. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB.'),
+  textField('subscription_plan_id', '{{planId}}', 'Optional. Plan id from Subscription Plans. Empty starts the default trial plan selection on the server.'),
+  textField('subscription_plan_active', 'true', 'Optional. true or false. Defaults to true.'),
+  textField('subscription_plan_start_date', '2026-10-14', 'Optional. ISO date (YYYY-MM-DD). Defaults to the trial start (now).'),
+  textField('subscription_plan_end_date', '2026-11-13', 'Optional. ISO date. Defaults to the trial end from system settings (usually 30 days).'),
+];
+
+const hotelProvisionBodyKeysDoc = `**Required body keys**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`name\` | string | Property name. Max 150. A URL slug is generated from this. |
+| \`owner_name\` | string | Owner / general manager name. Max 150. Becomes the hotel admin display name. |
+| \`owner_email\` | string | Hotel admin login email. Must be unique among active users. |
+| \`owner_phone\` | string | Indian mobile. 10 digits starting with 6–9. |
+| \`address\` | string | Street address. |
+| \`city\` | string | Max 100. |
+| \`state\` | string | Max 100. |
+| \`pincode\` | string | 6-digit Indian PIN code. |
+
+**Optional body keys** (all included and enabled on the Body form-data rows)
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`country\` | string | Defaults to India. Max 100. |
+| \`gst_number\` | string | 15-character GSTIN. Empty allowed. Stored uppercase. When \`gst_enabled\` is omitted, a GST number turns GST on. |
+| \`pan_number\` | string | 10-character PAN. Empty allowed. Stored uppercase. |
+| \`bank_name\` | string | Bank name on bills and folios. Max 150. |
+| \`bank_account_holder\` | string | Account holder name. Max 150. |
+| \`bank_account_number\` | string | 9 to 18 digits. |
+| \`bank_ifsc_code\` | string | 11-character IFSC. Stored uppercase. |
+| \`bank_branch\` | string | Branch name. Max 150. |
+| \`total_rooms\` | number | Whole number, 0 or more. Does not create rooms. |
+| \`hotel_type\` | string | Free text, max 100. |
+| \`website\` | string | Valid URL. |
+${hotelSettingsBodyKeysDoc}
+| \`logo\` | file | Field name \`logo\`, \`logo_image\`, or \`file\`. Max 10 MB. |
+| \`subscription_plan_id\` | number | Plan id. Empty uses the default trial plan. |
+| \`subscription_plan_active\` | boolean | true or false. Defaults to true. |
+| \`subscription_plan_start_date\` | string | ISO date. Defaults to now. |
+| \`subscription_plan_end_date\` | string | ISO date. Defaults to the trial end (usually 30 days). |
+
+Do not send \`password\`. The server generates a temporary password and emails it.`;
+
 const hotelFolder = {
   name: '03 Hotel registration',
   description: `Public self-serve onboarding. Creates the hotel, a HOTEL_ADMIN user, a free trial, and returns an access token.
@@ -452,33 +540,7 @@ ${envelope}`,
       pathSegments: ['api', 'v1', 'hotels', 'register'],
       body: {
         mode: 'formdata',
-        formdata: [
-          textField('name', 'Seaside Residency', 'Required. Property name. Max 150 characters. A URL slug is generated from this.'),
-          textField('owner_name', 'Asha Patel', 'Required. Owner or general manager name. Max 150 characters. This becomes the hotel admin display name.'),
-          textField('owner_email', 'owner@seaside.example', 'Required. Hotel admin login email. Must be unique among active users.'),
-          textField('owner_phone', '9876543210', 'Required. Indian mobile. 10 digits starting with 6, 7, 8, or 9. +91 and leading 0 are stripped.'),
-          textField('address', '12 Marine Drive', 'Required. Street address.'),
-          textField('city', 'Mumbai', 'Required. Max 100 characters.'),
-          textField('state', 'Maharashtra', 'Required. Max 100 characters.'),
-          textField('country', 'India', 'Optional. Defaults to India. Max 100 characters.'),
-          textField('pincode', '400001', 'Required. 6-digit Indian PIN code.'),
-          textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN. Empty is allowed. Stored uppercase. Turns GST on for the hotel when present.'),
-          textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN. Empty is allowed. Stored uppercase.'),
-          textField('bank_name', 'HDFC Bank', 'Optional. Bank name printed on bills and folios. Max 150 characters.'),
-          textField('bank_account_holder', 'Seaside Residency', 'Optional. Account holder name. Max 150 characters.'),
-          textField('bank_account_number', '123456789012', 'Optional. 9 to 18 digits.'),
-          textField('bank_ifsc_code', 'HDFC0001234', 'Optional. 11-character IFSC code. Stored uppercase.'),
-          textField('bank_branch', 'Marine Drive, Mumbai', 'Optional. Branch name. Max 150 characters.'),
-          textField('total_rooms', '24', 'Optional. Whole number, 0 or more. Inventory count only. It does not create rooms.'),
-          textField('hotel_type', 'Boutique Hotel', 'Optional. Free text, max 100 characters. Example: Boutique Hotel, Resort, Lodge.'),
-          textField('upi_id', 'seaside@upi', 'Optional. UPI id shown for payments. Stored in hotel settings.'),
-          textField('website', 'https://seaside.example', 'Optional. Valid URL. A missing http:// is accepted and treated as https.'),
-          fileField('logo', 'Optional file. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB.'),
-          textField('subscription_plan_id', '', 'Optional. Plan id from Subscription Plans. Empty starts the default trial plan selection on the server.', true),
-          textField('subscription_plan_active', 'true', 'Optional. true or false. Defaults to true.', true),
-          textField('subscription_plan_start_date', '', 'Optional. ISO date. Defaults to the trial start (now).', true),
-          textField('subscription_plan_end_date', '', 'Optional. ISO date. Defaults to the trial end from system settings (usually 30 days).', true),
-        ],
+        formdata: hotelProvisionFormFields(),
       },
       description: `### POST /api/v1/hotels/register
 Public. Same route: \`POST /api/v1/hotel/register\`.
@@ -487,7 +549,9 @@ Creates the property as \`ACTIVE\`, creates a \`HOTEL_ADMIN\`, emails a temporar
 
 A duplicate \`owner_email\` returns 409.
 
-**Body keys** are on the form-data rows. Each row has its own description. Do not send \`password\`. It is not used.
+Send multipart/form-data. When there is no logo, the same keys can be sent as JSON. Every required and optional key is on the Body form-data rows (all optional fields are enabled).
+
+${hotelProvisionBodyKeysDoc}
 
 Trial, slug, check-in time (\`14:00\`), check-out time (\`12:00\`), timezone \`Asia/Kolkata\`, currency \`INR\`, and tax 18 are set by the server.
 
@@ -524,13 +588,105 @@ Trial, slug, check-in time (\`14:00\`), check-out time (\`12:00\`), timezone \`A
 | \`subscription.plan_id\`, \`subscription.active\`, \`subscription.start_date\`, \`subscription.end_date\`, \`subscription.auto_renew\` | Same subscription data, grouped. \`auto_renew\` is false at registration. |
 | \`settings.check_in_time\`, \`settings.check_out_time\` | Default \`14:00\` and \`12:00\`. |
 | \`settings.timezone\`, \`settings.currency\`, \`settings.tax_percentage\` | \`Asia/Kolkata\`, \`INR\`, \`18\`. |
-| \`settings.gst_enabled\` | True when a GST number was sent. |
+| \`settings.gst_enabled\` | Whether GST is enabled. On create this is the sent \`gst_enabled\`, or true when a GST number was sent and \`gst_enabled\` was omitted. |
 | \`settings.upi_id\` | UPI id, or empty. |
 | \`settings.late_checkout_grace_minutes\` | Default 10. |
 | \`settings.amenities\` | Default string array. |
 | \`settings.policies\` | Default string array. |
 | \`owner\` | Present when the owner join is loaded: \`id\`, \`name\`, \`email\`. |
 | \`created_at\`, \`updated_at\`, \`deleted_at\` | Timestamps. \`deleted_at\` is null. |`,
+    }),
+    item({
+      name: 'Update my hotel (hotel admin)',
+      method: 'PUT',
+      headers: acceptHeader(),
+      raw: '{{baseUrl}}/api/v1/hotels/me',
+      pathSegments: ['api', 'v1', 'hotels', 'me'],
+      body: {
+        mode: 'formdata',
+        formdata: [
+          // Accepted profile fields. All optional. Send at least one. Empty tax/bank values clear that field.
+          textField('name', 'Seaside Residency', 'Optional. Hotel display name. Max 150 characters. Cannot be empty when sent.'),
+          textField('address', '12 Marine Drive', 'Optional. Street address. Cannot be empty when sent.'),
+          textField('city', 'Mumbai', 'Optional. Max 100 characters. Cannot be empty when sent.'),
+          textField('state', 'Maharashtra', 'Optional. Max 100 characters. Cannot be empty when sent.'),
+          textField('country', 'India', 'Optional. Max 100 characters.'),
+          textField('pincode', '400001', 'Optional. 6-digit Indian PIN code.'),
+          textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN (e.g. 27AAAAA0000A1Z5). Empty clears it. Does not change gst_enabled. Stored uppercase.'),
+          textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN (e.g. AAAAA0000A). Empty clears it. Stored uppercase.'),
+          textField('bank_name', 'HDFC Bank', 'Optional. Bank name printed on bills and folios. Empty clears it. Max 150 characters.'),
+          textField('bank_account_holder', 'Seaside Residency', 'Optional. Account holder name. Empty clears it. Max 150 characters.'),
+          textField('bank_account_number', '123456789012', 'Optional. 9 to 18 digits. Empty clears it.'),
+          textField('bank_ifsc_code', 'HDFC0001234', 'Optional. 11-character IFSC (e.g. HDFC0001234). Empty clears it. Stored uppercase.'),
+          textField('bank_branch', 'Marine Drive, Mumbai', 'Optional. Branch name. Empty clears it. Max 150 characters.'),
+          textField('hotel_type', 'Boutique Hotel', 'Optional. Free text, max 100 characters. Example: Boutique Hotel, Resort, Lodge.'),
+          textField('website', 'https://seaside.example', 'Optional. Valid URL. A missing http:// is accepted and treated as https.'),
+          ...hotelSettingsFormFields(),
+          fileField('logo', 'Optional file. Replaces the current logo. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB.'),
+
+          // Locked for hotel admin. Present so nothing is missing from the collection. Disabled: enable only to see the 400.
+          textField('owner_email', 'owner@seaside.example', 'LOCKED. Do not send. Returns 400: owner_email cannot be updated.', true),
+          textField('owner_phone', '9876543210', 'LOCKED. Do not send. Returns 400: owner_phone cannot be updated.', true),
+
+          // Super-admin-only fields. Ignored here (not saved). Disabled so a Send does not look like they worked.
+          textField('total_rooms', '24', 'Ignored on this route. Only a super admin can change total_rooms (PUT /hotels/:id).', true),
+          textField('subscription_plan_id', '{{planId}}', 'Ignored on this route. Only a super admin can change the plan.', true),
+          textField('subscription_plan_active', 'true', 'Ignored on this route. Only a super admin can change this.', true),
+          textField('subscription_plan_start_date', '2026-10-14', 'Ignored on this route. Only a super admin can change this.', true),
+          textField('subscription_plan_end_date', '2027-10-14', 'Ignored on this route. Only a super admin can change this.', true),
+          textField('auto_renew', 'false', 'Ignored on this route. Only a super admin can change this.', true),
+          textField('is_active', 'true', 'Ignored on this route. Use Update hotel active status (super admin).', true),
+          textField('slug', 'seaside-residency', 'Ignored. The slug never changes on update.', true),
+        ],
+      },
+      description: `### PUT /api/v1/hotels/me
+${authNote('HOTEL_ADMIN only.')}
+
+Updates the profile of the logged-in hotel admin's own hotel. The hotel is read from the access token. Send only the keys that change. At least one accepted key is required.
+
+Send multipart/form-data. When there is no logo, the same keys can be sent as JSON.
+
+Disabled form-data rows are documented in the Body tab. They are not sent until you enable them. Leave the LOCKED and Ignored rows disabled.
+
+**Accepted body keys** (all optional; send at least one)
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`name\` | string | No | Hotel display name. Max 150. Cannot be empty when sent. |
+| \`address\` | string | No | Street address. Cannot be empty when sent. |
+| \`city\` | string | No | Max 100. Cannot be empty when sent. |
+| \`state\` | string | No | Max 100. Cannot be empty when sent. |
+| \`country\` | string | No | Max 100. |
+| \`pincode\` | string | No | 6-digit Indian PIN code. |
+| \`gst_number\` | string | No | 15-character GSTIN. Empty clears it. Does not change \`gst_enabled\`. Stored uppercase. |
+| \`pan_number\` | string | No | 10-character PAN. Empty clears it. Stored uppercase. |
+| \`bank_name\` | string | No | Bank name on bills and folios. Empty clears it. Max 150. |
+| \`bank_account_holder\` | string | No | Account holder name. Empty clears it. Max 150. |
+| \`bank_account_number\` | string | No | 9 to 18 digits. Empty clears it. |
+| \`bank_ifsc_code\` | string | No | 11-character IFSC. Empty clears it. Stored uppercase. |
+| \`bank_branch\` | string | No | Branch name. Empty clears it. Max 150. |
+| \`hotel_type\` | string | No | Free text, max 100. |
+| \`website\` | string | No | Valid URL. A missing http:// is treated as https. |
+${hotelSettingsBodyKeysDoc}
+| \`logo\` | file | No | Replaces the current logo. Field name \`logo\`, \`logo_image\`, or \`file\`. Max 10 MB. |
+
+**Locked keys** (sending any returns 400 and nothing is saved)
+| Key | Result |
+| --- | --- |
+| \`owner_email\`, \`owner_phone\` | 400. Owner contact details cannot be updated. |
+
+**Ignored keys** (accepted by the form but not saved on this route)
+| Key | Who changes it |
+| --- | --- |
+| \`total_rooms\`, \`subscription_plan_id\`, \`subscription_plan_active\`, \`subscription_plan_start_date\`, \`subscription_plan_end_date\`, \`auto_renew\` | Super admin: **Update hotel**. |
+| \`is_active\` | Super admin: **Update hotel active status**. |
+| \`slug\` | Never. Set at registration. |
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Updated hotel id. |
+
+${idNote('Use **GET /auth/me** to read the updated hotel summary (name, GST, PAN).')}`,
     }),
   ],
 };
@@ -1693,29 +1849,7 @@ ${envelope}`,
       pathSegments: ['api', 'v1', 'hotels'],
       body: {
         mode: 'formdata',
-        formdata: [
-          textField('name', 'Seaside Residency', 'Required. Property name. Max 150 characters.'),
-          textField('owner_name', 'Asha Patel', 'Required. Owner name. Max 150 characters.'),
-          textField('owner_email', 'owner@seaside.example', 'Required. Hotel admin login email. Must be unique among active users.'),
-          textField('owner_phone', '9876543210', 'Required. Indian mobile. 10 digits starting with 6, 7, 8, or 9.'),
-          textField('address', '12 Marine Drive', 'Required. Street address.'),
-          textField('city', 'Mumbai', 'Required. Max 100 characters.'),
-          textField('state', 'Maharashtra', 'Required. Max 100 characters.'),
-          textField('country', 'India', 'Optional. Defaults to India.', true),
-          textField('pincode', '400001', 'Required. 6-digit Indian PIN code.'),
-          textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN. Stored uppercase.', true),
-          textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN. Stored uppercase.', true),
-          textField('bank_name', 'HDFC Bank', 'Optional. Bank name printed on bills and folios. Max 150 characters.', true),
-          textField('bank_account_holder', 'Seaside Residency', 'Optional. Account holder name. Max 150 characters.', true),
-          textField('bank_account_number', '123456789012', 'Optional. 9 to 18 digits.', true),
-          textField('bank_ifsc_code', 'HDFC0001234', 'Optional. 11-character IFSC code. Stored uppercase.', true),
-          textField('bank_branch', 'Marine Drive, Mumbai', 'Optional. Branch name. Max 150 characters.', true),
-          textField('total_rooms', '24', 'Optional. Whole number, 0 or more. Inventory count only.', true),
-          textField('hotel_type', 'Boutique Hotel', 'Optional. Free text, max 100 characters.', true),
-          textField('website', 'https://seaside.example', 'Optional. Valid URL.', true),
-          fileField('logo', 'Optional file. Field name logo, logo_image, or file. Max 10 MB.'),
-          textField('subscription_plan_id', '', 'Optional. Plan id. Empty uses the default trial plan.', true),
-        ],
+        formdata: hotelProvisionFormFields(),
       },
       description: `### POST /api/v1/hotels
 ${authNote('SUPER_ADMIN only.')}
@@ -1724,9 +1858,16 @@ Creates the hotel as \`ACTIVE\` with the free trial, creates its \`HOTEL_ADMIN\`
 
 Send multipart/form-data. When there is no logo, the same keys can be sent as JSON. A duplicate \`owner_email\` returns 409.
 
-**Body keys** are on the form-data rows. Each row has its own description.
+Every required and optional key is on the Body form-data rows (all optional fields are enabled). Same fields as **Register hotel**.
 
-${idNote('Use **List hotels** to read the new hotel.')}`,
+${hotelProvisionBodyKeysDoc}
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | New hotel id. Saved into \`{{targetHotelId}}\`. |
+
+${idNote('Use **List hotels** or **Get hotel** to read the new hotel.')}`,
     }),
     item({
       name: 'List hotels',
@@ -1800,45 +1941,80 @@ ${hotelObjectKeys}`,
       body: {
         mode: 'formdata',
         formdata: [
-          textField('name', 'Seaside Residency', 'Optional. Max 150 characters.'),
-          textField('address', '12 Marine Drive', 'Optional. Cannot be empty.', true),
-          textField('city', 'Mumbai', 'Optional. Max 100 characters.', true),
-          textField('state', 'Maharashtra', 'Optional. Max 100 characters.', true),
-          textField('country', 'India', 'Optional. Max 100 characters.', true),
-          textField('pincode', '400001', 'Optional. 6-digit Indian PIN code.', true),
-          textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN. Empty clears it and turns GST off.', true),
-          textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN. Empty clears it.', true),
-          textField('bank_name', 'HDFC Bank', 'Optional. Bank name. Empty clears it. Max 150 characters.', true),
-          textField('bank_account_holder', 'Seaside Residency', 'Optional. Account holder name. Empty clears it. Max 150 characters.', true),
-          textField('bank_account_number', '123456789012', 'Optional. 9 to 18 digits. Empty clears it.', true),
-          textField('bank_ifsc_code', 'HDFC0001234', 'Optional. 11-character IFSC code. Empty clears it. Stored uppercase.', true),
-          textField('bank_branch', 'Marine Drive, Mumbai', 'Optional. Branch name. Empty clears it. Max 150 characters.', true),
-          textField('total_rooms', '24', 'Optional. Whole number, 0 or more.', true),
-          textField('hotel_type', 'Boutique Hotel', 'Optional. Max 100 characters.', true),
-          textField('website', 'https://seaside.example', 'Optional. Valid URL.', true),
-          fileField('logo', 'Optional file. Replaces the current logo. Field name logo, logo_image, or file. Max 10 MB.'),
-          textField('subscription_plan_id', '{{planId}}', 'Optional. Existing plan id.', true),
-          textField('subscription_plan_active', 'true', 'Optional. true or false.', true),
-          textField('subscription_plan_start_date', '2026-10-14', 'Optional. ISO date.', true),
-          textField('subscription_plan_end_date', '2027-10-14', 'Optional. ISO date.', true),
-          textField('auto_renew', 'false', 'Optional. true or false.', true),
+          textField('name', 'Seaside Residency', 'Optional. Hotel display name. Max 150 characters. Cannot be empty when sent.'),
+          textField('address', '12 Marine Drive', 'Optional. Street address. Cannot be empty when sent.'),
+          textField('city', 'Mumbai', 'Optional. Max 100 characters. Cannot be empty when sent.'),
+          textField('state', 'Maharashtra', 'Optional. Max 100 characters. Cannot be empty when sent.'),
+          textField('country', 'India', 'Optional. Max 100 characters.'),
+          textField('pincode', '400001', 'Optional. 6-digit Indian PIN code.'),
+          textField('gst_number', '27AAAAA0000A1Z5', 'Optional. 15-character GSTIN. Empty clears it. Does not change gst_enabled. Stored uppercase.'),
+          textField('pan_number', 'AAAAA0000A', 'Optional. 10-character PAN. Empty clears it. Stored uppercase.'),
+          textField('bank_name', 'HDFC Bank', 'Optional. Bank name printed on bills and folios. Empty clears it. Max 150 characters.'),
+          textField('bank_account_holder', 'Seaside Residency', 'Optional. Account holder name. Empty clears it. Max 150 characters.'),
+          textField('bank_account_number', '123456789012', 'Optional. 9 to 18 digits. Empty clears it.'),
+          textField('bank_ifsc_code', 'HDFC0001234', 'Optional. 11-character IFSC. Empty clears it. Stored uppercase.'),
+          textField('bank_branch', 'Marine Drive, Mumbai', 'Optional. Branch name. Empty clears it. Max 150 characters.'),
+          textField('hotel_type', 'Boutique Hotel', 'Optional. Free text, max 100 characters.'),
+          textField('website', 'https://seaside.example', 'Optional. Valid URL. A missing http:// is accepted and treated as https.'),
+          ...hotelSettingsFormFields(),
+          textField('total_rooms', '24', 'Optional. Whole number, 0 or more. Inventory count only. It does not create rooms.'),
+          fileField('logo', 'Optional file. Replaces the current logo. Field name logo, logo_image, or file. JPEG, PNG, WebP, GIF, SVG, or AVIF. Max 10 MB.'),
+          textField('subscription_plan_id', '{{planId}}', 'Optional. Existing plan id from Subscription Plans. Unknown id returns 404.'),
+          textField('subscription_plan_active', 'true', 'Optional. true or false.'),
+          textField('subscription_plan_start_date', '2026-10-14', 'Optional. ISO date (YYYY-MM-DD or full ISO). Empty clears it.'),
+          textField('subscription_plan_end_date', '2027-10-14', 'Optional. ISO date. Empty clears it. A missing end date means the plan never expires.'),
+          textField('auto_renew', 'false', 'Optional. true or false.'),
         ],
       },
       description: `### PUT /api/v1/hotels/:id
 ${authNote('SUPER_ADMIN only.')}
 
-Send only the keys that change. At least one key is required. The slug and the owner account do not change here. Owner and staff accounts are managed in Staff users. To switch a hotel on or off use Update hotel active status.
+Send only the keys that change. At least one key is required. The slug and the owner account do not change here. Owner and staff accounts are managed in Staff users. To switch a hotel on or off use **Update hotel active status**.
 
-Send multipart/form-data. When there is no logo, the same keys can be sent as JSON.
+Send multipart/form-data. When there is no logo, the same keys can be sent as JSON. Every optional key is on the Body form-data rows and is enabled.
 
 **Path keys**
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | \`id\` | number | Yes | Hotel id. |
 
-**Body keys** — all optional. They are on the form-data rows.
+**Accepted body keys** (all optional; send at least one)
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`name\` | string | No | Hotel display name. Max 150. Cannot be empty when sent. |
+| \`address\` | string | No | Street address. Cannot be empty when sent. |
+| \`city\` | string | No | Max 100. Cannot be empty when sent. |
+| \`state\` | string | No | Max 100. Cannot be empty when sent. |
+| \`country\` | string | No | Max 100. |
+| \`pincode\` | string | No | 6-digit Indian PIN code. |
+| \`gst_number\` | string | No | 15-character GSTIN. Empty clears it. Does not change \`gst_enabled\`. Stored uppercase. |
+| \`pan_number\` | string | No | 10-character PAN. Empty clears it. Stored uppercase. |
+| \`bank_name\` | string | No | Bank name on bills and folios. Empty clears it. Max 150. |
+| \`bank_account_holder\` | string | No | Account holder name. Empty clears it. Max 150. |
+| \`bank_account_number\` | string | No | 9 to 18 digits. Empty clears it. |
+| \`bank_ifsc_code\` | string | No | 11-character IFSC. Empty clears it. Stored uppercase. |
+| \`bank_branch\` | string | No | Branch name. Empty clears it. Max 150. |
+| \`hotel_type\` | string | No | Free text, max 100. |
+| \`website\` | string | No | Valid URL. |
+${hotelSettingsBodyKeysDoc}
+| \`total_rooms\` | number | No | Whole number, 0 or more. Does not create rooms. |
+| \`logo\` | file | No | Replaces the current logo. Max 10 MB. |
+| \`subscription_plan_id\` | number | No | Existing plan id. Unknown id returns 404. |
+| \`subscription_plan_active\` | boolean | No | true or false. |
+| \`subscription_plan_start_date\` | string | No | ISO date. Empty clears it. |
+| \`subscription_plan_end_date\` | string | No | ISO date. Empty clears it. |
+| \`auto_renew\` | boolean | No | true or false. |
 
-An unknown \`subscription_plan_id\` returns 404.
+**Not changed here**
+| Key | Note |
+| --- | --- |
+| \`slug\`, \`owner_email\`, \`owner_phone\` | Never changed by this API. |
+| \`is_active\` | Use **Update hotel active status**. |
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Updated hotel id. |
 
 ${idNote('Use **Get hotel** to read the updated hotel.')}`,
     }),

@@ -23,6 +23,7 @@ const {
 } = require('../utils/jwt');
 const { generateSecureTempPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
+const { resolveHotelId } = require('../utils/hotelScope');
 const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
 
 // Bank details printed on bills and folios. Every one is optional.
@@ -43,6 +44,83 @@ const BANK_FIELDS = [
 const cleanBankValue = (field, value) => {
   const text = String(value ?? '').trim();
   return field === 'bank_ifsc_code' ? text.toUpperCase() : text;
+};
+
+const toBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
+
+const DEFAULT_AMENITIES = ['Free WiFi', '24/7 Room Service', 'Air Conditioning'];
+const DEFAULT_POLICIES = [
+  'Valid Government ID required at check-in',
+  'No smoking in standard rooms',
+];
+
+/**
+ * Parse amenities or policies from JSON array text or a comma-separated list.
+ * @param {*} value
+ * @returns {string[]}
+ */
+const parseListField = (value) => {
+  if (value === undefined || value === null || value === '') return [];
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  const text = String(value).trim();
+  if (text.startsWith('[')) {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed.map((item) => String(item).trim()).filter(Boolean) : [];
+  }
+  return text.split(',').map((item) => item.trim()).filter(Boolean);
+};
+
+/**
+ * Operational settings from a request body. Only keys that were sent are returned.
+ * @param {Object} payload
+ * @param {{ withDefaults?: boolean }} [options]
+ * @returns {Object}
+ */
+const buildSettingsValues = (payload, { withDefaults = false } = {}) => {
+  const settings = {};
+  const setText = (field, fallback) => {
+    if (payload[field] !== undefined) {
+      const text = String(payload[field] ?? '').trim();
+      settings[field] = text || (withDefaults ? fallback : '');
+    } else if (withDefaults) {
+      settings[field] = fallback;
+    }
+  };
+
+  setText('check_in_time', '14:00');
+  setText('check_out_time', '12:00');
+  setText('timezone', 'Asia/Kolkata');
+  setText('currency', 'INR');
+  setText('upi_id', null);
+
+  if (payload.tax_percentage !== undefined && payload.tax_percentage !== '') {
+    settings.tax_percentage = Number(payload.tax_percentage);
+  } else if (withDefaults) {
+    settings.tax_percentage = 18;
+  }
+
+  if (payload.late_checkout_grace_minutes !== undefined && payload.late_checkout_grace_minutes !== '') {
+    settings.late_checkout_grace_minutes = Number(payload.late_checkout_grace_minutes);
+  } else if (withDefaults) {
+    settings.late_checkout_grace_minutes = 10;
+  }
+
+  if (payload.amenities !== undefined) {
+    settings.amenities = JSON.stringify(parseListField(payload.amenities));
+  } else if (withDefaults) {
+    settings.amenities = JSON.stringify(DEFAULT_AMENITIES);
+  }
+
+  if (payload.policies !== undefined) {
+    settings.policies = JSON.stringify(parseListField(payload.policies));
+  } else if (withDefaults) {
+    settings.policies = JSON.stringify(DEFAULT_POLICIES);
+  }
+
+  // Empty upi_id clears the column.
+  if (settings.upi_id === '') settings.upi_id = null;
+
+  return settings;
 };
 
 /**
@@ -305,19 +383,8 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
       subscription_plan_start_date: finalStartDate,
       subscription_plan_end_date: finalEndDate,
       auto_renew: false,
-      check_in_time: '14:00',
-      check_out_time: '12:00',
-      timezone: 'Asia/Kolkata',
-      currency: 'INR',
-      tax_percentage: 18.00,
-      gst_enabled: Boolean(gstNumber),
-      upi_id: payload.upi_id || null,
-      late_checkout_grace_minutes: 10,
-      amenities: JSON.stringify(['Free WiFi', '24/7 Room Service', 'Air Conditioning']),
-      policies: JSON.stringify([
-        'Valid Government ID required at check-in',
-        'No smoking in standard rooms',
-      ]),
+      gst_enabled: payload.gst_enabled !== undefined ? toBoolean(payload.gst_enabled) : Boolean(gstNumber),
+      ...buildSettingsValues(payload, { withDefaults: true }),
     };
 
     createdHotel = await hotelModel.createHotel(hotelData);
@@ -460,8 +527,6 @@ const getHotelById = async (id) => {
   return hotel;
 };
 
-const toBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
-
 const toDateOrNull = (value) => (value ? new Date(value) : null);
 
 // Plain text columns a super admin can change. Values are trimmed.
@@ -477,6 +542,84 @@ const EDITABLE_TEXT_FIELDS = [
 ];
 
 /**
+ * Profile columns (name, address, tax numbers, bank details) taken from a request body.
+ * Only keys that were sent are returned. Shared by the super admin and the hotel admin updates.
+ * @param {Object} payload
+ * @returns {Object}
+ */
+const buildProfileUpdates = (payload) => {
+  const updates = {};
+
+  EDITABLE_TEXT_FIELDS.forEach((field) => {
+    if (payload[field] !== undefined) {
+      updates[field] = String(payload[field] ?? '').trim();
+    }
+  });
+
+  if (payload.gst_number !== undefined) {
+    updates.gst_number = String(payload.gst_number ?? '').trim().toUpperCase();
+  }
+  if (payload.gst_enabled !== undefined) {
+    updates.gst_enabled = toBoolean(payload.gst_enabled);
+  }
+  if (payload.pan_number !== undefined) {
+    updates.pan_number = String(payload.pan_number ?? '').trim().toUpperCase();
+  }
+  BANK_FIELDS.forEach((field) => {
+    if (payload[field] !== undefined) {
+      updates[field] = cleanBankValue(field, payload[field]);
+    }
+  });
+
+  Object.assign(updates, buildSettingsValues(payload));
+
+  return updates;
+};
+
+/**
+ * Save the logo and the collected changes of a hotel, then write the audit entry.
+ * @param {Object} existing - Hotel before the change (from getHotelById)
+ * @param {Object} updates - Columns to change
+ * @param {Array<Object>} files - Uploaded files. The first image becomes the logo
+ * @param {Object} reqUser - User making the change
+ * @returns {Promise<{ id: number }>} Id of the affected record
+ */
+const saveHotelUpdate = async (existing, updates, files, reqUser) => {
+  const logoUrl = await uploadHotelLogo(files);
+  if (logoUrl) {
+    updates.logo = logoUrl;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new AppError('Send at least one field to update.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  await hotelModel.updateHotel(existing.id, updates);
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.UPDATE,
+    entityType: AUDIT_ENTITIES.HOTEL,
+    entityId: existing.id,
+    hotelId: existing.id,
+    description: `Hotel '${existing.name}' updated.`,
+    changes: auditService.diffChanges(
+      {
+        ...existing,
+        ...existing.settings,
+        amenities: JSON.stringify(existing.settings.amenities || []),
+        policies: JSON.stringify(existing.settings.policies || []),
+        gst_enabled: existing.settings.gst_enabled,
+        auto_renew: existing.subscription.auto_renew,
+      },
+      updates
+    ),
+  });
+
+  return { id: existing.id };
+};
+
+/**
  * Update hotel details and subscription for the super admin.
  * Switching the hotel on or off is a separate call: setHotelActive.
  * Send only the keys that change. The slug and the owner account stay as they are.
@@ -489,26 +632,7 @@ const EDITABLE_TEXT_FIELDS = [
 const updateHotel = async (id, payload, files = [], reqUser) => {
   const existing = await getHotelById(id);
 
-  const updates = {};
-
-  EDITABLE_TEXT_FIELDS.forEach((field) => {
-    if (payload[field] !== undefined) {
-      updates[field] = String(payload[field] ?? '').trim();
-    }
-  });
-
-  if (payload.gst_number !== undefined) {
-    updates.gst_number = String(payload.gst_number ?? '').trim().toUpperCase();
-    updates.gst_enabled = Boolean(updates.gst_number);
-  }
-  if (payload.pan_number !== undefined) {
-    updates.pan_number = String(payload.pan_number ?? '').trim().toUpperCase();
-  }
-  BANK_FIELDS.forEach((field) => {
-    if (payload[field] !== undefined) {
-      updates[field] = cleanBankValue(field, payload[field]);
-    }
-  });
+  const updates = buildProfileUpdates(payload);
   if (payload.total_rooms !== undefined) {
     updates.total_rooms = Number(payload.total_rooms) || 0;
   }
@@ -533,35 +657,33 @@ const updateHotel = async (id, payload, files = [], reqUser) => {
     updates.auto_renew = toBoolean(payload.auto_renew);
   }
 
-  const logoUrl = await uploadHotelLogo(files);
-  if (logoUrl) {
-    updates.logo = logoUrl;
+  return saveHotelUpdate(existing, updates, files, reqUser);
+};
+
+// Owner login details stay on the user account. This route never changes them.
+const HOTEL_ADMIN_LOCKED_FIELDS = ['owner_email', 'owner_phone'];
+
+/**
+ * Update the logged-in hotel admin's own hotel profile.
+ * Only the profile and operational settings (check-in / check-out, tax, gst_enabled, UPI, amenities, policies, logo) can change.
+ * The hotel comes from the token. The owner's email and phone, the plan and the quota are never changed here.
+ * @param {Object} payload
+ * @param {Array<Object>} [files=[]]
+ * @param {Object} reqUser - Hotel admin making the change
+ * @returns {Promise<{ id: number }>} Id of the affected record
+ */
+const updateOwnHotel = async (payload, files = [], reqUser) => {
+  const locked = HOTEL_ADMIN_LOCKED_FIELDS.filter((field) => payload[field] !== undefined);
+  if (locked.length > 0) {
+    throw new AppError(
+      `${locked.join(', ')} cannot be updated.`,
+      HTTP_STATUS.BAD_REQUEST,
+      locked.map((field) => ({ field, message: `${field} cannot be updated.` }))
+    );
   }
 
-  if (Object.keys(updates).length === 0) {
-    throw new AppError('Send at least one field to update.', HTTP_STATUS.BAD_REQUEST);
-  }
-
-  await hotelModel.updateHotel(id, updates);
-
-  await auditService.record({
-    actor: reqUser,
-    action: AUDIT_ACTIONS.UPDATE,
-    entityType: AUDIT_ENTITIES.HOTEL,
-    entityId: existing.id,
-    hotelId: existing.id,
-    description: `Hotel '${existing.name}' updated.`,
-    changes: auditService.diffChanges(
-      {
-        ...existing,
-        gst_enabled: existing.settings.gst_enabled,
-        auto_renew: existing.subscription.auto_renew,
-      },
-      updates
-    ),
-  });
-
-  return { id: existing.id };
+  const existing = await getHotelById(resolveHotelId(reqUser));
+  return saveHotelUpdate(existing, buildProfileUpdates(payload), files, reqUser);
 };
 
 /**
@@ -633,6 +755,7 @@ module.exports = {
   getHotels,
   getHotelById,
   updateHotel,
+  updateOwnHotel,
   setHotelActive,
   deleteHotel,
 };
