@@ -734,8 +734,8 @@ Public. Soft-deleted plans are omitted. Send the access token when you have one.
 | --- | --- | --- |
 | \`plans\` | array | Plan objects. Keys are listed on Create plan, plus the two flags below. |
 | \`plans[].is_current_plan\` | boolean | \`true\` when the hotel on the access token is on this plan. \`false\` for every other plan, and when there is no hotel on the token. |
-| \`plans[].trial_used\` | boolean | Present only on the plan whose code is \`TRIAL\`. \`true\` when that hotel has a free-trial purchase, including one that already ended. \`false\` when it has not. |
-| \`trial_used\` | boolean | Same answer for the hotel on the token, so it is available even when the trial plan is not on this page. \`false\` when there is no hotel on the token. |
+| \`plans[].is_trial_used\` | boolean | Present only on the plan whose code is \`TRIAL\`. \`true\` when that hotel has a free-trial purchase, including one that already ended. \`false\` when it has not. |
+| \`is_trial_used\` | boolean | Same answer for the hotel on the token, so it is available even when the trial plan is not on this page. \`false\` when there is no hotel on the token. |
 | \`pagination.total\` | number | Matching plans. |
 | \`pagination.page\` | number | Current page. |
 | \`pagination.limit\` | number | Page size. |

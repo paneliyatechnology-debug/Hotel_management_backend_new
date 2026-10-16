@@ -347,12 +347,12 @@ const getAllSubscriptionPlans = async (query = {}, reqUser = null) => {
   const markedPlans = plans.map((plan) => ({
     ...plan,
     is_current_plan: usage.currentPlanId !== null && Number(plan.id) === Number(usage.currentPlanId),
-    ...(String(plan.code).toUpperCase() === 'TRIAL' ? { trial_used: usage.trialUsed } : {}),
+    ...(String(plan.code).toUpperCase() === 'TRIAL' ? { is_trial_used: usage.trialUsed } : {}),
   }));
 
   return {
     plans: markedPlans,
-    trial_used: usage.trialUsed,
+    is_trial_used: usage.trialUsed,
     pagination: {
       total,
       page: numPage,

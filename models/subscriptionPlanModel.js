@@ -416,7 +416,7 @@ const expireOpenPurchases = async (hotelId, endedAt, client = db) => {
 
 /**
  * The hotel's current plan, and whether it has ever had the free trial.
- * A missing hotel returns no current plan and trial_used false.
+ * A missing hotel returns no current plan and is_trial_used false.
  * @param {number|string} hotelId
  * @param {import('knex').Knex} [client=db]
  * @returns {Promise<{ currentPlanId: number|null, trialUsed: boolean }>}
