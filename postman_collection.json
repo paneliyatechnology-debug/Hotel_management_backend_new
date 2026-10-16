@@ -3434,6 +3434,152 @@
           }
         }
       ]
+    },
+    {
+      "name": "12 Reports",
+      "description": "**Who can call this:** HOTEL_ADMIN or ACCOUNTANT of the hotel. SUPER_ADMIN may read any hotel and must send hotel_id.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**GST report.** Date-wise GST data built from the bookings of the logged-in hotel.\n\nHow the data is derived (there is no invoice table):\n- One booking is one invoice. `invoice_number` is the booking number. `invoice_date` is the actual check-out date, or the scheduled check-out date while the guest has not left. The payment date is never used.\n- An invoice has up to two lines. `ROOM_BOOKING` carries the taxable value and the CGST / SGST saved on the booking. `OTHER_CHARGES` is the part of the invoice total that carries no GST (extra charges and the late check-out charge), at 0%.\n- Tax is not recalculated. The rate and amounts saved on each booking are used, so a later rate change does not alter an old report.\n- A cancelled or no-show booking (`invoice_status` `CANCELLED`) is reversed by a credit note for its full taxable value and tax. Net values are gross minus credit notes. Refunds are shown for information and do not change tax.\n- IGST, cess and guest GSTIN are not stored on bookings, so they are `0` and `null`. Restaurant, banquet and laundry services are not in the database.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "item": [
+        {
+          "name": "GST report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/gst?start_date=2026-10-01&end_date=2026-10-31&page=1&limit=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "gst"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2026-10-01",
+                  "description": "Required. YYYY-MM-DD, first day of the report, inclusive."
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-10-31",
+                  "description": "Required. YYYY-MM-DD, last day of the report, inclusive. The period can be at most 366 days."
+                },
+                {
+                  "key": "gst_rate",
+                  "value": "18",
+                  "description": "Optional. Only lines with this GST rate. 0 gives the lines without GST.",
+                  "disabled": true
+                },
+                {
+                  "key": "service_type",
+                  "value": "ROOM_BOOKING",
+                  "description": "Optional. ROOM_BOOKING or OTHER_CHARGES.",
+                  "disabled": true
+                },
+                {
+                  "key": "invoice_status",
+                  "value": "FINAL",
+                  "description": "Optional. FINAL (checked out), PROVISIONAL (not checked out yet), or CANCELLED (cancelled or no-show).",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Optional. Default 1."
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Optional. Default 50, maximum 200."
+                },
+                {
+                  "key": "hotel_id",
+                  "value": "{{targetHotelId}}",
+                  "description": "SUPER_ADMIN only and required for them. Ignored for hotel staff, whose hotel comes from the token.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "### GET /api/v1/reports/gst\n**Who can call this:** HOTEL_ADMIN, ACCOUNTANT, or SUPER_ADMIN (with hotel_id).\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Response `data`**\n| Key | Meaning |\n| --- | --- |\n| `filters` | `hotel_id`, `start_date`, `end_date` and the filters applied. |\n| `hotel` | Registered business details: `name`, `gstin`, `pan`, address, city, state, pincode. |\n| `rows[]` | One line per invoice and service, oldest invoice date first. One page. |\n| `date_wise_summary[]` | One entry per invoice date with totals. Not paginated. |\n| `gst_rate_summary[]` | One entry per GST rate. |\n| `service_summary[]` | One entry per service type with `service_label` and `hsn_sac_code`. |\n| `grand_totals` | Totals of the whole period, not only the page. |\n| `pagination` | `page`, `limit`, `total_rows` (lines), `total_pages`. |\n| `notes` | How the figures are derived and what is not stored. |\n\n**Row keys**\n| Key | Meaning |\n| --- | --- |\n| `invoice_date`, `invoice_number` | Check-out date (YYYY-MM-DD) and booking number. |\n| `booking_id`, `guest_name`, `guest_gstin` | Booking and guest. `guest_gstin` is always null today. |\n| `room_count` | Rooms on the booking. The amounts are for the whole booking and are never repeated per room. |\n| `service_type`, `hsn_sac_code` | `ROOM_BOOKING` (996311) or `OTHER_CHARGES` (999799). |\n| `gross_amount`, `discount_amount`, `taxable_amount` | Amount before discount, the discount, and the value GST is charged on. |\n| `gst_rate` | Rate saved on the booking. 0 for `OTHER_CHARGES`. |\n| `cgst_amount`, `sgst_amount`, `igst_amount`, `cess_amount`, `gst_total` | Tax of this line. IGST and cess are 0. |\n| `line_total`, `invoice_total` | Taxable value plus GST of this line, and the stored total of the whole invoice. |\n| `invoice_status`, `booking_status` | `FINAL`, `PROVISIONAL` or `CANCELLED`, and the stay status. |\n| `refunded_amount` | Money refunded on the booking. Shown on the `ROOM_BOOKING` line. Information only. |\n| `credit_note` | `taxable_value`, tax amounts and `gst_total` reversed for a cancelled invoice. Zero otherwise. |\n| `net_taxable_value` | `taxable_amount` minus the credit note. |\n\n**Summary keys** (date, rate, service and grand totals)\n| Key | Meaning |\n| --- | --- |\n| `total_invoices` | Invoices counted once. In the rate and service summaries an invoice is counted once in every group it has lines in. |\n| `gross_amount`, `discount_amount` | Before and discount. |\n| `total_taxable_value`, `total_cgst`, `total_sgst`, `total_igst`, `total_cess`, `total_gst` | Taxable value and tax. |\n| `total_invoice_value` | Taxable value plus GST. |\n| `credit_note_count`, `credit_note_taxable_value`, `credit_note_cgst`, `credit_note_sgst`, `credit_note_igst`, `credit_note_cess`, `credit_note_gst`, `credit_note_total` | Credit notes for cancelled invoices. |\n| `net_taxable_value`, `net_gst` | After credit notes. |\n| `refunded_amount` | Refunds on these invoices. |\n\nErrors: 400 for a missing or bad date, a period over 366 days, an unknown filter value, or a missing `hotel_id` for a super admin. 403 for other roles."
+          }
+        },
+        {
+          "name": "Export GST report (Excel or PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/gst/export?format=xlsx&start_date=2026-10-01&end_date=2026-10-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "gst",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "xlsx",
+                  "description": "Required. xlsx or pdf."
+                },
+                {
+                  "key": "start_date",
+                  "value": "2026-10-01",
+                  "description": "Required. YYYY-MM-DD, inclusive."
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-10-31",
+                  "description": "Required. YYYY-MM-DD, inclusive. At most 366 days after start_date."
+                },
+                {
+                  "key": "gst_rate",
+                  "value": "18",
+                  "description": "Optional. Same as the report.",
+                  "disabled": true
+                },
+                {
+                  "key": "service_type",
+                  "value": "ROOM_BOOKING",
+                  "description": "Optional. Same as the report.",
+                  "disabled": true
+                },
+                {
+                  "key": "invoice_status",
+                  "value": "FINAL",
+                  "description": "Optional. Same as the report.",
+                  "disabled": true
+                },
+                {
+                  "key": "hotel_id",
+                  "value": "{{targetHotelId}}",
+                  "description": "SUPER_ADMIN only and required for them.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "### GET /api/v1/reports/gst/export\n**Who can call this:** HOTEL_ADMIN, ACCOUNTANT, or SUPER_ADMIN (with hotel_id).\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nBuilds the whole report (no paging) as a file and returns a link to it. Both files hold the same tables: totals, date-wise summary, GST rate summary, service summary, invoice details and notes. The Excel file has them on one sheet, top to bottom. The PDF is A4 landscape, black and white. The file is saved under uploads/pdfs and every PDF and Excel file there is deleted by the clean-up job every 3 hours.\n\nA report of more than 5000 rows is refused with 400. Choose a shorter period or add a filter.\n\n**Response `data`**\n| Key | Meaning |\n| --- | --- |\n| `url` | Link that downloads the file. |\n| `file_name` | File name. |\n| `format` | `xlsx` or `pdf`. |\n| `row_count` | Detail rows in the file. |"
+          }
+        }
+      ]
     }
   ]
 }

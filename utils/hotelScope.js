@@ -42,6 +42,29 @@ const resolveHotelId = (reqUser) => {
   return hotelId;
 };
 
+/**
+ * Hotel a hotel-scoped read should use.
+ * Hotel staff always use the hotel on their token. A super admin has none, so must send hotel_id.
+ * @param {Object} reqUser - Authenticated user attached by auth middleware
+ * @param {Object} [query] - Request query. hotel_id is read only for a super admin.
+ * @returns {number}
+ */
+const resolveScopedHotelId = (reqUser, query = {}) => {
+  if (reqUser && reqUser.role === ROLE_CODES.SUPER_ADMIN) {
+    const hotelId = Number(query.hotel_id);
+    if (!hotelId || Number.isNaN(hotelId) || hotelId <= 0) {
+      throw new AppError(
+        'hotel_id is required when a super admin requests hotel data.',
+        HTTP_STATUS.BAD_REQUEST,
+        [{ field: 'hotel_id', message: 'Provide a positive hotel id.' }]
+      );
+    }
+    return hotelId;
+  }
+
+  return resolveHotelId(reqUser);
+};
+
 // Frontend should clear the session and call logout when this code is returned.
 const FORCE_LOGOUT = { forceLogout: true, code: 'FORCE_LOGOUT' };
 
@@ -105,5 +128,6 @@ const assertHotelActive = async (user, { checkPlan = true } = {}) => {
 
 module.exports = {
   resolveHotelId,
+  resolveScopedHotelId,
   assertHotelActive,
 };

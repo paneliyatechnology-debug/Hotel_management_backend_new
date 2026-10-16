@@ -5,7 +5,7 @@
  * HOTEL_ADMIN (hotel), and front-desk staff (receptionist dashboard).
  */
 const dashboardModel = require('../models/dashboardModel');
-const { resolveHotelId } = require('../utils/hotelScope');
+const { resolveHotelId, resolveScopedHotelId } = require('../utils/hotelScope');
 const { resolveDateRange, percent, money, toDateKey, getCurrentWeekDays } = require('../utils/dateRange');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, ROLE_CODES } = require('../constants');
@@ -30,29 +30,6 @@ const daysLeftUntil = (endDate, now = new Date()) => {
   const diffMs = end - now.getTime();
   if (diffMs <= 0) return 0;
   return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-};
-
-/**
- * Resolve which hotel a hotel-scoped dashboard should use.
- * Hotel staff always use their token hotel. A super admin must send hotel_id.
- * @param {Object} reqUser
- * @param {Object} query
- * @returns {number}
- */
-const resolveScopedHotelId = (reqUser, query = {}) => {
-  if (reqUser.role === ROLE_CODES.SUPER_ADMIN) {
-    const hotelId = Number(query.hotel_id);
-    if (!hotelId || Number.isNaN(hotelId) || hotelId <= 0) {
-      throw new AppError(
-        'hotel_id is required when a super admin requests a hotel dashboard.',
-        HTTP_STATUS.BAD_REQUEST,
-        [{ field: 'hotel_id', message: 'Provide a positive hotel id.' }]
-      );
-    }
-    return hotelId;
-  }
-
-  return resolveHotelId(reqUser);
 };
 
 /**

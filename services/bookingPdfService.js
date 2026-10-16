@@ -751,12 +751,12 @@ const generateBookingBillPdf = async (bookingId, reqUser, baseUrl) => {
 };
 
 /**
- * Delete every generated folio. The job runs every 3 hours.
+ * Delete every generated PDF and Excel file. The job runs every 3 hours.
  * @returns {number}
  */
 const clearGeneratedPdfs = () => {
   if (!fs.existsSync(PDF_DIR)) return 0;
-  const files = fs.readdirSync(PDF_DIR).filter((name) => name.toLowerCase().endsWith('.pdf'));
+  const files = fs.readdirSync(PDF_DIR).filter((name) => /\.(pdf|xlsx)$/i.test(name));
   for (const name of files) {
     fs.unlinkSync(path.join(PDF_DIR, name));
   }
@@ -768,5 +768,9 @@ module.exports = {
   generateBookingBillPdf,
   clearGeneratedPdfs,
   closePdfBrowser,
+  renderPdfFile,
+  fillTemplate,
+  getFontFaceCss,
+  escapeHtml,
   PDF_DIR,
 };

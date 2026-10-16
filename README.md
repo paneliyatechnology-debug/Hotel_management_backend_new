@@ -111,7 +111,6 @@ Notes:
 | `npm run migrate:rollback` | Roll back the last migration batch |
 | `npm run seed` | Run seeds (creates the Super Admin if missing) |
 | `npm run generate:postman` | Regenerate `postman_collection.json` |
-
 ---
 
 ## Project Structure
@@ -136,7 +135,7 @@ Notes:
 │   ├── migrations/           # Schema history. Never edit an applied migration
 │   └── seeds/                # Seed data
 ├── scripts/                  # Tooling (Postman generator)
-└── uploads/pdfs/             # Generated folios (cleaned by a cron job)
+└── uploads/pdfs/             # Generated PDFs and Excel files (cleaned by a cron job)
 ```
 
 ---
@@ -214,9 +213,9 @@ Database constraint errors map to `409 Conflict` (duplicates) or `400` (foreign 
 | Role | Access |
 | :--- | :--- |
 | `SUPER_ADMIN` | Platform owner. Manages hotels and subscription plans. Reads audit logs of every hotel. |
-| `HOTEL_ADMIN` | Full access to their own hotel: staff, rooms, room types, bookings, audit logs, hotel dashboard |
+| `HOTEL_ADMIN` | Full access to their own hotel: staff, rooms, room types, bookings, audit logs, hotel dashboard, GST report |
 | `RECEPTIONIST` | Rooms, room types, bookings and front-desk dashboard of their own hotel |
-| `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Staff accounts created by a hotel admin (can log in, use real-time updates, and view the front-desk dashboard) |
+| `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Staff accounts created by a hotel admin (can log in, use real-time updates, and view the front-desk dashboard). `ACCOUNTANT` can also read the GST report |
 
 ---
 
@@ -325,6 +324,28 @@ Payment methods: `CASH`, `ONLINE`, `CARD`, `UPI`, `BANK_TRANSFER`.
 | `RECEPTIONIST`, `MANAGER`, `HOUSEKEEPING`, `ACCOUNTANT` | Today's shift collections and room status summary |
 
 Full request and response examples live in the [Postman collection](#postman-collection).
+
+### GST report (`HOTEL_ADMIN`, `ACCOUNTANT`, `SUPER_ADMIN`)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/reports/gst` | Date-wise GST report. Required: `start_date`, `end_date` (YYYY-MM-DD, inclusive, at most 366 days). Optional filters: `gst_rate`, `service_type` (`ROOM_BOOKING`, `OTHER_CHARGES`), `invoice_status` (`FINAL`, `PROVISIONAL`, `CANCELLED`), `page`, `limit` (max 200). A super admin must also send `hotel_id`. |
+| `GET` | `/reports/gst/export` | The same report as a file. `start_date`, `end_date` and `format=xlsx` or `format=pdf` are required. Both formats hold the same tables (totals, date-wise, GST rate, service, invoice details, notes). Saved in `uploads/pdfs`, returns a download URL. At most 5000 rows. |
+
+How the report is built from the existing data (there is no invoice table):
+
+- One booking is one invoice. Invoice number = booking number. Invoice date = actual check-out, or the scheduled check-out
+  while the guest has not left. The payment date is never used.
+- Each invoice has up to two lines. `ROOM_BOOKING` carries the taxable value and the CGST / SGST stored on the booking.
+  `OTHER_CHARGES` is the part of the invoice total that has no GST (extra charges and the late check-out charge) at 0%.
+- Tax is never recalculated. The rate and amounts saved on the booking are used, so a later rate change does not change an
+  old report. The SAC codes (`996311` rooms, `999799` other charges) are set in `constants/index.js`.
+- A `CANCELLED` or `NO_SHOW` booking is reversed by a credit note for its full taxable value and tax. Net values are the
+  gross values minus those credit notes. Refunds (payments with status `REFUNDED`) are shown for information and do not change tax.
+- Rooms and payments are never joined to the invoice rows (payments are summed per booking first), so a multi-room booking
+  or a booking with many payments is counted once.
+- Not stored today, so reported as `0` / `null`: IGST, cess, guest GSTIN. Every supply is treated as intra-state.
+  Restaurant, banquet and laundry services do not exist in the database.
 
 ---
 
@@ -444,7 +465,7 @@ Registered in `routers/cronRouter.js` and handled by `controllers/cronController
 | Job | Schedule | Action |
 | :--- | :--- | :--- |
 | `RoomCleaning` | Every minute | Rooms in `CLEANING` for the cleaning duration (20 minutes by default) become `AVAILABLE` |
-| `PdfCleanup` | Every 3 hours | Deletes generated PDFs from `uploads/pdfs` |
+| `PdfCleanup` | Every 3 hours | Deletes generated PDF and Excel files from `uploads/pdfs` |
 
 Jobs run inside the API process. If you run several instances, they will each run the jobs.
 

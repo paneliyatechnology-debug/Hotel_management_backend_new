@@ -7,14 +7,14 @@ const { clearGeneratedPdfs } = require('../services/bookingPdfService');
 const { releaseCleanedRooms } = require('../services/roomService');
 
 /**
- * Delete the booking folio PDFs saved in uploads/pdfs.
+ * Delete every generated PDF and Excel file (booking folios, bills, GST reports) saved in uploads/pdfs.
  */
 const removeGeneratedPdfs = async () => {
   try {
     const removed = clearGeneratedPdfs();
-    console.log(`[Cron:PdfCleanup] Removed ${removed} generated PDF file(s).`);
+    console.log(`[Cron:PdfCleanup] Removed ${removed} generated PDF/Excel file(s).`);
   } catch (err) {
-    console.error('[Cron:PdfCleanup] Failed to remove generated PDFs:', err.message);
+    console.error('[Cron:PdfCleanup] Failed to remove generated files:', err.message);
   }
 };
 
