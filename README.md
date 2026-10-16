@@ -263,6 +263,7 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 | `POST` | `/subscription-plans` | Create a plan | `SUPER_ADMIN` |
 | `PUT` | `/subscription-plans/:id` | Update a plan | `SUPER_ADMIN` |
 | `DELETE` | `/subscription-plans/:id` | Archive a plan | `SUPER_ADMIN` |
+| `POST` | `/subscription-plans/:id/purchase` | Buy that plan for your hotel. Price and dates come from the plan. An expired plan can still call this | `HOTEL_ADMIN` |
 
 ### Room types and rooms
 
@@ -402,7 +403,7 @@ append-only. The API is read-only.
 
 - Every hotel starts with `is_active = true`. A super admin can switch it off with `PATCH /hotels/:id/active-status`.
 - While a hotel is off, all of its users get `403` on login, refresh token, password reset and every protected API (even with a token issued earlier), and their sockets are disconnected. Nothing is deleted.
-- When the hotel's subscription plan is switched off (`subscription_plan_active = false`) or its end date has
+- When the hotel's subscription is switched off (`subscription.active` is false) or `subscription.end_date` has
   passed, every protected API returns `403` with `"code": "PLAN_INACTIVE"` or `"code": "PLAN_EXPIRED"` and a message
   asking the user to renew. The user stays signed in: login, refresh-token, logout and password reset still work,
   so the frontend can show a renew screen. Super admins are never blocked and can renew the plan with

@@ -10,9 +10,10 @@ const {
   getPlanByIdValidator,
   deletePlanValidator,
   getPlansQueryValidator,
+  purchasePlanValidator,
 } = require('../middleware/subscriptionPlanValidator');
 const { validate } = require('../middleware/validation');
-const { authenticateUser, requireRole } = require('../middleware/auth');
+const { authenticateUser, allowExpiredPlan, requireRole } = require('../middleware/auth');
 const { ROLE_CODES } = require('../constants');
 
 const router = express.Router();
@@ -26,6 +27,21 @@ const router = express.Router();
  * Query non-deleted subscription plans with optional filtering and pagination
  */
 router.get('/', getPlansQueryValidator, validate, subscriptionPlanController.getAllPlans);
+
+/**
+ * POST /api/v1/subscription-plans/:id/purchase
+ * Hotel admin buys this plan for the hotel on their token.
+ * An expired or inactive plan does not block this route. A deactivated hotel still does.
+ */
+router.post(
+  '/:id/purchase',
+  allowExpiredPlan,
+  authenticateUser,
+  requireRole(ROLE_CODES.HOTEL_ADMIN),
+  purchasePlanValidator,
+  validate,
+  subscriptionPlanController.purchasePlan
+);
 
 /**
  * GET /api/v1/subscription-plans/:id

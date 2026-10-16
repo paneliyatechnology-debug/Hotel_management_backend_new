@@ -346,6 +346,103 @@ const softDeletePlan = async (id, trx) => {
   return formatPlan(row, features);
 };
 
+const PURCHASES_TABLE = 'subscription_plan_purchases';
+
+const formatPurchase = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    hotel_id: row.hotel_id,
+    plan_id: row.plan_id,
+    purchased_by: row.purchased_by || null,
+    amount: Number(row.amount),
+    billing_cycle: row.billing_cycle,
+    payment_method: row.payment_method,
+    status: row.status,
+    auto_renew: Boolean(row.auto_renew),
+    starts_at: row.starts_at,
+    ends_at: row.ends_at,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+};
+
+/**
+ * @param {Object} data
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object>}
+ */
+const createPurchase = async (data, client = db) => {
+  const now = new Date();
+  const [id] = await client(PURCHASES_TABLE).insert({
+    hotel_id: data.hotel_id,
+    plan_id: data.plan_id,
+    purchased_by: data.purchased_by || null,
+    amount: data.amount,
+    billing_cycle: data.billing_cycle,
+    payment_method: data.payment_method || null,
+    status: data.status || 'PAID',
+    auto_renew: Boolean(data.auto_renew),
+    starts_at: data.starts_at,
+    ends_at: data.ends_at || null,
+    created_at: now,
+    updated_at: now,
+  });
+
+  const row = await client(PURCHASES_TABLE).where({ id }).first();
+  return formatPurchase(row);
+};
+
+/**
+ * Latest purchase for a hotel. That row is the hotel's current subscription window.
+ * @param {number|string} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object|null>}
+ */
+const findCurrentByHotelId = async (hotelId, client = db) => {
+  const row = await client(PURCHASES_TABLE)
+    .where({ hotel_id: hotelId })
+    .orderBy('id', 'desc')
+    .first();
+  return formatPurchase(row);
+};
+
+/**
+ * @param {number|string} id
+ * @param {Object} updates
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object|null>}
+ */
+const updatePurchase = async (id, updates, client = db) => {
+  await client(PURCHASES_TABLE).where({ id }).update({
+    ...updates,
+    updated_at: new Date(),
+  });
+  const row = await client(PURCHASES_TABLE).where({ id }).first();
+  return formatPurchase(row);
+};
+
+/**
+ * Attach the latest subscription_plan_purchases row as current_purchase.
+ * Selected aliases: purchase_status, purchase_starts_at, purchase_ends_at, purchase_auto_renew.
+ * @param {import('knex').Knex.QueryBuilder} query
+ * @returns {import('knex').Knex.QueryBuilder}
+ */
+const joinCurrentPurchase = (query) =>
+  query.joinRaw(`LEFT JOIN (
+    SELECT pp.hotel_id,
+           pp.status AS purchase_status,
+           pp.starts_at AS purchase_starts_at,
+           pp.ends_at AS purchase_ends_at,
+           pp.auto_renew AS purchase_auto_renew
+    FROM ${PURCHASES_TABLE} pp
+    INNER JOIN (
+      SELECT hotel_id, MAX(id) AS id
+      FROM ${PURCHASES_TABLE}
+      GROUP BY hotel_id
+    ) latest ON latest.id = pp.id
+  ) current_purchase ON current_purchase.hotel_id = hotels.id`);
+
 module.exports = {
   formatPlan,
   getFeaturesByPlanId,
@@ -357,4 +454,8 @@ module.exports = {
   createPlan,
   updatePlan,
   softDeletePlan,
+  createPurchase,
+  findCurrentByHotelId,
+  updatePurchase,
+  joinCurrentPurchase,
 };

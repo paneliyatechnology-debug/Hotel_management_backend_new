@@ -594,9 +594,8 @@ Trial, slug, check-in time (\`14:00\`), check-out time (\`12:00\`), timezone \`A
 | \`bank_name\`, \`bank_account_holder\`, \`bank_account_number\`, \`bank_ifsc_code\`, \`bank_branch\` | Bank details printed on the booking bill and folio PDFs. Empty string when not set. |
 | \`total_rooms\`, \`hotel_type\`, \`website\`, \`logo\` | Profile. \`logo\` is a full URL. |
 | \`is_active\` | \`true\` on registration. A super admin can switch a hotel off. |
-| \`subscription_plan_id\`, \`subscription_plan_active\` | Plan link and whether it is active. |
-| \`subscription_plan_start_date\`, \`subscription_plan_end_date\` | Plan window. |
-| \`subscription.plan_id\`, \`subscription.active\`, \`subscription.start_date\`, \`subscription.end_date\`, \`subscription.auto_renew\` | Same subscription data, grouped. \`auto_renew\` is false at registration. |
+| \`subscription_plan_id\` | Current plan id stored on the hotel. |
+| \`subscription.plan_id\`, \`subscription.active\`, \`subscription.start_date\`, \`subscription.end_date\`, \`subscription.auto_renew\` | Current purchase window. \`auto_renew\` is false at registration. |
 | \`settings.check_in_time\`, \`settings.check_out_time\` | Default \`14:00\` and \`12:00\`. |
 | \`settings.timezone\`, \`settings.currency\`, \`settings.tax_percentage\` | \`Asia/Kolkata\`, \`INR\`, \`18\`. |
 | \`settings.gst_enabled\` | Whether GST is enabled. On create this is the sent \`gst_enabled\`, or true when a GST number was sent and \`gst_enabled\` was omitted. |
@@ -758,6 +757,51 @@ Public.
 | \`id\` | number | Yes | Plan id. |
 
 **Response \`data\`:** one plan object. Same keys as Create plan, plus \`id\`, \`createdAt\`, \`updatedAt\`, and \`deletedAt\`.`,
+    }),
+    item({
+      name: 'Purchase plan',
+      method: 'POST',
+      raw: '{{baseUrl}}/api/v1/subscription-plans/{{planId}}/purchase',
+      pathSegments: ['api', 'v1', 'subscription-plans', ':id', 'purchase'],
+      variable: [idVar('id', '{{planId}}', 'Required. Plan id to buy. Must be an active paid plan. TRIAL is rejected.')],
+      body: jsonBody({
+        payment_method: 'UPI',
+        auto_renew: false,
+      }),
+      description: `### POST /api/v1/subscription-plans/:id/purchase
+${authNote('HOTEL_ADMIN only. A super admin and hotel staff get 403.')}
+
+Buys the plan for the hotel on the access token. Do not send \`hotel_id\`, \`price\`, or dates. The amount is the plan price. The window starts now and ends after one billing cycle (\`MONTHLY\` adds one month, \`ANNUAL\` adds one year).
+
+An inactive or ended plan does not block this call, so a hotel can renew. A deactivated hotel still gets 403. This records the purchase as \`PAID\` and switches the hotel onto the plan. It does not charge a payment provider.
+
+**Path keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`id\` | number | Yes | Plan id. Unknown, inactive, free, or \`TRIAL\` plans are rejected. |
+
+**Body keys**
+| Key | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| \`payment_method\` | string | No | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. Defaults to \`CASH\`. |
+| \`auto_renew\` | boolean | No | Stored on the purchase and on the hotel. Defaults to false. |
+
+**Response \`data\`**
+| Key | Type | Meaning |
+| --- | --- | --- |
+| \`id\` | number | Purchase id. |
+| \`hotel_id\` | number | Hotel that bought the plan. |
+| \`plan_id\` | number | Plan id. |
+| \`purchased_by\` | number | Hotel admin user id. |
+| \`amount\` | number | Plan price at purchase time. |
+| \`billing_cycle\` | string | \`MONTHLY\` or \`ANNUAL\`. |
+| \`payment_method\` | string | Method sent in the body, or \`CASH\` when omitted. |
+| \`status\` | string | \`PAID\`. |
+| \`auto_renew\` | boolean | Renewal flag. |
+| \`starts_at\`, \`ends_at\` | string | Plan window stored on this purchase. |
+| \`plan\` | object | \`id\`, \`name\`, \`code\`, \`billingCycle\`, \`price\`, \`maxRooms\`. |
+
+The hotel row stores only \`subscription_plan_id\`. The amount, billing cycle, payment method, \`auto_renew\`, and the start and end dates are stored on this purchase. Access checks and hotel responses read that current purchase.`,
     }),
     item({
       name: 'Create plan',
@@ -1837,9 +1881,8 @@ const hotelObjectKeys = `**Hotel object keys**
 | \`bank_name\`, \`bank_account_holder\`, \`bank_account_number\`, \`bank_ifsc_code\`, \`bank_branch\` | Bank details printed on the booking bill and folio PDFs. Empty string when not set. |
 | \`total_rooms\`, \`hotel_type\`, \`website\`, \`logo\` | Profile. \`logo\` is a full URL. |
 | \`is_active\` | \`true\` by default. When \`false\`, nobody from this hotel can log in or call any API. |
-| \`subscription_plan_id\`, \`subscription_plan_active\` | Plan link and whether it is active. |
-| \`subscription_plan_start_date\`, \`subscription_plan_end_date\` | Plan window. |
-| \`subscription.plan_id\`, \`subscription.active\`, \`subscription.start_date\`, \`subscription.end_date\`, \`subscription.auto_renew\` | Same subscription data, grouped. |
+| \`subscription_plan_id\` | Current plan id stored on the hotel. |
+| \`subscription.plan_id\`, \`subscription.active\`, \`subscription.start_date\`, \`subscription.end_date\`, \`subscription.auto_renew\` | Current purchase window. The hotel row stores only \`subscription_plan_id\`. |
 | \`settings\` | Check-in and check-out time, timezone, currency, tax, GST flag, UPI id, late checkout grace, amenities and policies. |
 | \`created_at\`, \`updated_at\`, \`deleted_at\` | Timestamps. \`deleted_at\` is null for a live hotel. |`;
 
@@ -1921,7 +1964,7 @@ Soft-deleted hotels are omitted. The list returns a short object per hotel. Use 
 | \`is_active\` | \`false\` means the hotel is switched off. |
 | \`subscription.plan_id\` | Plan id. Null when no plan is set. |
 | \`subscription.plan_name\`, \`subscription.plan_code\`, \`subscription.billing_cycle\`, \`subscription.price\`, \`subscription.max_rooms\` | Details of the plan. Null when no plan is set. |
-| \`subscription.start_date\`, \`subscription.end_date\`, \`subscription.auto_renew\` | This hotel's subscription window and auto renew. |
+| \`subscription.active\`, \`subscription.start_date\`, \`subscription.end_date\`, \`subscription.auto_renew\` | This hotel's subscription window and auto renew. |
 | \`created_at\`, \`updated_at\`, \`deleted_at\` | Timestamps. \`deleted_at\` is always null here. |`,
     }),
     item({
@@ -2062,7 +2105,7 @@ A super admin is never blocked and can still read and edit a deactivated hotel.
 
 **Blocked users see:** 403 with the message \`This hotel has been deactivated. Please contact the platform administrator.\`
 
-The same full-hotel block applies when \`subscription_plan_active\` is false or \`subscription_plan_end_date\` has passed. Renew the plan with **Update hotel**.
+The same full-hotel block applies when \`subscription.active\` is false or \`subscription.end_date\` has passed. Renew the plan with **Update hotel**.
 
 ${idNote('Use **Get hotel** to read \`is_active\`.')}`,
     }),
@@ -2223,7 +2266,7 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 | --- | --- |
 | \`kpis.total_hotels\`, \`active_hotels\`, \`inactive_hotels\` | Hotels on the platform (not soft-deleted). |
 | \`kpis.trial_hotels\` | Hotels still inside an active TRIAL plan window. |
-| \`kpis.expired_hotels\` | Hotels whose plan is inactive or past \`subscription_plan_end_date\`. |
+| \`kpis.expired_hotels\` | Hotels whose plan is inactive or past \`subscription.end_date\`. |
 | \`kpis.estimated_mrr\` | Sum of active paid plan prices (YEARLY divided by 12). |
 | \`kpis.total_platform_rooms\`, \`total_staff_users\` | Non-deleted rooms and non-super-admin users. |
 | \`kpis.total_bookings_this_month\`, \`total_platform_booking_volume\` | Booking count and \`total_amount\` sum for \`date_range\`. |

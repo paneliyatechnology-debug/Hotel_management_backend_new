@@ -100,7 +100,8 @@ const authenticateUser = async (req, res, next) => {
     // but keep the session so the user can still see the renew message. Both cover an old access
     // token that was issued before the change.
     try {
-      await assertHotelActive(user);
+      // Purchase is the renewal path, so an expired plan must not block that one route.
+      await assertHotelActive(user, { checkPlan: req.allowExpiredPlan !== true });
     } catch (hotelErr) {
       if (hotelErr.forceLogout) {
         clearAuthCookies(res);
@@ -228,8 +229,18 @@ const validateHotelAccess = (req, res, next) => {
   next();
 };
 
+/**
+ * Place this before authenticateUser on the plan purchase route only.
+ * The hotel must still be active. An inactive or ended plan does not block the call.
+ */
+const allowExpiredPlan = (req, res, next) => {
+  req.allowExpiredPlan = true;
+  next();
+};
+
 module.exports = {
   authenticateUser,
+  allowExpiredPlan,
   requireRole,
   validateHotelAccess,
   extractTargetHotelId,

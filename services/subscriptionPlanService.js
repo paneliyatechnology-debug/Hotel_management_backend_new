@@ -3,10 +3,12 @@
  * Core business logic, validation enforcement, feature synchronization, and transactions.
  */
 const subscriptionPlanModel = require('../models/subscriptionPlanModel');
+const hotelModel = require('../models/hotelModel');
 const auditService = require('./auditService');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
-const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
+const { resolveHotelId } = require('../utils/hotelScope');
+const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES, ROLE_CODES } = require('../constants');
 
 /**
  * Catalog plans. TRIAL is assigned when a hotel is registered or created without a plan id.
@@ -518,6 +520,115 @@ const deleteSubscriptionPlan = async (id, reqUser = null) => {
   return { id: existingPlan.id };
 };
 
+const toBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
+
+/**
+ * End of one billing period that starts at `start`.
+ * @param {Date} start
+ * @param {string} billingCycle - MONTHLY or ANNUAL
+ * @returns {Date}
+ */
+const addBillingCycle = (start, billingCycle) => {
+  const end = new Date(start.getTime());
+  if (String(billingCycle).toUpperCase() === 'ANNUAL') {
+    end.setFullYear(end.getFullYear() + 1);
+  } else {
+    end.setMonth(end.getMonth() + 1);
+  }
+  return end;
+};
+
+/**
+ * Purchase a plan for the logged-in hotel admin's hotel and switch the hotel onto it.
+ * The price, billing cycle, and end date come from the plan. The request cannot set them.
+ * @param {number|string} planId
+ * @param {Object} payload - { payment_method, auto_renew }
+ * @param {Object} reqUser
+ * @returns {Promise<Object>}
+ */
+const purchasePlan = async (planId, payload = {}, reqUser) => {
+  if (!reqUser || reqUser.role !== ROLE_CODES.HOTEL_ADMIN) {
+    throw new AppError('Only a hotel admin can purchase a plan.', HTTP_STATUS.FORBIDDEN);
+  }
+
+  const hotelId = resolveHotelId(reqUser);
+
+  const plan = await subscriptionPlanModel.findPlanById(planId);
+  if (!plan) {
+    throw new AppError('Subscription plan not found.', HTTP_STATUS.NOT_FOUND);
+  }
+  if (!plan.isActive) {
+    throw new AppError('This subscription plan is not available for purchase.', HTTP_STATUS.BAD_REQUEST);
+  }
+  if (String(plan.code).toUpperCase() === 'TRIAL' || Number(plan.price) <= 0) {
+    throw new AppError('The free trial plan cannot be purchased.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const hotel = await hotelModel.findHotelById(hotelId);
+  if (!hotel) {
+    throw new AppError('Hotel not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  const paymentMethod = String(payload.payment_method || 'CASH').trim().toUpperCase();
+  const autoRenew = payload.auto_renew !== undefined ? toBoolean(payload.auto_renew) : false;
+  const startsAt = new Date();
+  const endsAt = addBillingCycle(startsAt, plan.billingCycle);
+
+  const purchase = await db.transaction(async (trx) => {
+    const created = await subscriptionPlanModel.createPurchase(
+      {
+        hotel_id: hotelId,
+        plan_id: plan.id,
+        purchased_by: reqUser.id,
+        amount: plan.price,
+        billing_cycle: plan.billingCycle,
+        payment_method: paymentMethod,
+        auto_renew: autoRenew,
+        starts_at: startsAt,
+        ends_at: endsAt,
+      },
+      trx
+    );
+
+    const updated = await hotelModel.updateHotel(
+      hotelId,
+      { subscription_plan_id: plan.id },
+      trx
+    );
+
+    if (!updated) {
+      throw new AppError('Hotel not found.', HTTP_STATUS.NOT_FOUND);
+    }
+
+    return created;
+  });
+
+  await auditService.record({
+    actor: reqUser,
+    action: AUDIT_ACTIONS.CREATE,
+    entityType: AUDIT_ENTITIES.PLAN_PURCHASE,
+    entityId: purchase.id,
+    hotelId,
+    description: `Hotel '${hotel.name}' purchased plan '${plan.name}'.`,
+    changes: {
+      subscription_plan_id: { from: hotel.subscription_plan_id, to: plan.id },
+      'subscription.end_date': { from: hotel.subscription?.end_date || null, to: endsAt },
+    },
+  });
+
+  return {
+    ...purchase,
+    plan: {
+      id: plan.id,
+      name: plan.name,
+      code: plan.code,
+      billingCycle: plan.billingCycle,
+      price: plan.price,
+      maxRooms: plan.maxRooms,
+    },
+  };
+};
+
 module.exports = {
   DEFAULT_PLANS,
   sanitizeFeatures,
@@ -527,4 +638,5 @@ module.exports = {
   getSubscriptionPlanById,
   updateSubscriptionPlan,
   deleteSubscriptionPlan,
+  purchasePlan,
 };

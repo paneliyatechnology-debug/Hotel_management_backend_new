@@ -301,6 +301,11 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
       finalPlanId = Number(finalPlanId);
     }
 
+    const assignedPlan = await subscriptionPlanModel.findPlanById(finalPlanId, { includeDeleted: true });
+    if (!assignedPlan) {
+      throw new AppError('Subscription plan not found.', HTTP_STATUS.NOT_FOUND);
+    }
+
     const finalPlanActive =
       payload.subscription_plan_active !== undefined
         ? Boolean(payload.subscription_plan_active)
@@ -333,16 +338,26 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
       website: website ? website.trim() : '',
       logo: uploadedLogoUrl || null,
       is_active: true,
-      subscription_plan_id: finalPlanId,
-      subscription_plan_active: finalPlanActive,
-      subscription_plan_start_date: finalStartDate,
-      subscription_plan_end_date: finalEndDate,
-      auto_renew: false,
+      subscription_plan_id: assignedPlan.id,
       gst_enabled: payload.gst_enabled !== undefined ? toBoolean(payload.gst_enabled) : Boolean(gstNumber),
       ...buildSettingsValues(payload, { withDefaults: true }),
     };
 
     createdHotel = await hotelModel.createHotel(hotelData);
+
+    await subscriptionPlanModel.createPurchase({
+      hotel_id: createdHotel.id,
+      plan_id: assignedPlan.id,
+      purchased_by: createdAdminUser.id,
+      amount: assignedPlan.price,
+      billing_cycle: assignedPlan.billingCycle,
+      payment_method: null,
+      status: finalPlanActive ? 'PAID' : 'INACTIVE',
+      auto_renew: false,
+      starts_at: finalStartDate,
+      ends_at: finalEndDate,
+    });
+    createdHotel = await hotelModel.findHotelById(createdHotel.id);
 
     // 3. Link hotel_id to the created admin user record
     await userModel.updateUser(createdAdminUser.id, { hotel_id: createdHotel.id });
@@ -599,20 +614,94 @@ const updateHotel = async (id, payload, files = [], reqUser) => {
     }
     updates.subscription_plan_id = plan.id;
   }
-  if (payload.subscription_plan_active !== undefined) {
-    updates.subscription_plan_active = toBoolean(payload.subscription_plan_active);
-  }
-  if (payload.subscription_plan_start_date !== undefined) {
-    updates.subscription_plan_start_date = toDateOrNull(payload.subscription_plan_start_date);
-  }
-  if (payload.subscription_plan_end_date !== undefined) {
-    updates.subscription_plan_end_date = toDateOrNull(payload.subscription_plan_end_date);
-  }
-  if (payload.auto_renew !== undefined) {
-    updates.auto_renew = toBoolean(payload.auto_renew);
+
+  const purchaseTouched = await syncCurrentPurchase(existing, updates, payload);
+  if (Object.keys(updates).length === 0) {
+    if (!purchaseTouched) {
+      throw new AppError('Send at least one field to update.', HTTP_STATUS.BAD_REQUEST);
+    }
+    await auditService.record({
+      actor: reqUser,
+      action: AUDIT_ACTIONS.UPDATE,
+      entityType: AUDIT_ENTITIES.HOTEL,
+      entityId: existing.id,
+      hotelId: existing.id,
+      description: `Hotel '${existing.name}' subscription updated.`,
+    });
+    return { id: existing.id };
   }
 
   return saveHotelUpdate(existing, updates, files, reqUser);
+};
+
+/**
+ * Write subscription window changes onto the hotel's current plan purchase.
+ * The hotel row only keeps subscription_plan_id. Dates, active flag, and auto_renew
+ * are removed from the hotel update and stored on subscription_plan_purchases.
+ * A different plan id inserts a new purchase so earlier purchases stay in history.
+ * @param {Object} existing
+ * @param {Object} updates - Hotel column updates. Subscription window keys are removed.
+ * @param {Object} payload
+ * @returns {Promise<boolean>} True when a purchase row was written
+ */
+const syncCurrentPurchase = async (existing, updates, payload) => {
+  const windowSent =
+    payload.subscription_plan_active !== undefined ||
+    payload.subscription_plan_start_date !== undefined ||
+    payload.subscription_plan_end_date !== undefined ||
+    payload.auto_renew !== undefined;
+  const planSent = updates.subscription_plan_id !== undefined;
+  if (!windowSent && !planSent) return false;
+
+  const current = await subscriptionPlanModel.findCurrentByHotelId(existing.id);
+  const planId = planSent ? updates.subscription_plan_id : existing.subscription_plan_id;
+  if (!planId) return false;
+
+  const plan = await subscriptionPlanModel.findPlanById(planId, { includeDeleted: true });
+  if (!plan) {
+    throw new AppError('Subscription plan not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  const status =
+    payload.subscription_plan_active !== undefined
+      ? toBoolean(payload.subscription_plan_active)
+        ? 'PAID'
+        : 'INACTIVE'
+      : current?.status || 'PAID';
+  const startsAt =
+    payload.subscription_plan_start_date !== undefined
+      ? toDateOrNull(payload.subscription_plan_start_date)
+      : current?.starts_at || new Date();
+  const endsAt =
+    payload.subscription_plan_end_date !== undefined
+      ? toDateOrNull(payload.subscription_plan_end_date)
+      : current?.ends_at || null;
+  const autoRenew =
+    payload.auto_renew !== undefined ? toBoolean(payload.auto_renew) : Boolean(current?.auto_renew);
+
+  const planChanged = !current || Number(current.plan_id) !== Number(planId);
+  if (planChanged) {
+    await subscriptionPlanModel.createPurchase({
+      hotel_id: existing.id,
+      plan_id: plan.id,
+      amount: plan.price,
+      billing_cycle: plan.billingCycle,
+      payment_method: null,
+      status,
+      auto_renew: autoRenew,
+      starts_at: startsAt || new Date(),
+      ends_at: endsAt,
+    });
+  } else {
+    await subscriptionPlanModel.updatePurchase(current.id, {
+      status,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      auto_renew: autoRenew,
+    });
+  }
+
+  return true;
 };
 
 // Owner login details stay on the user account. This route never changes them.

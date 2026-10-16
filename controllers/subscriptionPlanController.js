@@ -82,10 +82,24 @@ const deletePlan = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/v1/subscription-plans/:id/purchase
+ * Hotel admin buys a plan for their own hotel.
+ */
+const purchasePlan = async (req, res, next) => {
+  try {
+    const data = await subscriptionPlanService.purchasePlan(req.params.id, req.body, req.user);
+    return success(res, MESSAGES.PLAN_PURCHASED_SUCCESS, data, HTTP_STATUS.CREATED);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createPlan,
   getAllPlans,
   getPlanById,
   updatePlan,
   deletePlan,
+  purchasePlan,
 };

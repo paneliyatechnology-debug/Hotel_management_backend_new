@@ -2,6 +2,7 @@
  * Request validation schemas for Subscription Plans.
  */
 const { body, param, query } = require('express-validator');
+const { PAYMENT_METHODS } = require('../constants');
 
 /**
  * Validation schema for POST /api/v1/subscription-plans
@@ -224,10 +225,34 @@ const getPlansQueryValidator = [
     .withMessage('Limit must be an integer between 1 and 100.'),
 ];
 
+/**
+ * POST /api/v1/subscription-plans/:id/purchase
+ * The hotel and the price come from the token and the plan.
+ * payment_method is optional and defaults to CASH.
+ */
+const purchasePlanValidator = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Plan ID must be a positive integer.'),
+
+  body('payment_method')
+    .optional({ checkFalsy: true })
+    .trim()
+    .toUpperCase()
+    .isIn(PAYMENT_METHODS)
+    .withMessage(`payment_method must be one of: ${PAYMENT_METHODS.join(', ')}.`),
+
+  body('auto_renew')
+    .optional()
+    .isBoolean()
+    .withMessage('auto_renew must be true or false.'),
+];
+
 module.exports = {
   createPlanValidator,
   updatePlanValidator,
   getPlanByIdValidator,
   deletePlanValidator,
   getPlansQueryValidator,
+  purchasePlanValidator,
 };

@@ -4,6 +4,24 @@
 const db = require('../database/knex');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');
 const { parseJson } = require('../utils/json');
+const { joinCurrentPurchase } = require('./subscriptionPlanModel');
+
+/**
+ * Subscription window from the hotel's latest plan purchase.
+ * The hotels row only stores subscription_plan_id.
+ * @param {Object} row
+ * @returns {{ active: boolean, start_date: Date|null, end_date: Date|null, auto_renew: boolean }}
+ */
+const purchaseWindow = (row) => {
+  const hasPlan = row.subscription_plan_id !== undefined && row.subscription_plan_id !== null;
+  const active = hasPlan ? String(row.purchase_status || '').toUpperCase() === 'PAID' : true;
+  return {
+    active,
+    start_date: row.purchase_starts_at || null,
+    end_date: row.purchase_ends_at || null,
+    auto_renew: Boolean(row.purchase_auto_renew),
+  };
+};
 
 /**
  * Format raw database row to structured Hotel object
@@ -13,6 +31,7 @@ const { parseJson } = require('../utils/json');
 const formatHotel = (row) => {
   if (!row) return null;
 
+  const window = purchaseWindow(row);
   const hotelObj = {
     id: row.id,
     name: row.name,
@@ -36,15 +55,12 @@ const formatHotel = (row) => {
     logo: buildImageUrl(row.logo || ''),
     is_active: row.is_active === undefined ? true : Boolean(row.is_active),
     subscription_plan_id: row.subscription_plan_id !== undefined ? row.subscription_plan_id : null,
-    subscription_plan_active: row.subscription_plan_active !== undefined ? Boolean(row.subscription_plan_active) : (row.subscription_plan_status !== undefined ? Boolean(row.subscription_plan_status) : true),
-    subscription_plan_start_date: row.subscription_plan_start_date || null,
-    subscription_plan_end_date: row.subscription_plan_end_date || null,
     subscription: {
       plan_id: row.subscription_plan_id !== undefined ? row.subscription_plan_id : null,
-      active: row.subscription_plan_active !== undefined ? Boolean(row.subscription_plan_active) : (row.subscription_plan_status !== undefined ? Boolean(row.subscription_plan_status) : true),
-      start_date: row.subscription_plan_start_date || null,
-      end_date: row.subscription_plan_end_date || null,
-      auto_renew: Boolean(row.auto_renew),
+      active: window.active,
+      start_date: window.start_date,
+      end_date: window.end_date,
+      auto_renew: window.auto_renew,
     },
     settings: {
       check_in_time: row.check_in_time || '14:00',
@@ -84,7 +100,9 @@ const formatHotel = (row) => {
  * @param {Object} row - Hotel row joined with its owner
  * @returns {Object}
  */
-const formatHotelListItem = (row) => ({
+const formatHotelListItem = (row) => {
+  const window = purchaseWindow(row);
+  return {
   id: row.id,
   name: row.name,
   slug: row.slug,
@@ -109,14 +127,16 @@ const formatHotelListItem = (row) => ({
     billing_cycle: row.plan_billing_cycle || null,
     price: row.plan_price === null || row.plan_price === undefined ? null : Number(row.plan_price),
     max_rooms: row.plan_max_rooms ?? null,
-    start_date: row.subscription_plan_start_date || null,
-    end_date: row.subscription_plan_end_date || null,
-    auto_renew: Boolean(row.auto_renew),
+    active: window.active,
+    start_date: window.start_date,
+    end_date: window.end_date,
+    auto_renew: window.auto_renew,
   },
   created_at: row.created_at,
   updated_at: row.updated_at,
   deleted_at: row.deleted_at || null,
-});
+  };
+};
 
 // Columns the hotel list reads. Nothing else is loaded.
 const HOTEL_LIST_COLUMNS = [
@@ -133,9 +153,10 @@ const HOTEL_LIST_COLUMNS = [
   'hotels.country',
   'hotels.is_active',
   'hotels.subscription_plan_id',
-  'hotels.subscription_plan_start_date',
-  'hotels.subscription_plan_end_date',
-  'hotels.auto_renew',
+  'current_purchase.purchase_status',
+  'current_purchase.purchase_starts_at',
+  'current_purchase.purchase_ends_at',
+  'current_purchase.purchase_auto_renew',
   'hotels.created_at',
   'hotels.updated_at',
   'hotels.deleted_at',
@@ -154,15 +175,21 @@ const HOTEL_LIST_COLUMNS = [
  * @param {import('knex').Knex} [client=db]
  * @returns {import('knex').Knex.QueryBuilder}
  */
-const hotelsWithOwner = (client = db) =>
-  client('hotels')
+const hotelsWithOwner = (client = db) => {
+  const query = client('hotels')
     .leftJoin('users', 'hotels.owner_id', 'users.id')
     .select(
       'hotels.*',
       'users.name as owner_name',
       'users.email as owner_email',
-      'users.phone as owner_phone'
+      'users.phone as owner_phone',
+      'current_purchase.purchase_status',
+      'current_purchase.purchase_starts_at',
+      'current_purchase.purchase_ends_at',
+      'current_purchase.purchase_auto_renew'
     );
+  return joinCurrentPurchase(query);
+};
 
 /**
  * Find hotel by ID
@@ -184,19 +211,30 @@ const findHotelById = async (id) => {
  * @param {number|string} id
  * @returns {Promise<{ is_active: number|boolean, deleted_at: Date|null, subscription_plan_id: number|null, subscription_plan_active: number|boolean, subscription_plan_end_date: Date|null, plan_name: string|null }|undefined>}
  */
-const findHotelAccessState = (id) =>
-  db('hotels')
+const findHotelAccessState = async (id) => {
+  const query = db('hotels')
     .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
     .where('hotels.id', id)
     .select(
       'hotels.is_active',
       'hotels.deleted_at',
       'hotels.subscription_plan_id',
-      'hotels.subscription_plan_active',
-      'hotels.subscription_plan_end_date',
+      'current_purchase.purchase_status',
+      'current_purchase.purchase_ends_at',
       'subscription_plans.name as plan_name'
-    )
-    .first();
+    );
+  const row = await joinCurrentPurchase(query).first();
+  if (!row) return undefined;
+  const window = purchaseWindow(row);
+  return {
+    is_active: row.is_active,
+    deleted_at: row.deleted_at,
+    subscription_plan_id: row.subscription_plan_id,
+    subscription_plan_active: window.active,
+    subscription_plan_end_date: window.end_date,
+    plan_name: row.plan_name,
+  };
+};
 
 /**
  * Short hotel identity returned with login and the profile: id, name, GST and PAN.
@@ -224,18 +262,28 @@ const findHotelSummary = async (id) => {
  * @param {number|string} id - Hotel id
  * @returns {Promise<{ subscription_plan_id: number|null, subscription_plan_active: number|boolean, subscription_plan_end_date: Date|null, plan_name: string|null, plan_max_rooms: number|null }|undefined>}
  */
-const findHotelSubscription = (id) =>
-  db('hotels')
+const findHotelSubscription = async (id) => {
+  const query = db('hotels')
     .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
     .where('hotels.id', id)
     .select(
       'hotels.subscription_plan_id',
-      'hotels.subscription_plan_active',
-      'hotels.subscription_plan_end_date',
+      'current_purchase.purchase_status',
+      'current_purchase.purchase_ends_at',
       'subscription_plans.name as plan_name',
       'subscription_plans.max_rooms as plan_max_rooms'
-    )
-    .first();
+    );
+  const row = await joinCurrentPurchase(query).first();
+  if (!row) return undefined;
+  const window = purchaseWindow(row);
+  return {
+    subscription_plan_id: row.subscription_plan_id,
+    subscription_plan_active: window.active,
+    subscription_plan_end_date: window.end_date,
+    plan_name: row.plan_name,
+    plan_max_rooms: row.plan_max_rooms,
+  };
+};
 
 // Columns a super admin may sort the hotel list by.
 const HOTEL_SORT_FIELDS = ['id', 'name', 'city', 'is_active', 'created_at', 'updated_at'];
@@ -271,7 +319,17 @@ const findHotels = async (filters = {}, pagination = {}, sorting = {}) => {
 
     if (filters.subscription_plan_active !== undefined && filters.subscription_plan_active !== '') {
       const active = filters.subscription_plan_active === true || filters.subscription_plan_active === 'true';
-      qb.where('hotels.subscription_plan_active', active);
+      if (active) {
+        qb.where('current_purchase.purchase_status', 'PAID');
+      } else {
+        qb.where(function () {
+          this.whereNull('current_purchase.purchase_status').orWhere(
+            'current_purchase.purchase_status',
+            '!=',
+            'PAID'
+          );
+        });
+      }
     }
 
     if (filters.search) {
@@ -287,15 +345,17 @@ const findHotels = async (filters = {}, pagination = {}, sorting = {}) => {
     }
   };
 
-  const countQuery = db('hotels').leftJoin('users', 'hotels.owner_id', 'users.id');
+  const countQuery = joinCurrentPurchase(db('hotels').leftJoin('users', 'hotels.owner_id', 'users.id'));
   applyFilters(countQuery);
   const totalResult = await countQuery.count('hotels.id as total').first();
   const total = Number(totalResult?.total || 0);
 
-  const dataQuery = db('hotels')
-    .leftJoin('users', 'hotels.owner_id', 'users.id')
-    .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
-    .select(HOTEL_LIST_COLUMNS);
+  const dataQuery = joinCurrentPurchase(
+    db('hotels')
+      .leftJoin('users', 'hotels.owner_id', 'users.id')
+      .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+      .select(HOTEL_LIST_COLUMNS)
+  );
   applyFilters(dataQuery);
   const rows = await dataQuery.orderBy(`hotels.${sortField}`, sortOrder).offset(offset).limit(limit);
 
@@ -315,9 +375,16 @@ const findHotels = async (filters = {}, pagination = {}, sorting = {}) => {
  */
 const findHotelBySlug = async (slug) => {
   if (!slug) return null;
-  const row = await db('hotels')
-    .where({ slug: slug.trim().toLowerCase() })
-    .whereNull('deleted_at')
+  const row = await joinCurrentPurchase(
+    db('hotels').where({ slug: slug.trim().toLowerCase() }).whereNull('deleted_at')
+  )
+    .select(
+      'hotels.*',
+      'current_purchase.purchase_status',
+      'current_purchase.purchase_starts_at',
+      'current_purchase.purchase_ends_at',
+      'current_purchase.purchase_auto_renew'
+    )
     .first();
   return formatHotel(row);
 };

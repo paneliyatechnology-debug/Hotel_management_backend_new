@@ -3,6 +3,7 @@
  * Read-only Knex helpers used by dashboardService. Soft-deleted rows are excluded.
  */
 const db = require('../database/knex');
+const { joinCurrentPurchase } = require('./subscriptionPlanModel');
 const { money, toDateKey } = require('../utils/dateRange');
 const {
   ROLE_CODES,
@@ -78,14 +79,15 @@ const countHotelsByActiveState = async (client = db) => {
  */
 const countTrialHotels = async (client = db) => {
   const now = new Date();
-  const row = await client('hotels')
-    .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+  const row = await joinCurrentPurchase(
+    client('hotels').leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+  )
     .whereNull('hotels.deleted_at')
     .whereRaw('UPPER(subscription_plans.code) = ?', ['TRIAL'])
-    .where('hotels.subscription_plan_active', true)
+    .where('current_purchase.purchase_status', 'PAID')
     .andWhere(function () {
-      this.whereNull('hotels.subscription_plan_end_date').orWhere(
-        'hotels.subscription_plan_end_date',
+      this.whereNull('current_purchase.purchase_ends_at').orWhere(
+        'current_purchase.purchase_ends_at',
         '>=',
         now
       );
@@ -103,15 +105,13 @@ const countTrialHotels = async (client = db) => {
  */
 const countExpiredHotels = async (client = db) => {
   const now = new Date();
-  const row = await client('hotels')
-    .whereNull('deleted_at')
-    .whereNotNull('subscription_plan_id')
+  const row = await joinCurrentPurchase(client('hotels'))
+    .whereNull('hotels.deleted_at')
+    .whereNotNull('hotels.subscription_plan_id')
     .andWhere(function () {
-      this.where('subscription_plan_active', false).orWhere(
-        'subscription_plan_end_date',
-        '<',
-        now
-      );
+      this.whereNull('current_purchase.purchase_status')
+        .orWhere('current_purchase.purchase_status', '!=', 'PAID')
+        .orWhere('current_purchase.purchase_ends_at', '<', now);
     })
     .count('id as total')
     .first();
@@ -127,14 +127,15 @@ const countExpiredHotels = async (client = db) => {
  */
 const estimatePlatformMrr = async (client = db) => {
   const now = new Date();
-  const rows = await client('hotels')
-    .innerJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+  const rows = await joinCurrentPurchase(
+    client('hotels').innerJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+  )
     .whereNull('hotels.deleted_at')
     .where('hotels.is_active', true)
-    .where('hotels.subscription_plan_active', true)
+    .where('current_purchase.purchase_status', 'PAID')
     .andWhere(function () {
-      this.whereNull('hotels.subscription_plan_end_date').orWhere(
-        'hotels.subscription_plan_end_date',
+      this.whereNull('current_purchase.purchase_ends_at').orWhere(
+        'current_purchase.purchase_ends_at',
         '>=',
         now
       );
@@ -209,14 +210,14 @@ const getPlanDistribution = async (client = db) => {
       .orderBy('display_order', 'asc')
       .orderBy('id', 'asc')
       .select('id', 'name', 'billing_cycle', 'price'),
-    client('hotels')
-      .whereNull('deleted_at')
-      .where('is_active', true)
-      .where('subscription_plan_active', true)
-      .whereNotNull('subscription_plan_id')
+    joinCurrentPurchase(client('hotels'))
+      .whereNull('hotels.deleted_at')
+      .where('hotels.is_active', true)
+      .where('current_purchase.purchase_status', 'PAID')
+      .whereNotNull('hotels.subscription_plan_id')
       .andWhere(function () {
-        this.whereNull('subscription_plan_end_date').orWhere(
-          'subscription_plan_end_date',
+        this.whereNull('current_purchase.purchase_ends_at').orWhere(
+          'current_purchase.purchase_ends_at',
           '>=',
           now
         );
@@ -253,8 +254,9 @@ const getPlanDistribution = async (client = db) => {
  * @returns {Promise<Object|null>}
  */
 const findHotelDashboardHeader = async (hotelId, client = db) => {
-  const row = await client('hotels')
-    .leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+  const row = await joinCurrentPurchase(
+    client('hotels').leftJoin('subscription_plans', 'hotels.subscription_plan_id', 'subscription_plans.id')
+  )
     .where('hotels.id', hotelId)
     .whereNull('hotels.deleted_at')
     .select(
@@ -265,15 +267,22 @@ const findHotelDashboardHeader = async (hotelId, client = db) => {
       'hotels.tax_percentage',
       'hotels.gst_enabled',
       'hotels.subscription_plan_id',
-      'hotels.subscription_plan_active',
-      'hotels.subscription_plan_start_date',
-      'hotels.subscription_plan_end_date',
+      'current_purchase.purchase_status',
+      'current_purchase.purchase_starts_at',
+      'current_purchase.purchase_ends_at',
       'subscription_plans.name as plan_name',
       'subscription_plans.max_rooms as plan_max_rooms'
     )
     .first();
 
-  return row || null;
+  if (!row) return null;
+  const hasPlan = row.subscription_plan_id !== null && row.subscription_plan_id !== undefined;
+  return {
+    ...row,
+    subscription_plan_active: hasPlan ? String(row.purchase_status || '').toUpperCase() === 'PAID' : true,
+    subscription_plan_start_date: row.purchase_starts_at || null,
+    subscription_plan_end_date: row.purchase_ends_at || null,
+  };
 };
 
 /**
