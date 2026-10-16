@@ -204,6 +204,7 @@ const findUsers = async (filters = {}, pagination = {}, sorting = {}) => {
 
   const applyFilters = (qb) => {
     qb.whereNull('users.deleted_at');
+    qb.whereNotIn('users.role', [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.HOTEL_ADMIN]);
 
     if (filters.role) {
       qb.where('users.role', String(filters.role).toUpperCase());

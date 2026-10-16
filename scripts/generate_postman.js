@@ -1725,7 +1725,7 @@ ${idNote('Use **List staff users** to read the new user.')}`,
         queryParam('page', '1', 'Optional. Page number, starting at 1.'),
         queryParam('limit', '10', 'Optional. Page size, 1 to 100.'),
         queryParam('search', 'neha', 'Optional. Partial match on name, email, or phone.', true),
-        queryParam('role', 'RECEPTIONIST', 'Optional. SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or ACCOUNTANT.', true),
+        queryParam('role', 'RECEPTIONIST', 'Optional. RECEPTIONIST, MANAGER, HOUSEKEEPING, or ACCOUNTANT.', true),
         queryParam('is_active', 'true', 'Optional. true or false.', true),
         queryParam('is_disabled', 'false', 'Optional. true returns only disabled users. false returns users who are not disabled.', true),
         queryParam('hotel_id', '{{hotelId}}', 'Optional for SUPER_ADMIN. Filters one hotel. Ignored for HOTEL_ADMIN, who always see their own hotel.', true),
@@ -1733,7 +1733,7 @@ ${idNote('Use **List staff users** to read the new user.')}`,
         queryParam('sort_order', 'desc', 'Optional. asc or desc. Default desc.', true),
       ],
       description: `### GET /api/v1/users
-Hotel admin sees only their hotel. Super admin sees all hotels unless \`hotel_id\` is set. Soft-deleted users are omitted.
+Hotel admin sees only their hotel. Super admin sees all hotels unless \`hotel_id\` is set. Soft-deleted users are omitted. \`HOTEL_ADMIN\` and \`SUPER_ADMIN\` are not included.
 
 **Query keys** are on the Params tab.
 

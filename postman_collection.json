@@ -2797,7 +2797,7 @@
                 {
                   "key": "role",
                   "value": "RECEPTIONIST",
-                  "description": "Optional. SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or ACCOUNTANT.",
+                  "description": "Optional. RECEPTIONIST, MANAGER, HOUSEKEEPING, or ACCOUNTANT.",
                   "disabled": true
                 },
                 {
@@ -2832,7 +2832,7 @@
                 }
               ]
             },
-            "description": "### GET /api/v1/users\nHotel admin sees only their hotel. Super admin sees all hotels unless `hotel_id` is set. Soft-deleted users are omitted.\n\n**Query keys** are on the Params tab.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `users` | array | User objects without password. Keys are listed on Get staff user. |\n| `total` | number | Matching users. |\n| `page` | number | Current page. |\n| `limit` | number | Page size. |\n| `total_pages` | number | Page count. Snake case on this API. Rooms and bookings use `totalPages`. |"
+            "description": "### GET /api/v1/users\nHotel admin sees only their hotel. Super admin sees all hotels unless `hotel_id` is set. Soft-deleted users are omitted. `HOTEL_ADMIN` and `SUPER_ADMIN` are not included.\n\n**Query keys** are on the Params tab.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `users` | array | User objects without password. Keys are listed on Get staff user. |\n| `total` | number | Matching users. |\n| `page` | number | Current page. |\n| `limit` | number | Page size. |\n| `total_pages` | number | Page count. Snake case on this API. Rooms and bookings use `totalPages`. |"
           }
         },
         {

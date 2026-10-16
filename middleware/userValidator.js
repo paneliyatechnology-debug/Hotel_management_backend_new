@@ -6,6 +6,12 @@ const { body, param, query } = require('express-validator');
 const { ROLE_CODES } = require('../constants');
 
 const VALID_ROLES = Object.values(ROLE_CODES);
+const STAFF_LIST_ROLES = [
+  ROLE_CODES.RECEPTIONIST,
+  ROLE_CODES.MANAGER,
+  ROLE_CODES.HOUSEKEEPING,
+  ROLE_CODES.ACCOUNTANT,
+];
 
 /**
  * Validation schema for POST /api/v1/users
@@ -160,8 +166,8 @@ const getUsersQueryValidator = [
   query('role')
     .optional()
     .toUpperCase()
-    .isIn(VALID_ROLES)
-    .withMessage(`Role filter must be one of: ${VALID_ROLES.join(', ')}.`),
+    .isIn(STAFF_LIST_ROLES)
+    .withMessage(`Role filter must be one of: ${STAFF_LIST_ROLES.join(', ')}.`),
 
   query('is_active')
     .optional()
