@@ -464,17 +464,11 @@ const getHotelRevenueByPaymentMethod = async (hotelId, from, to, client = db) =>
  * @returns {Promise<Object>}
  */
 const getHotelTodayPulse = async (hotelId, todayFrom, todayTo, client = db) => {
-  const [checkedIn, expectedOut, checkedOut, inHouse] = await Promise.all([
+  const [checkedIn, checkedOut, inHouse] = await Promise.all([
     client('bookings')
       .where({ hotel_id: hotelId })
       .whereNull('deleted_at')
       .modify((qb) => whereBetweenDates(qb, 'actual_check_in', todayFrom, todayTo))
-      .count('id as total')
-      .first(),
-    client('bookings')
-      .where({ hotel_id: hotelId, booking_status: 'CHECKED_IN' })
-      .whereNull('deleted_at')
-      .modify((qb) => whereBetweenDates(qb, 'check_out_date', todayFrom, todayTo))
       .count('id as total')
       .first(),
     client('bookings')
@@ -492,7 +486,6 @@ const getHotelTodayPulse = async (hotelId, todayFrom, todayTo, client = db) => {
 
   return {
     actual_checked_in_today: asCount(checkedIn?.total),
-    expected_check_outs_today: asCount(expectedOut?.total),
     actual_checked_out_today: asCount(checkedOut?.total),
     current_in_house_guests: asCount(inHouse?.total),
   };

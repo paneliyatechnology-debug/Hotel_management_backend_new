@@ -2283,7 +2283,7 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 | \`kpis.total_outstanding_due\` | Sum of \`due_amount\` on open bookings. |
 | \`kpis.occupancy_rate_percentage\` | Current OCCUPIED rooms / total rooms. |
 | \`kpis.active_staff_count\` | Active staff of this hotel. \`HOTEL_ADMIN\` and \`SUPER_ADMIN\` are not counted. |
-| \`today_pulse\` | Checked in today, expected check-outs today, checked out today, in-house guests. |
+| \`today_pulse\` | Checked in today, checked out today, and in-house guests. |
 | \`room_status_summary\` | Counts for every room status. |
 | \`revenue_by_payment_method\` | Collections in \`date_range\` by method. |
 | \`room_status_graph\` | HOTEL_ADMIN only. \`total_rooms\` and \`statuses[]\`, one entry per room status with \`status\`, \`count\` and \`percentage\` (share of the hotel's rooms, 2 decimals). |
