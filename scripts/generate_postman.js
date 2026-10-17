@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Builds a Postman Collection v2.1 file the frontend team can import directly.
  * Every request key is listed in the body or query, and explained in the request description.
  *
@@ -101,7 +101,7 @@ Success with the record id (create, update and delete APIs):
 { "success": true, "message": "Human readable message", "data": { "id": 12 } }
 \`\`\`
 
-Error:
+Error. \`errors\` is included only when a field failed:
 \`\`\`json
 { "success": false, "message": "First error", "errors": [{ "field": "email", "message": "Why this field failed" }] }
 \`\`\`
@@ -1586,7 +1586,7 @@ ${idNote('Use **Get booking** to read the updated booking.')}`,
       description: `### POST /api/v1/bookings/:id/check-out
 Sets \`booking_status\` to \`CHECKED_OUT\`, sets \`actual_check_out\`, and marks every room in \`room_id\` as \`CLEANING\`. After 20 minutes each room becomes \`AVAILABLE\` again on its own. You can still change the room status at any time with **Update room status**.
 
-\`paid_amount\` is added to what was already paid. Checkout is not rejected when a balance remains. Extra charges and the late fee are added before the discount and GST, and any amount still unpaid is stored as \`due_amount\`. When nothing is collected now, send \`{}\` or \`paid_amount: 0\`. Any amount collected here is added to the payment history.
+\`paid_amount\` is added to what was already paid. Extra charges and the late fee are added before the discount and GST. After that payment, \`due_amount\` must be 0. A remaining balance returns 400 with \`Due amount of <amount> must be paid before checkout.\` and no \`errors\` array. The booking is left unchanged. Send a \`paid_amount\` large enough to clear the full balance, including any extra charges and late fee in this request. When the bill is already fully paid, send \`{}\` or \`paid_amount: 0\`. Any amount collected here is added to the payment history.
 
 Scheduled \`check_in_date\`, \`check_out_date\`, and \`number_of_nights\` stay as booked.
 
@@ -1600,7 +1600,7 @@ A second checkout, when \`actual_check_out\` is already set, returns 400.
 **Body keys** — all optional. Send \`{}\` for a checkout with no extra payment.
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| \`paid_amount\` | number | No | Collected now. Added to the existing \`paid_amount\`. It does not replace it. A smaller amount leaves the rest in \`due_amount\`. |
+| \`paid_amount\` | number | No | Collected now. Added to the existing \`paid_amount\`. It does not replace it. Together with what was already paid, this must cover the full bill after extra charges and the late fee. A shortfall returns 400 and checkout does not happen. |
 | \`payment_method\` | string | No | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. Default \`CASH\`. Saved with the payment. |
 | \`extra_charges_total\` | number | No | Extra charges for the whole stay (minibar, laundry, and so on). Included with the room charge before the discount and GST. This is the full total, not only the new amount: it replaces the stored \`extra_charges_total\`. Leave it out to keep the stored value. Updates total and due. 0 or more. |
 | \`late_checkout_charge\` | number | No | Late fee. Included before the discount and GST, and updates due. 0 or more. |

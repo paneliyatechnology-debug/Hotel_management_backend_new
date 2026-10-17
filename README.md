@@ -182,7 +182,7 @@ to read the saved record:
 
 Logout, reset-password and change-password return only `success` and `message`.
 
-Error (validation, `AppError` and database errors):
+Error (validation, `AppError` and database errors). `errors` is included only when a field failed:
 
 ```json
 {
@@ -419,7 +419,7 @@ due_amount     = total_amount - paid_amount
 
 - GST applies to the room charge, extra charges, and the late checkout fee after the discount.
 - `extra_charges_total`, `late_checkout_charge` and `late_checkout_hours` are accepted **only at check-out**.
-- Check-out requires the exact remaining due amount to be paid.
+- Check-out is rejected with 400 while any due remains after the payment collected in that request. The booking is not changed.
 - Each payment is stored in `booking_payments` and returned as `payment_history` on `GET /bookings/:id`.
 
 ---

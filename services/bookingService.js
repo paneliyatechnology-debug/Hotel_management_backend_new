@@ -292,8 +292,10 @@ const syncRoomForBookingStatus = async (booking, status, now = new Date(), onlyR
  */
 const assertNoDueForCheckout = (dueAmount) => {
   if (Number(dueAmount) > 0) {
-    const message = `Due amount of ${dueAmount} must be paid before checkout.`;
-    throw new AppError(message, HTTP_STATUS.BAD_REQUEST, [{ field: 'paid_amount', message }]);
+    throw new AppError(
+      `Due amount of ${dueAmount} must be paid before checkout.`,
+      HTTP_STATUS.BAD_REQUEST
+    );
   }
 };
 
@@ -928,8 +930,9 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
 /**
  * Check a guest out of a booking.
  * body.paid_amount is added to the amount already paid. It does not replace it.
- * A remaining due after extra charges, the late fee, the discount, and GST is saved on the booking. Checkout is not rejected for that balance.
- * Extra charges and the late fee are included before the discount and GST, so both are taxed. Scheduled dates and nights stay as booked.
+ * Extra charges and the late fee are included before the discount and GST, so both are taxed.
+ * Checkout is rejected when any due remains after that payment. Nothing is saved in that case.
+ * Scheduled dates and nights stay as booked.
  * The stay becomes CHECKED_OUT and every room on the booking is marked CLEANING.
  * @param {number|string} id
  * @param {Object} [body={}]
@@ -981,6 +984,9 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
   });
 
   const paymentMethod = resolvePaymentMethod(body.payment_method);
+
+  // Reject before any write. Extra charges and the late fee are already inside this due.
+  assertNoDueForCheckout(pricing.due_amount);
 
   const now = new Date();
   const updates = {

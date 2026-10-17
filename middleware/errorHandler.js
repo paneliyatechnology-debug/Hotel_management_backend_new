@@ -93,8 +93,8 @@ const errorHandler = async (err, req, res, _next) => {
   const body = {
     success: false,
     message,
-    errors,
   };
+  if (errors.length) body.errors = errors;
   if (err.forceLogout) body.force_logout = true;
   if (err.code) body.code = err.code;
 
