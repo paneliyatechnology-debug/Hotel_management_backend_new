@@ -2409,6 +2409,66 @@ There is no row cap. An \`end_date\` more than one year after \`start_date\` ret
   ],
 };
 
+const transactionFolder = {
+  name: '13 Transactions',
+  description: `${authNote('HOTEL_ADMIN, RECEPTIONIST, MANAGER, ACCOUNTANT, or SUPER_ADMIN.')}
+
+One list. Each row is a payment recorded on a booking (\`booking_payments\`). The hotel comes from the access token. A super admin must send \`hotel_id\`.
+
+\`start_date\` and \`end_date\` are optional calendar dates (\`YYYY-MM-DD\`) and filter \`created_at\`. Both ends are inclusive. Send one date, both, or neither. \`start_date\` after \`end_date\` returns 400.
+
+${envelope}`,
+  item: [
+    item({
+      name: 'List transactions',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/transactions?start_date=2026-10-01&end_date=2026-10-31&page=1&limit=10&sort_by=created_at&sort_order=desc',
+      pathSegments: ['api', 'v1', 'transactions'],
+      query: [
+        queryParam('start_date', '2026-10-01', 'Optional. YYYY-MM-DD. created_at on or after this day.'),
+        queryParam('end_date', '2026-10-31', 'Optional. YYYY-MM-DD. created_at on or before this day.'),
+        queryParam('page', '1', 'Optional. Page number, starting at 1. Default 1.'),
+        queryParam('limit', '10', 'Optional. Page size, 1 to 100. Default 10.'),
+        queryParam('sort_by', 'created_at', 'Optional. created_at, amount, payment_method, status, or id. Default created_at.'),
+        queryParam('sort_order', 'desc', 'Optional. asc or desc. Default desc.'),
+        queryParam('payment_method', 'CASH', 'Optional. CASH, ONLINE, CARD, UPI, or BANK_TRANSFER.', true),
+        queryParam('status', 'PAID', 'Optional. PAID, PARTIALLY_PAID, FAILED, or REFUNDED.', true),
+        queryParam('source', 'CHECKOUT', 'Optional. BOOKING, UPDATE, or CHECKOUT.', true),
+        queryParam('booking_id', '{{bookingId}}', 'Optional. Only payments for this booking.', true),
+        queryParam('search', 'BO/2026-27', 'Optional. Matches booking number, guest name, or mobile.', true),
+        queryParam('hotel_id', '{{targetHotelId}}', 'SUPER_ADMIN only and required for them. Ignored for hotel staff.', true),
+      ],
+      description: `### GET /api/v1/transactions
+${authNote('HOTEL_ADMIN, RECEPTIONIST, MANAGER, ACCOUNTANT, or SUPER_ADMIN (with hotel_id).')}
+
+Payments on soft-deleted bookings are omitted.
+
+**Response \`data\`**
+| Key | Meaning |
+| --- | --- |
+| \`transactions\` | One page of payments, in the requested order. |
+| \`total\` | Matching payments. |
+| \`page\` | Current page. |
+| \`limit\` | Page size. |
+| \`totalPages\` | Page count. Camel case, not \`total_pages\`. |
+
+**Transaction keys**
+| Key | Meaning |
+| --- | --- |
+| \`id\` | Payment id. |
+| \`hotel_id\` | Hotel. |
+| \`booking_id\`, \`booking_number\` | Booking this payment belongs to. |
+| \`primary_guest_name\`, \`mobile_number\` | Guest on that booking. |
+| \`amount\` | Collected amount. A negative amount is a correction. |
+| \`payment_method\` | How it was paid. |
+| \`status\` | \`PAID\`, \`PARTIALLY_PAID\`, \`FAILED\`, or \`REFUNDED\`. |
+| \`source\` | \`BOOKING\`, \`UPDATE\`, or \`CHECKOUT\`. |
+| \`received_by\` | \`id\` and \`name\` of the staff member, or null. |
+| \`created_at\` | When the payment was recorded. This is the date the filter uses. |`,
+    }),
+  ],
+};
+
 collection.item = [
   healthFolder,
   authFolder,
@@ -2422,6 +2482,7 @@ collection.item = [
   auditFolder,
   dashboardFolder,
   reportFolder,
+  transactionFolder,
 ];
 
 const outputPath = path.join(__dirname, '..', 'postman_collection.json');

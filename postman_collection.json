@@ -4052,6 +4052,105 @@
           }
         }
       ]
+    },
+    {
+      "name": "13 Transactions",
+      "description": "**Who can call this:** HOTEL_ADMIN, RECEPTIONIST, MANAGER, ACCOUNTANT, or SUPER_ADMIN.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nOne list. Each row is a payment recorded on a booking (`booking_payments`). The hotel comes from the access token. A super admin must send `hotel_id`.\n\n`start_date` and `end_date` are optional calendar dates (`YYYY-MM-DD`) and filter `created_at`. Both ends are inclusive. Send one date, both, or neither. `start_date` after `end_date` returns 400.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError. `errors` is included only when a field failed:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "item": [
+        {
+          "name": "List transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?start_date=2026-10-01&end_date=2026-10-31&page=1&limit=10&sort_by=created_at&sort_order=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2026-10-01",
+                  "description": "Optional. YYYY-MM-DD. created_at on or after this day."
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-10-31",
+                  "description": "Optional. YYYY-MM-DD. created_at on or before this day."
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Optional. Page number, starting at 1. Default 1."
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Optional. Page size, 1 to 100. Default 10."
+                },
+                {
+                  "key": "sort_by",
+                  "value": "created_at",
+                  "description": "Optional. created_at, amount, payment_method, status, or id. Default created_at."
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Optional. asc or desc. Default desc."
+                },
+                {
+                  "key": "payment_method",
+                  "value": "CASH",
+                  "description": "Optional. CASH, ONLINE, CARD, UPI, or BANK_TRANSFER.",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "PAID",
+                  "description": "Optional. PAID, PARTIALLY_PAID, FAILED, or REFUNDED.",
+                  "disabled": true
+                },
+                {
+                  "key": "source",
+                  "value": "CHECKOUT",
+                  "description": "Optional. BOOKING, UPDATE, or CHECKOUT.",
+                  "disabled": true
+                },
+                {
+                  "key": "booking_id",
+                  "value": "{{bookingId}}",
+                  "description": "Optional. Only payments for this booking.",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "BO/2026-27",
+                  "description": "Optional. Matches booking number, guest name, or mobile.",
+                  "disabled": true
+                },
+                {
+                  "key": "hotel_id",
+                  "value": "{{targetHotelId}}",
+                  "description": "SUPER_ADMIN only and required for them. Ignored for hotel staff.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "### GET /api/v1/transactions\n**Who can call this:** HOTEL_ADMIN, RECEPTIONIST, MANAGER, ACCOUNTANT, or SUPER_ADMIN (with hotel_id).\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nPayments on soft-deleted bookings are omitted.\n\n**Response `data`**\n| Key | Meaning |\n| --- | --- |\n| `transactions` | One page of payments, in the requested order. |\n| `total` | Matching payments. |\n| `page` | Current page. |\n| `limit` | Page size. |\n| `totalPages` | Page count. Camel case, not `total_pages`. |\n\n**Transaction keys**\n| Key | Meaning |\n| --- | --- |\n| `id` | Payment id. |\n| `hotel_id` | Hotel. |\n| `booking_id`, `booking_number` | Booking this payment belongs to. |\n| `primary_guest_name`, `mobile_number` | Guest on that booking. |\n| `amount` | Collected amount. A negative amount is a correction. |\n| `payment_method` | How it was paid. |\n| `status` | `PAID`, `PARTIALLY_PAID`, `FAILED`, or `REFUNDED`. |\n| `source` | `BOOKING`, `UPDATE`, or `CHECKOUT`. |\n| `received_by` | `id` and `name` of the staff member, or null. |\n| `created_at` | When the payment was recorded. This is the date the filter uses. |"
+          }
+        }
+      ]
     }
   ]
 }

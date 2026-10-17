@@ -319,6 +319,12 @@ Payment methods: `CASH`, `ONLINE`, `CARD`, `UPI`, `BANK_TRANSFER`.
 | `GET` / `PUT` / `DELETE` | `/users/:id` | Details / update / soft delete (not yourself) |
 | `PATCH` | `/users/:id/account-status` | Enable or disable an account |
 
+### Transactions (`HOTEL_ADMIN`, `RECEPTIONIST`, `MANAGER`, `ACCOUNTANT`, `SUPER_ADMIN`)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/transactions` | Payment list for the token hotel. Optional `start_date` and `end_date` (`YYYY-MM-DD`) filter `created_at`, inclusive. Also `payment_method`, `status`, `source`, `booking_id`, `search`, `page`, `limit`, `sort_by`, `sort_order`. A super admin must send `hotel_id`. |
+
 ### Audit logs (`HOTEL_ADMIN`, `SUPER_ADMIN`)
 
 | Method | Endpoint | Description |

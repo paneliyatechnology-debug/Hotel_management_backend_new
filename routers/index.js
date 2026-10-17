@@ -13,6 +13,7 @@ const userRouter = require('./userRouter');
 const auditLogRouter = require('./auditLogRouter');
 const dashboardRouter = require('./dashboardRouter');
 const reportRouter = require('./reportRouter');
+const transactionRouter = require('./transactionRouter');
 
 const router = express.Router();
 
@@ -34,5 +35,6 @@ router.use('/user', userRouter);
 router.use('/audit-logs', auditLogRouter);
 router.use('/dashboard', dashboardRouter);
 router.use('/reports', reportRouter);
+router.use('/transactions', transactionRouter);
 
 module.exports = router;

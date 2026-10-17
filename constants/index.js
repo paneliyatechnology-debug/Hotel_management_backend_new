@@ -74,6 +74,7 @@ const MESSAGES = {
   DASHBOARD_RETRIEVED_SUCCESS: 'Dashboard retrieved successfully.',
   GST_REPORT_RETRIEVED_SUCCESS: 'GST report retrieved successfully.',
   GST_REPORT_EXPORT_SUCCESS: 'GST report exported successfully.',
+  TRANSACTIONS_RETRIEVED_SUCCESS: 'Transactions retrieved successfully.',
 };
 
 // ==========================================
@@ -132,6 +133,7 @@ const NON_BLOCKING_BOOKING_STATUSES = ['CHECKED_OUT', 'CANCELLED', 'NO_SHOW'];
 
 const PAYMENT_METHODS = ['CASH', 'ONLINE', 'CARD', 'UPI', 'BANK_TRANSFER'];
 const PAYMENT_STATUSES = ['PAID', 'PARTIALLY_PAID', 'FAILED', 'REFUNDED'];
+const PAYMENT_SOURCES = ['BOOKING', 'UPDATE', 'CHECKOUT'];
 
 // A room stays CLEANING this long after checkout, then becomes AVAILABLE again.
 const CLEANING_DURATION_MINUTES = 20;
@@ -193,6 +195,7 @@ module.exports = {
   NON_BLOCKING_BOOKING_STATUSES,
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
+  PAYMENT_SOURCES,
   CLEANING_DURATION_MINUTES,
   AUDIT_ACTIONS,
   AUDIT_ENTITIES,
