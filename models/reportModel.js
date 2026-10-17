@@ -21,7 +21,6 @@ const MONEY_FIELDS = [
   'sgst_amount',
   'igst_amount',
   'gst_total',
-  'line_total',
   'refunded_amount',
   'credit_taxable_value',
   'credit_cgst_amount',
@@ -155,7 +154,6 @@ const LINE_SQL = `
     COALESCE(b.sgst_amount, 0) AS sgst_amount,
     CAST(0 AS DECIMAL(12, 2)) AS igst_amount,
     COALESCE(b.gst_amount, 0) AS gst_total,
-    ROUND(COALESCE(b.taxable_amount, 0) + COALESCE(b.cgst_amount, 0) + COALESCE(b.sgst_amount, 0), 2) AS line_total,
     COALESCE(b.total_amount, 0) AS invoice_total,
     GREATEST(COALESCE((SELECT COUNT(*) FROM booking_rooms br WHERE br.booking_id = b.id), 0), 1) AS room_count,
     COALESCE((

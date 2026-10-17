@@ -347,7 +347,7 @@ How the report is built from the existing data (there is no invoice table):
   not split an untaxed extras line. Tax is never recalculated, so a later rate change does not change an old report.
 - A `CANCELLED` or `NO_SHOW` booking is reversed by a credit note for its taxable value. Net taxable value is the taxable
   value minus that credit note. Refunds (payments with status `REFUNDED`) are shown for information and do not change tax.
-- Guest GSTIN, SAC, cess and credit-note GST are not columns. IGST is not stored, so it is `0`. Every supply is treated as intra-state.
+- Guest GSTIN, SAC, cess, line total and credit-note GST are not columns. IGST is not stored, so it is `0`. Every supply is treated as intra-state.
 
 ---
 

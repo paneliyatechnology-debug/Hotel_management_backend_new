@@ -2310,7 +2310,7 @@ How the data is derived (there is no invoice table):
 - Room rent, extra charges and the late check-out charge are inside the taxable value and the GST saved on the booking. The report does not add a separate untaxed extras line.
 - Tax is not recalculated. The rate and amounts saved on each booking are used, so a later rate change does not alter an old report.
 - A cancelled or no-show booking (\`invoice_status\` \`CANCELLED\`) is reversed by a credit note for its taxable value. \`net_taxable_value\` is the taxable value minus that credit note. Refunds are shown for information and do not change tax.
-- IGST is not stored, so it is \`0\`. Guest GSTIN, SAC, cess, booking id, credit-note GST and credit-note taxable value are not columns. Restaurant, banquet and laundry services are not in the database.
+- IGST is not stored, so it is \`0\`. Guest GSTIN, SAC, cess, booking id, line total, credit-note GST and credit-note taxable value are not columns. Restaurant, banquet and laundry services are not in the database.
 - \`end_date\` can be at most one year after \`start_date\`. A longer range returns 400. There is no row cap on the export.
 
 ${envelope}`,
@@ -2352,7 +2352,7 @@ ${authNote('HOTEL_ADMIN, ACCOUNTANT, or SUPER_ADMIN (with hotel_id).')}
 | \`gross_amount\`, \`discount_amount\`, \`taxable_amount\` | Room rent plus extra charges plus the late fee, the discount, and the value GST is charged on. |
 | \`gst_rate\` | Rate saved on the booking. |
 | \`cgst_amount\`, \`sgst_amount\`, \`igst_amount\`, \`gst_total\` | Tax of this invoice. IGST is 0. |
-| \`line_total\`, \`invoice_total\` | Taxable value plus CGST and SGST, and the stored total of the invoice. |
+| \`invoice_total\` | Stored total of the invoice. |
 | \`invoice_status\`, \`booking_status\` | \`FINAL\`, \`PROVISIONAL\` or \`CANCELLED\`, and the stay status. |
 | \`refunded_amount\` | Money refunded on the booking. Information only. |
 | \`credit_note\` | \`cgst_amount\`, \`sgst_amount\` and \`igst_amount\` reversed for a cancelled invoice. Zero otherwise. |
