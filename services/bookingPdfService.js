@@ -207,7 +207,7 @@ const buildPaymentRows = (payments) => {
   if (!payments.length) return '<tr><td class="empty" colspan="5">No payments recorded.</td></tr>';
   return [...payments].reverse().map((payment) => {
     const amount = Number(payment.amount || 0);
-    const amountText = amount < 0 ? `−₹${money(Math.abs(amount))}` : `₹${money(amount)}`;
+    const amountText = amount < 0 ? `−${money(Math.abs(amount))}` : money(amount);
     const method = METHOD_LABELS[payment.payment_method] || humanize(payment.payment_method);
     const source = SOURCE_LABELS[payment.source] || '';
     return `
