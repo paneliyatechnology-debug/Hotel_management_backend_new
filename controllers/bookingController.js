@@ -5,6 +5,8 @@
  */
 const bookingService = require('../services/bookingService');
 const bookingPdfService = require('../services/bookingPdfService');
+const whatsappService = require('../services/whatsappService');
+const { queueWhatsApp } = require('../queues/whatsappQueue');
 const { success } = require('../utils/response');
 const { HTTP_STATUS, MESSAGES } = require('../constants');
 
@@ -15,6 +17,15 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
 const createBooking = async (req, res, next) => {
   try {
     const data = await bookingService.createBooking(req.body, req.files, req.user);
+    // The booking is already saved. A WhatsApp failure must not change this response.
+    try {
+      const confirmation = await whatsappService.buildBookingConfirmation(data.id, req.user);
+      if (confirmation) await queueWhatsApp(confirmation);
+    } catch (whatsappErr) {
+      console.error(
+        `[WhatsApp] Booking ${data.id} was saved, but the confirmation was not queued: ${whatsappErr.message}`
+      );
+    }
     return success(res, MESSAGES.BOOKING_CREATED_SUCCESS, data, HTTP_STATUS.CREATED);
   } catch (err) {
     next(err);

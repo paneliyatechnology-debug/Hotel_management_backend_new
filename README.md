@@ -10,6 +10,7 @@ live room status updates.
 - **Real time:** Socket.IO (`room:status` and `room:status_breakdown` events)
 - **Storage:** S3-compatible object storage for images (AWS S3, Cloudflare R2, MinIO)
 - **Email:** Brevo transactional API, BullMQ queue with in-memory fallback
+- **WhatsApp:** Cloud API booking confirmation, separate BullMQ queue with in-memory retry
 - **PDF:** Puppeteer renders the booking folio
 
 ---
@@ -89,6 +90,11 @@ All variables are documented inline in [`.env.example`](.env.example). Summary:
 | `ADMIN_URL`, `WEB_URL` | No | - | Extra CORS origins only (for example the super admin console). Not used in email links |
 | `ALLOWED_ORIGINS` | No | - | Extra CORS origins, comma separated |
 | `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `FROM_NAME` | No | - | Email delivery. Without a key, emails are only logged. The sender must be on your own authenticated domain. |
+| `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | No | - | WhatsApp Cloud API sender. Without either value, booking confirmations are only logged. |
+| `WHATSAPP_BOOKING_TEMPLATE_NAME`, `WHATSAPP_TEMPLATE_LANGUAGE` | No | `booking_confirmation`, `en` | Approved template. Body variables, in order: guest name, hotel name, booking number, room details, check-in, check-out, total. |
+| `WHATSAPP_ENABLED` | No | on when credentials exist | Set `false` to skip confirmation entirely. |
+| `WHATSAPP_DEFAULT_COUNTRY_CODE` | No | `91` | Prefixed onto a 10-digit guest mobile. |
+| `WHATSAPP_GRAPH_API_VERSION` | No | `v22.0` | Graph API version used for `/{phone-number-id}/messages`. |
 | `REPLY_TO_EMAIL` | No | `SUPPORT_EMAIL` | Reply-To address on every email |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | No | `127.0.0.1`, `6379` | BullMQ email queue |
 | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` | For uploads | - | Image storage |
@@ -127,7 +133,7 @@ Notes:
 ├── models/                   # Knex queries and row formatting
 ├── middleware/               # auth, validators, multer upload, global error handler
 ├── sockets/                  # Socket.IO server and room status publisher
-├── queues/  workers/         # Email queue (BullMQ + in-memory fallback) and worker
+├── queues/  workers/         # Email and WhatsApp queues (BullMQ + in-memory retry) and workers
 ├── templates/                # Email templates and the booking folio HTML
 ├── utils/                    # jwt, response/AppError, hotelScope, requestMeta, json, files, password, emailValidator
 ├── database/
@@ -420,6 +426,7 @@ due_amount     = total_amount - paid_amount
 - GST applies to the room charge, extra charges, and the late checkout fee after the discount.
 - `extra_charges_total`, `late_checkout_charge` and `late_checkout_hours` are accepted **only at check-out**.
 - Check-out is rejected with 400 while any due remains after the payment collected in that request. The error `due_amount` is the balance left after extra charges, the late fee, the discount, and GST, minus what was already paid. The booking is not changed. Sending that amount completes checkout.
+- After a booking is created, a WhatsApp template is queued to the guest mobile. The sender is the phone number in `WHATSAPP_PHONE_NUMBER_ID`. The hotel name and the other details come from that booking's `hotel_id`. A failed or skipped message does not change the `201` response. Retries run up to three times for network errors and rate limits. An invalid template or number is logged and not retried.
 - Each payment is stored in `booking_payments` and returned as `payment_history` on `GET /bookings/:id`.
 
 ---
@@ -517,5 +524,6 @@ Code style: 2-space indentation, single quotes, semicolons, `const` over `let`, 
 | Emails are not delivered | Set `BREVO_API_KEY` and a verified `BREVO_SENDER_EMAIL`. Without a key emails are only logged |
 | Emails go to spam or arrive late | Do not use a gmail/yahoo/outlook address as `BREVO_SENDER_EMAIL`. Use an address on your own domain and add the SPF, DKIM and DMARC records Brevo shows under Senders, Domains & Dedicated IPs. The server logs a warning at the first send when the sender is a free-mail address |
 | Redis connection warnings | Redis is optional. The in-memory queue is used when it is offline |
+| WhatsApp confirmation is not delivered | Set `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`, and approve a template whose seven body variables match `.env.example`. A 10-digit mobile is prefixed with `WHATSAPP_DEFAULT_COUNTRY_CODE`. The booking is still created when the send fails. |
 | Image upload fails | Check the `S3_*` variables and bucket permissions. Files must be images up to 10 MB each |
 | PDF generation fails on a server | Install Chromium system libraries required by Puppeteer |

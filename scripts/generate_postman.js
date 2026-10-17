@@ -1350,6 +1350,8 @@ Do not send \`hotel_id\`, \`created_by\`, \`actual_check_in\`, \`booking_number\
 
 The room must be free for the scheduled dates. A stay still blocks those dates while \`booking_status\` is \`PENDING\`, \`CONFIRMED\`, or \`CHECKED_IN\` and \`actual_check_out\` is empty. Overlap returns 400.
 
+After the booking is saved, the server queues a WhatsApp template to \`mobile_number\` using the configured sender. The message includes the hotel name, booking number, guest name, rooms, check-in, check-out, and total amount. A missing number, a disabled sender, or a WhatsApp error does not change this 201 response.
+
 **Body keys** are described on each form row.
 
 ${idNote('Use **List bookings** to find the new booking and **Get booking** to read it.')}`,
