@@ -419,7 +419,7 @@ due_amount     = total_amount - paid_amount
 
 - GST applies to the room charge, extra charges, and the late checkout fee after the discount.
 - `extra_charges_total`, `late_checkout_charge` and `late_checkout_hours` are accepted **only at check-out**.
-- Check-out is rejected with 400 while any due remains after the payment collected in that request. The booking is not changed.
+- Check-out is rejected with 400 while any due remains after the payment collected in that request. The error `due_amount` is the balance left after extra charges, the late fee, the discount, and GST, minus what was already paid. The booking is not changed. Sending that amount completes checkout.
 - Each payment is stored in `booking_payments` and returned as `payment_history` on `GET /bookings/:id`.
 
 ---

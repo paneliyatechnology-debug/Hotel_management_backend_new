@@ -97,6 +97,7 @@ const errorHandler = async (err, req, res, _next) => {
   if (errors.length) body.errors = errors;
   if (err.forceLogout) body.force_logout = true;
   if (err.code) body.code = err.code;
+  if (err.dueAmount !== undefined && err.dueAmount !== null) body.due_amount = err.dueAmount;
 
   return res.status(statusCode).json(body);
 };

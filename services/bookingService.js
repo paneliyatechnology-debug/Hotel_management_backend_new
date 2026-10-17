@@ -288,15 +288,16 @@ const syncRoomForBookingStatus = async (booking, status, now = new Date(), onlyR
 
 /**
  * A guest cannot be checked out while any amount is still due.
- * @param {number} dueAmount - Full balance that must be collected, not the shortfall after this request
+ * The amount is the balance left after the full bill, which this request must collect.
+ * @param {number} dueAmount
  */
 const assertNoDueForCheckout = (dueAmount) => {
   const due = Math.round(Number(dueAmount) * 100) / 100;
   if (due > 0) {
-    throw new AppError(
-      `Checkout cannot be completed. Please collect the total due amount of ${due.toFixed(2)} in full.`,
-      HTTP_STATUS.BAD_REQUEST
-    );
+    const message = `Checkout cannot be completed. Please collect the total due amount of ${due.toFixed(2)} in full.`;
+    throw new AppError(message, HTTP_STATUS.BAD_REQUEST, [
+      { field: 'due_amount', message: due.toFixed(2) },
+    ], { dueAmount: due });
   }
 };
 
@@ -986,8 +987,15 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
 
   const paymentMethod = resolvePaymentMethod(body.payment_method);
 
-  // The message shows the full balance for this checkout, including the amount just sent.
-  assertNoDueForCheckout(pricing.due_amount + collectedNow);
+  // Due left after extras, the late fee, the discount, and GST, minus what was already paid.
+  // This payment is not saved unless it clears that balance, so the error is the amount still due.
+  const dueBeforePayment = Math.max(
+    0,
+    Math.round((pricing.total_amount - Number(existing.paid_amount)) * 100) / 100
+  );
+  if (pricing.due_amount > 0) {
+    assertNoDueForCheckout(dueBeforePayment);
+  }
 
   const now = new Date();
   const updates = {

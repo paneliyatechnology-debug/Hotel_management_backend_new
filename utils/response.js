@@ -20,6 +20,7 @@ class AppError extends Error {
    * @param {Object} [options={}]
    * @param {boolean} [options.forceLogout=false] - Tell the frontend to clear the session and log out
    * @param {string|null} [options.code=null] - Stable machine-readable error code
+   * @param {number|null} [options.dueAmount=null] - Remaining due, returned as due_amount
    */
   constructor(message, statusCode = HTTP_STATUS.INTERNAL_SERVER_ERROR, errors = [], options = {}) {
     super(message);
@@ -28,6 +29,7 @@ class AppError extends Error {
     this.isOperational = true;
     this.forceLogout = Boolean(options.forceLogout);
     this.code = options.code || null;
+    this.dueAmount = options.dueAmount === undefined || options.dueAmount === null ? null : options.dueAmount;
   }
 }
 
