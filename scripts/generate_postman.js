@@ -1586,7 +1586,7 @@ ${idNote('Use **Get booking** to read the updated booking.')}`,
       description: `### POST /api/v1/bookings/:id/check-out
 Sets \`booking_status\` to \`CHECKED_OUT\`, sets \`actual_check_out\`, and marks every room in \`room_id\` as \`CLEANING\`. After 20 minutes each room becomes \`AVAILABLE\` again on its own. You can still change the room status at any time with **Update room status**.
 
-\`paid_amount\` is added to what was already paid. Extra charges and the late fee are added before the discount and GST. After that payment, \`due_amount\` must be 0. A remaining balance returns 400 with \`Due amount of <amount> must be paid before checkout.\` and no \`errors\` array. The booking is left unchanged. Send a \`paid_amount\` large enough to clear the full balance, including any extra charges and late fee in this request. When the bill is already fully paid, send \`{}\` or \`paid_amount: 0\`. Any amount collected here is added to the payment history.
+\`paid_amount\` is added to what was already paid. Extra charges and the late fee are added before the discount and GST. After that payment, \`due_amount\` must be 0. A remaining balance returns 400 with \`Checkout cannot be completed. Please collect the total due amount of <amount> in full.\` and no \`errors\` array. \`<amount>\` is the full balance for this checkout, including the \`paid_amount\` just sent. The booking is left unchanged. Send a \`paid_amount\` large enough to clear the full balance, including any extra charges and late fee in this request. When the bill is already fully paid, send \`{}\` or \`paid_amount: 0\`. Any amount collected here is added to the payment history.
 
 Scheduled \`check_in_date\`, \`check_out_date\`, and \`number_of_nights\` stay as booked.
 

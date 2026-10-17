@@ -288,12 +288,13 @@ const syncRoomForBookingStatus = async (booking, status, now = new Date(), onlyR
 
 /**
  * A guest cannot be checked out while any amount is still due.
- * @param {number} dueAmount
+ * @param {number} dueAmount - Full balance that must be collected, not the shortfall after this request
  */
 const assertNoDueForCheckout = (dueAmount) => {
-  if (Number(dueAmount) > 0) {
+  const due = Math.round(Number(dueAmount) * 100) / 100;
+  if (due > 0) {
     throw new AppError(
-      `Due amount of ${dueAmount} must be paid before checkout.`,
+      `Checkout cannot be completed. Please collect the total due amount of ${due.toFixed(2)} in full.`,
       HTTP_STATUS.BAD_REQUEST
     );
   }
@@ -985,8 +986,8 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
 
   const paymentMethod = resolvePaymentMethod(body.payment_method);
 
-  // Reject before any write. Extra charges and the late fee are already inside this due.
-  assertNoDueForCheckout(pricing.due_amount);
+  // The message shows the full balance for this checkout, including the amount just sent.
+  assertNoDueForCheckout(pricing.due_amount + collectedNow);
 
   const now = new Date();
   const updates = {
