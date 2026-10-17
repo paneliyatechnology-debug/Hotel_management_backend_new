@@ -32,6 +32,7 @@ const formatRoom = (row, images = []) => {
         ? Number(row.custom_price_per_night)
         : null,
     notes: row.notes || '',
+    key_code: row.key_code || null,
     amenities: parseJson(row.amenities, []),
     cleaning_started_at: row.cleaning_started_at || null,
     cleaning_duration_minutes: Number(row.cleaning_duration_minutes ?? 15),
@@ -342,6 +343,7 @@ const createRoom = async (roomData, imageRecords = [], trx) => {
           ? Number(roomData.custom_price_per_night)
           : null,
       notes: roomData.notes || '',
+      key_code: roomData.key_code ? String(roomData.key_code).trim() : null,
       amenities: JSON.stringify(roomData.amenities || []),
       cleaning_started_at: roomData.cleaning_started_at || null,
       cleaning_duration_minutes:
@@ -408,6 +410,9 @@ const updateRoom = async (id, updates, newImageRecords = [], trx) => {
         updates.custom_price_per_night !== null ? Number(updates.custom_price_per_night) : null;
     }
     if (updates.notes !== undefined) updateFields.notes = String(updates.notes).trim();
+    if (updates.key_code !== undefined) {
+      updateFields.key_code = updates.key_code ? String(updates.key_code).trim() : null;
+    }
     if (updates.amenities !== undefined) {
       updateFields.amenities = JSON.stringify(updates.amenities || []);
     }

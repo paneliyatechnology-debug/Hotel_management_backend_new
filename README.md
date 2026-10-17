@@ -287,6 +287,8 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 
 Room statuses: `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, `BLOCKED`.
 
+`key_code` is optional on create and update (max 50 characters). Room list and room detail return it, or `null` when it was not set. An empty value clears it.
+
 ### Bookings (`HOTEL_ADMIN`, `RECEPTIONIST`)
 
 | Method | Endpoint | Description |

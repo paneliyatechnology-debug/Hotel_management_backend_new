@@ -64,6 +64,12 @@ const createRoomValidator = [
     .isString()
     .withMessage('Notes must be a string.'),
 
+  body('key_code')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Key code must not exceed 50 characters.'),
+
   body('cleaning_duration_minutes')
     .optional()
     .isInt({ min: 1 })
@@ -138,6 +144,12 @@ const updateRoomValidator = [
     .optional()
     .isString()
     .withMessage('Notes must be a string.'),
+
+  body('key_code')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Key code must not exceed 50 characters.'),
 
   body('cleaning_duration_minutes')
     .optional()

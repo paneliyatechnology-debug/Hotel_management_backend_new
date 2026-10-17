@@ -1571,6 +1571,13 @@
                   "description": "Optional. Internal note."
                 },
                 {
+                  "key": "key_code",
+                  "value": "4521",
+                  "type": "text",
+                  "description": "Optional. Door or lock code. Max 50 characters. Leave empty when the room has no code.",
+                  "disabled": true
+                },
+                {
                   "key": "amenities",
                   "value": "[\"Wi-Fi\",\"AC\",\"TV\"]",
                   "type": "text",
@@ -1748,7 +1755,7 @@
                 }
               ]
             },
-            "description": "### GET /api/v1/rooms/:id\nAnother hotel's room returns 403.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\n**Response `data`:** one room object.\n\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Room id. |\n| `hotel_id` | number | Hotel from the token. |\n| `hotel_name` | string or null | Hotel name when joined. |\n| `room_number` | string | Room number. |\n| `room_type_id` | number | Category id. |\n| `room_type_name` | string or null | Category name. |\n| `floor` | number | Floor. |\n| `status` | string | One of the six room statuses. |\n| `seating_capacity` | number | Guest capacity. |\n| `bed_count` | number | Beds. |\n| `bed_type` | string | Bed description. |\n| `custom_price_per_night` | number or null | Custom nightly rate. |\n| `notes` | string | Internal note. |\n| `amenities` | string array | Parsed amenity list. |\n| `cleaning_started_at` | string or null | Cleaning start. |\n| `cleaning_duration_minutes` | number | Expected cleaning minutes. |\n| `is_active` | boolean | Whether the room is active. |\n| `images` | string array | Full image URLs. |\n| `deleted_at` | null | Null until deleted. |\n| `created_at`, `updated_at` | string | Timestamps. |"
+            "description": "### GET /api/v1/rooms/:id\nAnother hotel's room returns 403.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Room id. |\n\n**Response `data`:** one room object.\n\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Room id. |\n| `hotel_id` | number | Hotel from the token. |\n| `hotel_name` | string or null | Hotel name when joined. |\n| `room_number` | string | Room number. |\n| `room_type_id` | number | Category id. |\n| `room_type_name` | string or null | Category name. |\n| `floor` | number | Floor. |\n| `status` | string | One of the six room statuses. |\n| `seating_capacity` | number | Guest capacity. |\n| `bed_count` | number | Beds. |\n| `bed_type` | string | Bed description. |\n| `custom_price_per_night` | number or null | Custom nightly rate. |\n| `notes` | string | Internal note. |\n| `key_code` | string or null | Door or lock code. Null when not set. |\n| `amenities` | string array | Parsed amenity list. |\n| `cleaning_started_at` | string or null | Cleaning start. |\n| `cleaning_duration_minutes` | number | Expected cleaning minutes. |\n| `is_active` | boolean | Whether the room is active. |\n| `images` | string array | Full image URLs. |\n| `deleted_at` | null | Null until deleted. |\n| `created_at`, `updated_at` | string | Timestamps. |"
           }
         },
         {
@@ -1826,6 +1833,13 @@
                   "value": "Under maintenance until Friday",
                   "type": "text",
                   "description": "Optional. Replaces the note.",
+                  "disabled": true
+                },
+                {
+                  "key": "key_code",
+                  "value": "4521",
+                  "type": "text",
+                  "description": "Optional. Door or lock code, max 50 characters. Send an empty value to clear it.",
                   "disabled": true
                 },
                 {

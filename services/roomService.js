@@ -137,6 +137,7 @@ const createRoom = async (body, files = [], reqUser = null) => {
           ? Number(body.custom_price_per_night)
           : null,
       notes: body.notes ? String(body.notes).trim() : '',
+      key_code: body.key_code ? String(body.key_code).trim() : null,
       amenities,
       cleaning_started_at: body.cleaning_started_at ? new Date(body.cleaning_started_at) : null,
       cleaning_duration_minutes:
@@ -320,6 +321,9 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
         : null;
   }
   if (body.notes !== undefined) updates.notes = String(body.notes).trim();
+  if (body.key_code !== undefined) {
+    updates.key_code = body.key_code ? String(body.key_code).trim() : null;
+  }
   if (body.amenities !== undefined) {
     if (Array.isArray(body.amenities)) {
       updates.amenities = body.amenities;

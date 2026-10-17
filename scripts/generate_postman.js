@@ -1090,6 +1090,7 @@ ${envelope}`,
           textField('bed_type', '1 King Bed', 'Optional. Free text, max 100 characters. Default "1 King Bed".'),
           textField('custom_price_per_night', '3500', 'Optional. Number, 0 or more. Nightly rate for this room. Empty means no custom price.'),
           textField('notes', 'Corner room', 'Optional. Internal note.'),
+          textField('key_code', '4521', 'Optional. Door or lock code. Max 50 characters. Leave empty when the room has no code.', true),
           textField('amenities', '["Wi-Fi","AC","TV"]', 'Optional. JSON array, or a comma-separated string such as Wi-Fi, AC, TV.'),
           textField('cleaning_started_at', '', 'Optional. ISO datetime when housekeeping started. Leave empty unless status is CLEANING.', true),
           textField('cleaning_duration_minutes', '15', 'Optional. Positive integer. Default 15. How long cleaning is expected to take.'),
@@ -1183,6 +1184,7 @@ Another hotel's room returns 403.
 | \`bed_type\` | string | Bed description. |
 | \`custom_price_per_night\` | number or null | Custom nightly rate. |
 | \`notes\` | string | Internal note. |
+| \`key_code\` | string or null | Door or lock code. Null when not set. |
 | \`amenities\` | string array | Parsed amenity list. |
 | \`cleaning_started_at\` | string or null | Cleaning start. |
 | \`cleaning_duration_minutes\` | number | Expected cleaning minutes. |
@@ -1210,6 +1212,7 @@ Another hotel's room returns 403.
           textField('bed_type', '2 Twin Beds', 'Optional. Max 100 characters.', true),
           textField('custom_price_per_night', '4000', 'Optional. 0 or more. Send an empty value to clear the custom price.', true),
           textField('notes', 'Under maintenance until Friday', 'Optional. Replaces the note.', true),
+          textField('key_code', '4521', 'Optional. Door or lock code, max 50 characters. Send an empty value to clear it.', true),
           textField('amenities', '["Wi-Fi","AC"]', 'Optional. Replaces the amenity list. JSON array or comma-separated text.', true),
           textField('cleaning_started_at', '', 'Optional. ISO datetime, or empty to clear.', true),
           textField('cleaning_duration_minutes', '20', 'Optional. Positive integer.', true),
