@@ -43,6 +43,8 @@ const errorHandler = async (err, req, res, _next) => {
       message = 'A room category with this name already exists for this hotel.';
     } else if (sqlMsg.includes('rooms_active_room_key') || sqlMsg.includes('active_room_key')) {
       message = 'A room with this number already exists on this floor for this hotel.';
+    } else if (sqlMsg.includes('bookings_hotel_number_unique')) {
+      message = 'This booking number already exists for this hotel.';
     } else if (sqlMsg.includes('unique')) {
       const match = sqlMsg.match(/key '([^']+)'/);
       if (match && match[1]) {

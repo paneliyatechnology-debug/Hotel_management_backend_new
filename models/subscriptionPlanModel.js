@@ -180,8 +180,6 @@ const findPlans = async (options = {}, client = db) => {
     sort_order = 'asc',
   } = options;
 
-  const total = await countPlans({ billing_cycle, is_active, is_popular, includeDeleted }, client);
-
   let query = client('subscription_plans');
   applyFilters(query, { billing_cycle, is_active, is_popular, includeDeleted });
 
@@ -207,9 +205,13 @@ const findPlans = async (options = {}, client = db) => {
 
   query.limit(numLimit).offset(offset);
 
-  const rows = await query;
-  const planIds = rows.map((r) => r.id);
-  const featuresMap = await getFeaturesByPlanIds(planIds, client);
+  const [total, rows] = await Promise.all([
+    countPlans({ billing_cycle, is_active, is_popular, includeDeleted }, client),
+    query,
+  ]);
+  const featuresMap = rows.length
+    ? await getFeaturesByPlanIds(rows.map((row) => row.id), client)
+    : {};
 
   const plans = rows.map((row) => formatPlan(row, featuresMap[row.id] || []));
 

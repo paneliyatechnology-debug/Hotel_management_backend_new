@@ -165,23 +165,18 @@ const AUDIT_ENTITIES = {
 // ==========================================
 // GST report
 // There is no separate invoice table. One booking is one invoice. The invoice date is the check-out date.
-// A booking is split into service lines:
-//   ROOM_BOOKING  - the taxable stay, with the GST rate and tax amounts stored on the booking.
-//   OTHER_CHARGES - extra charges and the late check-out charge, which the booking carries without GST.
-// sac_code is the Services Accounting Code printed on the report. It is a classification, not a tax rate.
+// Room rent, extra charges and the late check-out charge are inside the taxable amount and GST stored on the
+// booking, so every invoice is one ROOM_BOOKING line. OTHER_CHARGES remains an accepted filter and matches nothing.
+// A report may cover at most one year from start_date. There is no row cap.
 // ==========================================
 
 const GST_SERVICE_TYPES = {
-  ROOM_BOOKING: { label: 'Room booking', sac_code: '996311' },
-  OTHER_CHARGES: { label: 'Other charges', sac_code: '999799' },
+  ROOM_BOOKING: { label: 'Room booking' },
+  OTHER_CHARGES: { label: 'Other charges' },
 };
 
 // FINAL = checked out. PROVISIONAL = not checked out yet. CANCELLED = cancelled or no-show (reversed by a credit note).
 const GST_INVOICE_STATUSES = ['FINAL', 'PROVISIONAL', 'CANCELLED'];
-
-// Longest period one report may cover, and the most rows an Excel / PDF export may hold.
-const GST_REPORT_MAX_DAYS = 366;
-const GST_REPORT_EXPORT_MAX_ROWS = 5000;
 
 // SUCCESS: the action was done. FAILED: it was rejected or hit an error, and nothing was saved.
 const AUDIT_STATUSES = {
@@ -204,6 +199,4 @@ module.exports = {
   AUDIT_STATUSES,
   GST_SERVICE_TYPES,
   GST_INVOICE_STATUSES,
-  GST_REPORT_MAX_DAYS,
-  GST_REPORT_EXPORT_MAX_ROWS,
 };

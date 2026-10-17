@@ -236,14 +236,14 @@ const findUsers = async (filters = {}, pagination = {}, sorting = {}) => {
 
   const countQuery = db('users');
   applyFilters(countQuery);
-  const totalResult = await countQuery.count('users.id as total').first();
-  const total = Number(totalResult?.total || 0);
-
-  let dataQuery = db('users');
+  const dataQuery = db('users');
   applyFilters(dataQuery);
-  dataQuery = dataQuery.orderBy(`users.${sortField}`, sortOrder).offset(offset).limit(limit);
 
-  const users = await dataQuery;
+  const [totalResult, users] = await Promise.all([
+    countQuery.count('users.id as total').first(),
+    dataQuery.orderBy(`users.${sortField}`, sortOrder).offset(offset).limit(limit),
+  ]);
+  const total = Number(totalResult?.total || 0);
 
   return {
     users,

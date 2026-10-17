@@ -119,17 +119,13 @@ const getSuperAdminDashboard = async (query = {}) => {
 const getHotelAdminDashboard = async (query = {}, reqUser) => {
   const hotelId = resolveScopedHotelId(reqUser, query);
   const range = resolveDateRange(query.date_range);
-  const hotel = await dashboardModel.findHotelDashboardHeader(hotelId);
-
-  if (!hotel) {
-    throw new AppError('Hotel not found.', HTTP_STATUS.NOT_FOUND);
-  }
 
   // The graphs are for the hotel admin only, not a super admin looking at one hotel.
   const isHotelAdmin = reqUser.role === ROLE_CODES.HOTEL_ADMIN;
   const weekDays = getCurrentWeekDays();
 
   const [
+    hotel,
     todayRevenue,
     monthRevenue,
     totalOutstandingDue,
@@ -141,6 +137,7 @@ const getHotelAdminDashboard = async (query = {}, reqUser) => {
     revenueByPaymentMethod,
     weeklyCollections,
   ] = await Promise.all([
+    dashboardModel.findHotelDashboardHeader(hotelId),
     dashboardModel.sumHotelCollectionsInRange(hotelId, range.todayFrom, range.todayTo),
     dashboardModel.sumHotelCollectionsInRange(hotelId, range.from, range.to),
     dashboardModel.sumHotelOutstandingDue(hotelId),
@@ -158,6 +155,10 @@ const getHotelAdminDashboard = async (query = {}, reqUser) => {
         )
       : null,
   ]);
+
+  if (!hotel) {
+    throw new AppError('Hotel not found.', HTTP_STATUS.NOT_FOUND);
+  }
 
   const maxRoomsAllowed = hotel.plan_max_rooms !== null && hotel.plan_max_rooms !== undefined
     ? Number(hotel.plan_max_rooms)

@@ -347,8 +347,6 @@ const findHotels = async (filters = {}, pagination = {}, sorting = {}) => {
 
   const countQuery = joinCurrentPurchase(db('hotels').leftJoin('users', 'hotels.owner_id', 'users.id'));
   applyFilters(countQuery);
-  const totalResult = await countQuery.count('hotels.id as total').first();
-  const total = Number(totalResult?.total || 0);
 
   const dataQuery = joinCurrentPurchase(
     db('hotels')
@@ -357,7 +355,12 @@ const findHotels = async (filters = {}, pagination = {}, sorting = {}) => {
       .select(HOTEL_LIST_COLUMNS)
   );
   applyFilters(dataQuery);
-  const rows = await dataQuery.orderBy(`hotels.${sortField}`, sortOrder).offset(offset).limit(limit);
+
+  const [totalResult, rows] = await Promise.all([
+    countQuery.count('hotels.id as total').first(),
+    dataQuery.orderBy(`hotels.${sortField}`, sortOrder).offset(offset).limit(limit),
+  ]);
+  const total = Number(totalResult?.total || 0);
 
   return {
     hotels: rows.map(formatHotelListItem),
@@ -470,9 +473,72 @@ const updateHotel = async (id, updates, client = db) => {
   return formatHotel(row);
 };
 
+/**
+ * Hotel fields printed on a bill, folio or GST file. Skips the subscription lookup the full profile uses.
+ * @param {number|string} id
+ * @returns {Promise<Object|null>}
+ */
+const findHotelForDocument = async (id) => {
+  const row = await db('hotels')
+    .leftJoin('users', 'hotels.owner_id', 'users.id')
+    .where('hotels.id', id)
+    .whereNull('hotels.deleted_at')
+    .select(
+      'hotels.id',
+      'hotels.name',
+      'hotels.hotel_type',
+      'hotels.address',
+      'hotels.city',
+      'hotels.state',
+      'hotels.country',
+      'hotels.pincode',
+      'hotels.gst_number',
+      'hotels.pan_number',
+      'hotels.bank_name',
+      'hotels.bank_account_holder',
+      'hotels.bank_account_number',
+      'hotels.bank_ifsc_code',
+      'hotels.bank_branch',
+      'hotels.check_in_time',
+      'hotels.check_out_time',
+      'users.name as owner_name',
+      'users.email as owner_email',
+      'users.phone as owner_phone'
+    )
+    .first();
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    hotel_type: row.hotel_type || 'Boutique Hotel',
+    address: row.address,
+    city: row.city,
+    state: row.state,
+    country: row.country || '',
+    pincode: row.pincode,
+    gst_number: row.gst_number || '',
+    pan_number: row.pan_number || '',
+    bank_name: row.bank_name || '',
+    bank_account_holder: row.bank_account_holder || '',
+    bank_account_number: row.bank_account_number || '',
+    bank_ifsc_code: row.bank_ifsc_code || '',
+    bank_branch: row.bank_branch || '',
+    settings: {
+      check_in_time: row.check_in_time || '14:00',
+      check_out_time: row.check_out_time || '12:00',
+    },
+    owner: {
+      name: row.owner_name || '',
+      email: row.owner_email || '',
+      phone: row.owner_phone || '',
+    },
+  };
+};
+
 module.exports = {
   formatHotel,
   findHotelById,
+  findHotelForDocument,
   findHotelAccessState,
   findHotelSubscription,
   findHotelSummary,

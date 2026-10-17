@@ -336,23 +336,18 @@ Full request and response examples live in the [Postman collection](#postman-col
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/reports/gst` | Date-wise GST report. Required: `start_date`, `end_date` (YYYY-MM-DD, inclusive, at most 366 days). Optional filters: `gst_rate`, `service_type` (`ROOM_BOOKING`, `OTHER_CHARGES`), `invoice_status` (`FINAL`, `PROVISIONAL`, `CANCELLED`), `page`, `limit` (max 200). A super admin must also send `hotel_id`. |
-| `GET` | `/reports/gst/export` | The same report as a file. `start_date`, `end_date` and `format=xlsx` or `format=pdf` are required. Both formats hold the same tables (totals, date-wise, GST rate, service, invoice details, notes). Saved in `uploads/pdfs`, returns a download URL. At most 5000 rows. |
+| `GET` | `/reports/gst` | Invoice-wise GST report. Required: `start_date`, `end_date` (YYYY-MM-DD, inclusive). `end_date` can be at most one year after `start_date`; a longer range returns 400. Optional filters: `gst_rate`, `service_type` (`ROOM_BOOKING`; `OTHER_CHARGES` matches nothing), `invoice_status` (`FINAL`, `PROVISIONAL`, `CANCELLED`), `page`, `limit` (max 200). A super admin must also send `hotel_id`. |
+| `GET` | `/reports/gst/export` | The same invoice lines as a file. `start_date`, `end_date` and `format=xlsx` or `format=pdf` are required. Both files contain only the invoice-wise table. Saved in `uploads/pdfs`, returns a download URL. There is no row cap; the one-year period is the limit. |
 
 How the report is built from the existing data (there is no invoice table):
 
-- One booking is one invoice. Invoice number = booking number. Invoice date = actual check-out, or the scheduled check-out
-  while the guest has not left. The payment date is never used.
-- Each invoice has up to two lines. `ROOM_BOOKING` carries the taxable value and the CGST / SGST stored on the booking.
-  `OTHER_CHARGES` is the part of the invoice total that has no GST (extra charges and the late check-out charge) at 0%.
-- Tax is never recalculated. The rate and amounts saved on the booking are used, so a later rate change does not change an
-  old report. The SAC codes (`996311` rooms, `999799` other charges) are set in `constants/index.js`.
-- A `CANCELLED` or `NO_SHOW` booking is reversed by a credit note for its full taxable value and tax. Net values are the
-  gross values minus those credit notes. Refunds (payments with status `REFUNDED`) are shown for information and do not change tax.
-- Rooms and payments are never joined to the invoice rows (payments are summed per booking first), so a multi-room booking
-  or a booking with many payments is counted once.
-- Not stored today, so reported as `0` / `null`: IGST, cess, guest GSTIN. Every supply is treated as intra-state.
-  Restaurant, banquet and laundry services do not exist in the database.
+- One booking is one invoice and one row. Invoice number = booking number. Invoice date is shown as DD-MM-YYYY and is the
+  actual check-out, or the scheduled check-out while the guest has not left. The payment date is never used. Query dates stay YYYY-MM-DD.
+- Room rent, extra charges and the late check-out charge are included in the stored taxable value and GST. The report does
+  not split an untaxed extras line. Tax is never recalculated, so a later rate change does not change an old report.
+- A `CANCELLED` or `NO_SHOW` booking is reversed by a credit note for its taxable value. Net taxable value is the taxable
+  value minus that credit note. Refunds (payments with status `REFUNDED`) are shown for information and do not change tax.
+- Guest GSTIN, SAC, cess and credit-note GST are not columns. IGST is not stored, so it is `0`. Every supply is treated as intra-state.
 
 ---
 
@@ -416,13 +411,13 @@ append-only. The API is read-only.
 **Billing**
 
 ```
-taxable_amount = base_amount - discount_amount
+taxable_amount = base_amount + extra_charges_total + late_checkout_charge - discount_amount
 gst_amount     = taxable_amount x gst_rate / 100        (default 18%)
-total_amount   = taxable_amount + gst_amount + extra_charges_total + late_checkout_charge
+total_amount   = taxable_amount + gst_amount
 due_amount     = total_amount - paid_amount
 ```
 
-- GST applies only to `base_amount - discount_amount`. Extra charges and the late checkout fee are not taxed.
+- GST applies to the room charge, extra charges, and the late checkout fee after the discount.
 - `extra_charges_total`, `late_checkout_charge` and `late_checkout_hours` are accepted **only at check-out**.
 - Check-out requires the exact remaining due amount to be paid.
 - Each payment is stored in `booking_payments` and returned as `payment_history` on `GET /bookings/:id`.

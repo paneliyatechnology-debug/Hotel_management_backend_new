@@ -6,7 +6,6 @@
 const bookingModel = require('../models/bookingModel');
 const bookingPaymentModel = require('../models/bookingPaymentModel');
 const roomModel = require('../models/roomModel');
-const hotelModel = require('../models/hotelModel');
 const s3Service = require('./s3Service');
 const auditService = require('./auditService');
 const db = require('../database/knex');
@@ -97,32 +96,39 @@ const resolveBookingStatus = (value, { required = false, fallback = 'CHECKED_IN'
 };
 
 /**
- * Find whether another stay still needs this room.
+ * Open stays on these rooms, other than the stay being changed.
  * Pending is included so its dates stay protected, but it does not keep the room reserved.
- * @param {number|string} roomId
- * @param {number|string} bookingId - Stay being changed, excluded from the result
- * @returns {Promise<{ checkedIn: boolean, confirmed: boolean }>}
+ * @param {Array<number|string>} roomIds
+ * @param {number|string} bookingId
+ * @returns {Promise<Map<number, { checkedIn: boolean, confirmed: boolean }>>}
  */
-const findOtherOpenStays = async (roomId, bookingId) => {
-  const rows = await db('bookings')
+const findOtherOpenStaysForRooms = async (roomIds, bookingId) => {
+  const ids = [...new Set(roomIds.map((roomId) => Number(roomId)).filter((roomId) => roomId > 0))];
+  const map = new Map(ids.map((roomId) => [roomId, { checkedIn: false, confirmed: false }]));
+  if (!ids.length) return map;
+
+  const window = (query) => query
     .whereNot('bookings.id', Number(bookingId))
     .whereNull('bookings.deleted_at')
     .whereNull('bookings.actual_check_out')
-    .whereIn('bookings.booking_status', OPEN_BOOKING_STATUSES)
-    .where(function () {
-      this.where('bookings.room_id', Number(roomId)).orWhereExists(function () {
-        this.select(db.raw('1'))
-          .from('booking_rooms')
-          .whereRaw('booking_rooms.booking_id = bookings.id')
-          .where('booking_rooms.room_id', Number(roomId));
-      });
-    })
-    .select('bookings.booking_status');
+    .whereIn('bookings.booking_status', OPEN_BOOKING_STATUSES);
 
-  return {
-    checkedIn: rows.some((row) => row.booking_status === 'CHECKED_IN'),
-    confirmed: rows.some((row) => row.booking_status === 'CONFIRMED'),
-  };
+  const primary = window(db('bookings'))
+    .whereIn('bookings.room_id', ids)
+    .select('bookings.booking_status', 'bookings.room_id as conflict_room_id');
+
+  const linked = window(db('bookings').innerJoin('booking_rooms', 'booking_rooms.booking_id', 'bookings.id'))
+    .whereIn('booking_rooms.room_id', ids)
+    .select('bookings.booking_status', 'booking_rooms.room_id as conflict_room_id');
+
+  const rows = await primary.union(linked);
+  for (const row of rows) {
+    const entry = map.get(Number(row.conflict_room_id));
+    if (!entry) continue;
+    if (row.booking_status === 'CHECKED_IN') entry.checkedIn = true;
+    if (row.booking_status === 'CONFIRMED') entry.confirmed = true;
+  }
+  return map;
 };
 
 /**
@@ -228,29 +234,28 @@ const parseRoomIds = (value, { required = false } = {}) => {
  */
 const syncRoomForBookingStatus = async (booking, status, now = new Date(), onlyRoomIds = null) => {
   const roomIds = onlyRoomIds || roomIdsFromBooking(booking);
-  for (const roomId of roomIds) {
-    await syncOneRoomForBookingStatus(booking, roomId, status, now);
-  }
-};
+  if (!roomIds.length) return;
 
-/**
- * Move one assigned room to match this stay.
- * @param {Object} booking
- * @param {number} roomId
- * @param {string} status
- * @param {Date} now
- */
-const syncOneRoomForBookingStatus = async (booking, roomId, status, now) => {
-  const room = await roomModel.findRoomById(roomId);
-  if (!room || Number(room.hotel_id) !== Number(booking.hotel_id)) return;
+  const rows = await db('rooms')
+    .whereIn('id', roomIds)
+    .whereNull('deleted_at')
+    .select('id', 'hotel_id', 'status');
+  const byId = new Map(rows.map((room) => [Number(room.id), room]));
+  const owned = [];
+  for (const roomId of roomIds) {
+    const room = byId.get(Number(roomId));
+    if (!room || Number(room.hotel_id) !== Number(booking.hotel_id)) continue;
+    owned.push(room);
+  }
+  if (!owned.length) return;
 
   if (status === 'CHECKED_IN') {
-    await roomModel.updateRoom(room.id, { status: 'OCCUPIED' });
+    await roomModel.setRoomsState(owned.map((room) => room.id), { status: 'OCCUPIED' });
     return;
   }
 
   if (status === 'CHECKED_OUT') {
-    await roomModel.updateRoom(room.id, {
+    await roomModel.setRoomsState(owned.map((room) => room.id), {
       status: 'CLEANING',
       cleaning_started_at: now,
       cleaning_duration_minutes: CLEANING_DURATION_MINUTES,
@@ -258,18 +263,27 @@ const syncOneRoomForBookingStatus = async (booking, roomId, status, now) => {
     return;
   }
 
-  const others = await findOtherOpenStays(room.id, booking.id);
+  const othersByRoom = await findOtherOpenStaysForRooms(owned.map((room) => room.id), booking.id);
+  const groups = new Map();
+  for (const room of owned) {
+    const currentStatus = room.status || 'AVAILABLE';
+    const others = othersByRoom.get(Number(room.id)) || { checkedIn: false, confirmed: false };
+    let nextStatus = null;
 
-  // Confirming must not replace a guest who is already in the room.
-  if (status === 'CONFIRMED' && room.status === 'AVAILABLE' && !others.checkedIn) {
-    await roomModel.updateRoom(room.id, { status: 'RESERVED' });
-    return;
+    // Confirming must not replace a guest who is already in the room.
+    if (status === 'CONFIRMED' && currentStatus === 'AVAILABLE' && !others.checkedIn) {
+      nextStatus = 'RESERVED';
+    } else {
+      nextStatus = roomStatusAfterRelease(currentStatus, status, others);
+    }
+    if (!nextStatus) continue;
+    if (!groups.has(nextStatus)) groups.set(nextStatus, []);
+    groups.get(nextStatus).push(room.id);
   }
 
-  const releasedStatus = roomStatusAfterRelease(room.status, status, others);
-  if (releasedStatus) {
-    await roomModel.updateRoom(room.id, { status: releasedStatus });
-  }
+  await Promise.all(
+    [...groups.entries()].map(([nextStatus, ids]) => roomModel.setRoomsState(ids, { status: nextStatus }))
+  );
 };
 
 /**
@@ -352,7 +366,13 @@ const applyBookingStatusEffects = async (booking, status) => {
     updates.actual_check_out = now;
   }
 
-  await bookingModel.updateBooking(booking.id, updates);
+  const statusChanged = booking.booking_status !== status;
+  const stampsCheckIn = Object.prototype.hasOwnProperty.call(updates, 'actual_check_in');
+  const stampsCheckOut = Object.prototype.hasOwnProperty.call(updates, 'actual_check_out');
+  // Create already stored the status and the check-in time. Skip that second write.
+  if (statusChanged || stampsCheckIn || stampsCheckOut) {
+    await bookingModel.saveBookingColumns(booking.id, updates);
+  }
   await syncRoomForBookingStatus(booking, status, now);
 };
 
@@ -387,8 +407,8 @@ const calculatePricing = ({
   const lateCheckoutCharge = Math.max(0, Number(late_checkout_charge) || 0);
   const lateCheckoutHours = Math.max(0, Number(late_checkout_hours) || 0);
 
-  // Taxable amount. Extra charges and the late checkout charge are added to the total as they are, with no GST.
-  const taxableAmount = Math.max(0, baseAmount - discountAmount);
+  // Room charge, extras, and the late fee are added first. Discount comes off that sum, then GST.
+  const taxableAmount = Math.max(0, baseAmount + extraCharges + lateCheckoutCharge - discountAmount);
 
   // GST rates
   const gstRate = gst_rate !== undefined && gst_rate !== null ? Math.max(0, Number(gst_rate)) : 18.00;
@@ -401,8 +421,8 @@ const calculatePricing = ({
   const sgstAmount = Math.round((gstAmount - cgstAmount) * 100) / 100;
   const taxAmount = gstAmount;
 
-  // Total
-  const totalAmount = Math.round((taxableAmount + taxAmount + extraCharges + lateCheckoutCharge) * 100) / 100;
+  // Total is the discounted amount plus GST. Extras and the late fee are already inside the taxable amount.
+  const totalAmount = Math.round((taxableAmount + taxAmount) * 100) / 100;
 
   // Paid & Due
   const paidAmount = Math.max(0, Number(paid_amount) || 0);
@@ -474,15 +494,22 @@ const validateBookingPreconditions = async ({
   const diffMs = outDate.getTime() - inDate.getTime();
   const numberOfNights = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 
-  // 2. Hotel existence and active check
-  const hotel = await hotelModel.findHotelById(hotelId);
+  // Hotel existence and every room are independent, so they are read together.
+  const [hotel, roomRows] = await Promise.all([
+    db('hotels').where({ id: hotelId }).whereNull('deleted_at').select('id').first(),
+    db('rooms')
+      .whereIn('id', roomIds)
+      .whereNull('deleted_at')
+      .select('id', 'hotel_id', 'room_number', 'is_active', 'custom_price_per_night'),
+  ]);
+
   if (!hotel) {
     throw new AppError(`Hotel with ID ${hotelId} does not exist or has been deleted.`, HTTP_STATUS.BAD_REQUEST, [
       { field: 'hotel_id', message: `Hotel ID ${hotelId} not found.` },
     ]);
   }
 
-  // 3. RBAC cross-hotel authorization guard
+  // RBAC cross-hotel authorization guard
   if (reqUser && reqUser.role !== ROLE_CODES.SUPER_ADMIN && reqUser.hotel_id) {
     if (Number(reqUser.hotel_id) !== Number(hotelId)) {
       throw new AppError(
@@ -492,14 +519,10 @@ const validateBookingPreconditions = async ({
     }
   }
 
-  // 4. Every room must exist, belong to this hotel, and be free for these dates.
+  const roomsById = new Map(roomRows.map((room) => [Number(room.id), room]));
   const rooms = [];
   for (const roomId of roomIds) {
-    const room = await db('rooms')
-      .where({ id: roomId })
-      .whereNull('deleted_at')
-      .first();
-
+    const room = roomsById.get(Number(roomId));
     if (!room) {
       throw new AppError(
         `Room ID ${roomId} not found or has been deleted.`,
@@ -524,31 +547,43 @@ const validateBookingPreconditions = async ({
       );
     }
 
-    const conflicts = await bookingModel.checkRoomOverlaps(
-      roomId,
-      inDate,
-      outDate,
-      { excludeBookingId }
-    );
-
-    if (conflicts.length > 0) {
-      const first = conflicts[0];
-      const confStart = new Date(first.check_in_date).toISOString().slice(0, 10);
-      const confEnd = new Date(first.check_out_date).toISOString().slice(0, 10);
-      throw new AppError(
-        `Room '${room.room_number}' is already booked from ${confStart} to ${confEnd} (Booking #${first.booking_number}). Overlapping bookings are not allowed.`,
-        HTTP_STATUS.CONFLICT,
-        [
-          {
-            field: 'room_id',
-            message: `Room ${room.id} overlaps booking ${first.booking_number}`,
-            conflicts,
-          },
-        ]
-      );
-    }
-
     rooms.push(room);
+  }
+
+  // One overlap read for every room. The first room in the request still wins the error.
+  const overlapRows = await bookingModel.checkRoomsOverlaps(roomIds, inDate, outDate, { excludeBookingId });
+  const conflictsByRoom = new Map();
+  for (const row of overlapRows) {
+    const conflictRoomId = Number(row.conflict_room_id);
+    if (!conflictsByRoom.has(conflictRoomId)) conflictsByRoom.set(conflictRoomId, []);
+    const list = conflictsByRoom.get(conflictRoomId);
+    if (list.some((item) => item.booking_id === row.booking_id)) continue;
+    list.push({
+      booking_id: row.booking_id,
+      booking_number: row.booking_number,
+      check_in_date: row.check_in_date,
+      check_out_date: row.check_out_date,
+      room_id: row.room_id,
+    });
+  }
+
+  for (const room of rooms) {
+    const conflicts = conflictsByRoom.get(Number(room.id)) || [];
+    if (conflicts.length === 0) continue;
+    const first = conflicts[0];
+    const confStart = new Date(first.check_in_date).toISOString().slice(0, 10);
+    const confEnd = new Date(first.check_out_date).toISOString().slice(0, 10);
+    throw new AppError(
+      `Room '${room.room_number}' is already booked from ${confStart} to ${confEnd} (Booking #${first.booking_number}). Overlapping bookings are not allowed.`,
+      HTTP_STATUS.CONFLICT,
+      [
+        {
+          field: 'room_id',
+          message: `Room ${room.id} overlaps booking ${first.booking_number}`,
+          conflicts,
+        },
+      ]
+    );
   }
 
   return { inDate, outDate, numberOfNights, hotel, rooms };
@@ -611,10 +646,13 @@ const createBooking = async (body, files = [], reqUser = null) => {
   if (bookingStatus === 'CHECKED_OUT') assertNoDueForCheckout(pricing.due_amount);
   const paymentMethod = resolvePaymentMethod(body.payment_method);
 
-  // Guest photos and signatures arrive only as form-data files.
+  // Guest photos and signatures arrive only as form-data files. The two folders upload together.
   const { imageFiles, signatureFiles } = categorizeUploadedFiles(files);
-  const uploadedImages = await s3Service.uploadFiles(imageFiles, 'bookings/images');
-  const uploadedSignatures = await s3Service.uploadFiles(signatureFiles, 'bookings/signatures');
+  const now = new Date();
+  const [uploadedImages, uploadedSignatures] = await Promise.all([
+    s3Service.uploadFiles(imageFiles, 'bookings/images'),
+    s3Service.uploadFiles(signatureFiles, 'bookings/signatures'),
+  ]);
 
   const bookingData = {
     hotel_id: hotelId,
@@ -627,8 +665,10 @@ const createBooking = async (body, files = [], reqUser = null) => {
     created_by: createdBy,
     check_in_date: inDate,
     check_out_date: outDate,
-    actual_check_in: new Date(),
-    actual_check_out: body.actual_check_out ? new Date(body.actual_check_out) : null,
+    actual_check_in: now,
+    actual_check_out: body.actual_check_out
+      ? new Date(body.actual_check_out)
+      : (bookingStatus === 'CHECKED_OUT' ? now : null),
     number_of_nights: numberOfNights,
     adults: Math.max(1, Number(body.adults) || 1),
     children: Math.max(0, Number(body.children) || 0),
@@ -647,16 +687,21 @@ const createBooking = async (body, files = [], reqUser = null) => {
     signatureRecords: uploadedSignatures,
   });
 
-  await recordPayment(newBooking, pricing.paid_amount, {
-    source: 'BOOKING',
-    method: paymentMethod,
-    bookingPaymentStatus: pricing.payment_status,
-  }, reqUser);
+  // Payment history and room status do not depend on each other.
+  const followUps = [
+    recordPayment(newBooking, pricing.paid_amount, {
+      source: 'BOOKING',
+      method: paymentMethod,
+      bookingPaymentStatus: pricing.payment_status,
+    }, reqUser),
+  ];
 
   // PENDING leaves every room unchanged. Any other status moves all rooms together.
   if (newBooking.booking_status && newBooking.booking_status !== 'PENDING') {
-    await applyBookingStatusEffects(newBooking, newBooking.booking_status);
+    followUps.push(applyBookingStatusEffects(newBooking, newBooking.booking_status));
   }
+
+  await Promise.all(followUps);
 
   await auditService.record({
     actor: reqUser,
@@ -708,15 +753,47 @@ const getBookings = async (query = {}, reqUser = null) => {
  * Get booking details by ID
  * @param {number|string} id
  * @param {Object} [reqUser=null]
+ * @param {Object} [options]
+ * @param {boolean} [options.includeMedia=true]
  * @returns {Promise<Object>}
  */
-const getBookingById = async (id, reqUser = null) => {
+const getBookingById = async (id, reqUser = null, { includeMedia = true } = {}) => {
   const numericId = Number(id);
   if (!numericId || isNaN(numericId) || numericId <= 0) {
     throw new AppError('Invalid booking ID. Must be a positive integer.', HTTP_STATUS.BAD_REQUEST);
   }
 
-  const booking = await bookingModel.findBookingById(numericId);
+  const booking = await bookingModel.findBookingById(numericId, { includeMedia });
+  if (!booking) {
+    throw new AppError(`Booking with ID ${id} not found.`, HTTP_STATUS.NOT_FOUND);
+  }
+
+  if (reqUser && reqUser.role !== ROLE_CODES.SUPER_ADMIN && reqUser.hotel_id) {
+    if (Number(reqUser.hotel_id) !== Number(booking.hotel_id)) {
+      throw new AppError(
+        'Access denied: You cannot view bookings from another hotel.',
+        HTTP_STATUS.FORBIDDEN
+      );
+    }
+  }
+
+  return booking;
+};
+
+/**
+ * Booking row and room ids for a write. Photos and the hotel profile are not loaded.
+ * Same id, missing-row, and hotel access errors as the detail read.
+ * @param {number|string} id
+ * @param {Object} [reqUser=null]
+ * @returns {Promise<Object>}
+ */
+const getBookingForWrite = async (id, reqUser = null) => {
+  const numericId = Number(id);
+  if (!numericId || isNaN(numericId) || numericId <= 0) {
+    throw new AppError('Invalid booking ID. Must be a positive integer.', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const booking = await bookingModel.findBookingForWrite(numericId);
   if (!booking) {
     throw new AppError(`Booking with ID ${id} not found.`, HTTP_STATUS.NOT_FOUND);
   }
@@ -742,7 +819,7 @@ const getBookingById = async (id, reqUser = null) => {
  * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const updateBooking = async (id, body, files = [], reqUser = null) => {
-  const existing = await getBookingById(id, reqUser);
+  const existing = await getBookingForWrite(id, reqUser);
   const paymentMethod = resolvePaymentMethod(body.payment_method);
 
   const hotelId = existing.hotel_id;
@@ -765,7 +842,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   const pricing = calculatePricing({
     base_amount: body.base_amount !== undefined ? body.base_amount : existing.base_amount,
     discount_amount: body.discount_amount !== undefined ? body.discount_amount : existing.discount_amount,
-    // Extra charges and the late checkout charge are set only by the checkout API. An update keeps them.
+    // Extra charges and the late checkout charge are set only by the checkout API. An update keeps them and taxes them with the room charge.
     extra_charges_total: existing.extra_charges_total,
     late_checkout_charge: existing.late_checkout_charge,
     late_checkout_hours: existing.late_checkout_hours,
@@ -803,29 +880,33 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
 
   // Guest photos and signatures arrive only as form-data files.
   const { imageFiles, signatureFiles } = categorizeUploadedFiles(files);
-  const uploadedImages = await s3Service.uploadFiles(imageFiles, 'bookings/images');
-  const uploadedSignatures = await s3Service.uploadFiles(signatureFiles, 'bookings/signatures');
+  const [uploadedImages, uploadedSignatures] = await Promise.all([
+    s3Service.uploadFiles(imageFiles, 'bookings/images'),
+    s3Service.uploadFiles(signatureFiles, 'bookings/signatures'),
+  ]);
 
   await bookingModel.updateBooking(existing.id, updatePayload, {
     imageRecords: uploadedImages,
     signatureRecords: uploadedSignatures,
   });
 
-  await recordPayment(existing, pricing.paid_amount - existing.paid_amount, {
-    source: 'UPDATE',
-    method: paymentMethod,
-    bookingPaymentStatus: pricing.payment_status,
-  }, reqUser);
-
   // Rooms dropped from the stay are released. Rooms added pick up the current stay status.
-  const removedRoomIds = previousRoomIds.filter((id) => !roomIds.includes(id));
-  const addedRoomIds = roomIds.filter((id) => !previousRoomIds.includes(id));
+  const removedRoomIds = previousRoomIds.filter((roomId) => !roomIds.includes(roomId));
+  const addedRoomIds = roomIds.filter((roomId) => !previousRoomIds.includes(roomId));
+  const roomFollowUps = [
+    recordPayment(existing, pricing.paid_amount - existing.paid_amount, {
+      source: 'UPDATE',
+      method: paymentMethod,
+      bookingPaymentStatus: pricing.payment_status,
+    }, reqUser),
+  ];
   if (removedRoomIds.length > 0) {
-    await syncRoomForBookingStatus(existing, 'CANCELLED', new Date(), removedRoomIds);
+    roomFollowUps.push(syncRoomForBookingStatus(existing, 'CANCELLED', new Date(), removedRoomIds));
   }
   if (addedRoomIds.length > 0 && existing.booking_status && existing.booking_status !== 'PENDING') {
-    await syncRoomForBookingStatus(existing, existing.booking_status, new Date(), addedRoomIds);
+    roomFollowUps.push(syncRoomForBookingStatus(existing, existing.booking_status, new Date(), addedRoomIds));
   }
+  await Promise.all(roomFollowUps);
 
   // room_ids is the storage form of room_id. Compare room_id as the full list, like the stored booking.
   const auditFields = { ...updatePayload, room_id: roomIds };
@@ -847,8 +928,8 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
 /**
  * Check a guest out of a booking.
  * body.paid_amount is added to the amount already paid. It does not replace it.
- * It must equal the due amount exactly: paying less or more is rejected.
- * Extra charges and the late fee count toward the due amount with no GST. Scheduled dates and nights stay as booked.
+ * A remaining due after extra charges, the late fee, the discount, and GST is saved on the booking. Checkout is not rejected for that balance.
+ * Extra charges and the late fee are included before the discount and GST, so both are taxed. Scheduled dates and nights stay as booked.
  * The stay becomes CHECKED_OUT and every room on the booking is marked CLEANING.
  * @param {number|string} id
  * @param {Object} [body={}]
@@ -857,7 +938,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
  */
 const checkOutBooking = async (id, body = {}, reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
-  const existing = await getBookingById(id, reqUser);
+  const existing = await getBookingForWrite(id, reqUser);
 
   if (Number(existing.hotel_id) !== hotelId) {
     throw new AppError(
@@ -901,18 +982,6 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
 
   const paymentMethod = resolvePaymentMethod(body.payment_method);
 
-  // The payment at checkout must equal the due amount, no less and no more (late fee included).
-  // Send 0 or leave paid_amount out when nothing is due. Nothing is saved until this passes.
-  const dueBeforePayment = Math.max(
-    0,
-    Math.round((pricing.total_amount - Number(existing.paid_amount)) * 100) / 100
-  );
-  const paidNow = Math.round(collectedNow * 100) / 100;
-  if (paidNow !== dueBeforePayment) {
-    const message = `paid_amount must be exactly the due amount of ${dueBeforePayment}. You sent ${paidNow}.`;
-    throw new AppError(message, HTTP_STATUS.BAD_REQUEST, [{ field: 'paid_amount', message }]);
-  }
-
   const now = new Date();
   const updates = {
     ...pricing,
@@ -925,13 +994,15 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
     updates.notes = existing.notes ? `${existing.notes}\n${note}` : note;
   }
 
-  await bookingModel.updateBooking(existing.id, updates);
-  await recordPayment(existing, collectedNow, {
-    source: 'CHECKOUT',
-    method: paymentMethod,
-    bookingPaymentStatus: pricing.payment_status,
-  }, reqUser);
-  await syncRoomForBookingStatus(existing, 'CHECKED_OUT', now);
+  await bookingModel.saveBookingColumns(existing.id, updates);
+  await Promise.all([
+    recordPayment(existing, collectedNow, {
+      source: 'CHECKOUT',
+      method: paymentMethod,
+      bookingPaymentStatus: pricing.payment_status,
+    }, reqUser),
+    syncRoomForBookingStatus(existing, 'CHECKED_OUT', now),
+  ]);
 
   await auditService.record({
     actor: reqUser,
@@ -957,7 +1028,7 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
  */
 const updateBookingStatus = async (id, body = {}, reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
-  const existing = await getBookingById(id, reqUser);
+  const existing = await getBookingForWrite(id, reqUser);
 
   if (Number(existing.hotel_id) !== hotelId) {
     throw new AppError(
@@ -1004,7 +1075,7 @@ const getBookingDetails = async (id, reqUser = null) => {
  * @returns {Promise<{ id: number }>} Id of the affected record
  */
 const deleteBooking = async (id, reqUser = null) => {
-  const existing = await getBookingById(id, reqUser);
+  const existing = await getBookingForWrite(id, reqUser);
   // Free rooms this stay was holding before the row is hidden.
   await syncRoomForBookingStatus(existing, 'CANCELLED');
   await bookingModel.softDeleteBooking(existing.id);

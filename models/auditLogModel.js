@@ -90,15 +90,14 @@ const findLogs = async (filters = {}, pagination = {}, sorting = {}) => {
 
   const countQuery = db('audit_logs');
   applyFilters(countQuery);
-  const totalResult = await countQuery.count('id as total').first();
-  const total = Number(totalResult?.total || 0);
-
   const dataQuery = db('audit_logs');
   applyFilters(dataQuery);
-  const rows = await dataQuery
-    .orderBy('id', sortOrder)
-    .offset((page - 1) * limit)
-    .limit(limit);
+
+  const [totalResult, rows] = await Promise.all([
+    countQuery.count('id as total').first(),
+    dataQuery.orderBy('id', sortOrder).offset((page - 1) * limit).limit(limit),
+  ]);
+  const total = Number(totalResult?.total || 0);
 
   return {
     audit_logs: rows.map(formatAuditLog),

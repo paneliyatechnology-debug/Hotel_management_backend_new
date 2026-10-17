@@ -30,7 +30,7 @@
       box-decoration-break: clone;
     }
     body {
-      font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+      font-family: "Segoe UI", Arial, "Helvetica Neue", sans-serif;
       font-size: 12.5px;
       font-weight: 400;
       line-height: 1.5;
@@ -259,32 +259,6 @@
     }
     .proof figcaption { margin-top: 8px; font-size: 11px; color: var(--muted); text-align: center; }
 
-    /* Signature + footer stay together */
-    .closing { break-inside: avoid; }
-    .sign-row { display: flex; justify-content: flex-end; align-items: flex-end; gap: 24px; }
-    .sign { width: 260px; break-inside: avoid; }
-    .sign-box {
-      min-height: 84px;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      gap: 10px;
-      padding: 10px 14px;
-      background: #ffffff;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-    }
-    .sign-box img { max-height: 70px; max-width: 220px; object-fit: contain; }
-    .sign-caption {
-      margin-top: 8px;
-      text-align: center;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.8px;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
     /* Fixed elements repeat on every printed page, so this sits at the bottom of each one. */
     .footer {
       position: fixed;
@@ -403,13 +377,13 @@
       <div class="card-body charges">
         <table class="rows">
           <tr><td class="k">Room charge</td><td class="v num">₹{{BASE_AMOUNT}}</td></tr>
+          <tr><td class="k">Extra charges</td><td class="v num">₹{{EXTRA_CHARGES}}</td></tr>
+          <tr><td class="k">Late checkout ({{LATE_HOURS}} h)</td><td class="v num">₹{{LATE_FEE}}</td></tr>
           <tr><td class="k">Discount</td><td class="v num">− ₹{{DISCOUNT_AMOUNT}}</td></tr>
           <tr><td class="k">Taxable amount</td><td class="v num">₹{{TAXABLE_AMOUNT}}</td></tr>
           <tr><td class="k">GST {{GST_RATE}}%</td><td class="v num">₹{{TAX_AMOUNT}}</td></tr>
           <tr class="sub"><td class="k">CGST {{CGST_RATE}}%</td><td class="v num">₹{{CGST_AMOUNT}}</td></tr>
           <tr class="sub"><td class="k">SGST {{SGST_RATE}}%</td><td class="v num">₹{{SGST_AMOUNT}}</td></tr>
-          <tr><td class="k">Extra charges (no GST)</td><td class="v num">₹{{EXTRA_CHARGES}}</td></tr>
-          <tr><td class="k">Late checkout ({{LATE_HOURS}} h, no GST)</td><td class="v num">₹{{LATE_FEE}}</td></tr>
         </table>
         <div class="totals">
           <div class="tile total">
@@ -456,14 +430,10 @@
       <div class="card-body"><div class="proofs">{{ID_PROOFS}}</div></div>
     </section>
 
-    <div class="closing">
-      <section class="sign-row">
-        <div class="sign">
-          <div class="sign-box">{{SIGNATURE}}</div>
-          <div class="sign-caption">Guest signature</div>
-        </div>
-      </section>
-    </div>
+    <section class="card flow">
+      <div class="card-head"><div class="card-title">Signatures</div></div>
+      <div class="card-body"><div class="proofs">{{SIGNATURES}}</div></div>
+    </section>
   </div>
   </div>
 

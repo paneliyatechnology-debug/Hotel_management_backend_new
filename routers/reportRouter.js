@@ -1,7 +1,7 @@
 /**
  * Report Router.
- * 1. GET /api/v1/reports/gst – Date-wise GST report (rows, summaries, grand totals, pagination).
- * 2. GET /api/v1/reports/gst/export – The same report as an Excel (xlsx) or PDF file.
+ * 1. GET /api/v1/reports/gst – Invoice-wise GST report (one row per booking, period totals, pagination).
+ * 2. GET /api/v1/reports/gst/export – The same invoice table as an Excel (xlsx) or PDF file.
  *
  * Needs a logged-in HOTEL_ADMIN or ACCOUNTANT of the hotel. A SUPER_ADMIN must send hotel_id.
  */

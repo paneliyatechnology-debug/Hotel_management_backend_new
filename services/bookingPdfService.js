@@ -16,7 +16,19 @@ const PDF_DIR = path.join(process.cwd(), 'uploads', 'pdfs');
 const FOLIO_TEMPLATE_PATH = path.join(__dirname, '../templates/bookingFolio.html');
 const BILL_TEMPLATE_PATH = path.join(__dirname, '../templates/bookingBill.html');
 
+const templateCache = new Map();
+
+const readTemplate = (filePath) => {
+  const cached = templateCache.get(filePath);
+  if (cached) return cached;
+  const html = fs.readFileSync(filePath, 'utf8');
+  templateCache.set(filePath, html);
+  return html;
+};
+
 let browser = null;
+const pagePool = [];
+const MAX_POOLED_PAGES = 2;
 
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -178,49 +190,12 @@ const SOURCE_LABELS = {
   CHECKOUT: 'At checkout',
 };
 
-// Roboto subsets: latin covers text and the minus sign, latin-ext covers the rupee sign.
-const FONT_SUBSETS = [
-  {
-    name: 'latin-ext',
-    range: 'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, '
-      + 'U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF',
-  },
-  {
-    name: 'latin',
-    range: 'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, '
-      + 'U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD',
-  },
-];
-const FONT_WEIGHTS = [400, 500, 700];
-
-let fontFaceCss = null;
-
 /**
- * Base64-embed Roboto once so the PDF renders without internet access.
- * Falls back to the system font stack when the package files are missing.
+ * PDFs use the fonts already installed with Chrome. Embedding Roboto made every file carry several
+ * hundred kilobytes of font data and wait for those fonts to decode.
  * @returns {string}
  */
-const getFontFaceCss = () => {
-  if (fontFaceCss !== null) return fontFaceCss;
-  try {
-    const filesDir = path.join(path.dirname(require.resolve('@fontsource/roboto/package.json')), 'files');
-    const faces = [];
-    for (const subset of FONT_SUBSETS) {
-      for (const weight of FONT_WEIGHTS) {
-        const file = path.join(filesDir, `roboto-${subset.name}-${weight}-normal.woff2`);
-        const data = fs.readFileSync(file).toString('base64');
-        faces.push(
-          `@font-face { font-family: 'Roboto'; font-style: normal; font-weight: ${weight}; font-display: block; `
-          + `src: url(data:font/woff2;base64,${data}) format('woff2'); unicode-range: ${subset.range}; }`
-        );
-      }
-    }
-    fontFaceCss = faces.join('\n');
-  } catch (_) {
-    fontFaceCss = '';
-  }
-  return fontFaceCss;
-};
+const getFontFaceCss = () => '';
 
 /**
  * Payment rows for the folio, oldest first (the model returns newest first).
@@ -349,7 +324,7 @@ const fillTemplate = (template, values) => {
 };
 
 const buildHtml = async (booking, hotel, payments) => {
-  const template = fs.readFileSync(FOLIO_TEMPLATE_PATH, 'utf8');
+  const template = readTemplate(FOLIO_TEMPLATE_PATH);
   const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
   const roomRows = rooms.length
     ? rooms.map((room) => `
@@ -368,19 +343,21 @@ const buildHtml = async (booking, hotel, payments) => {
     Promise.all(signatureUrls.map(toDataUri)),
   ]);
 
+  const proofFigure = (src, label) => `
+    <figure class="proof">
+      <img src="${src}" alt="${escapeHtml(label)}" />
+      <figcaption>${escapeHtml(label)}</figcaption>
+    </figure>
+  `;
   const loadedProofs = imageSources.filter(Boolean);
   const idProofs = loadedProofs.length
-    ? loadedProofs.map((src, index) => `
-    <figure class="proof">
-      <img src="${src}" alt="ID proof ${index + 1}" />
-      <figcaption>ID proof ${index + 1}</figcaption>
-    </figure>
-  `).join('')
+    ? loadedProofs.map((src, index) => proofFigure(src, `ID proof ${index + 1}`)).join('')
     : '<p class="note">No ID proof uploaded.</p>';
 
-  const signature = signatureSources.filter(Boolean).map((src) => (
-    `<img src="${src}" alt="Guest signature" />`
-  )).join('');
+  const loadedSignatures = signatureSources.filter(Boolean);
+  const signatures = loadedSignatures.length
+    ? loadedSignatures.map((src, index) => proofFigure(src, `Signature ${index + 1}`)).join('')
+    : '<p class="note">No signature uploaded.</p>';
 
   const address = joinParts([hotel?.address, hotel?.city, hotel?.state, hotel?.pincode, hotel?.country]);
   const hotelMeta = [
@@ -449,7 +426,7 @@ const buildHtml = async (booking, hotel, payments) => {
     YEAR: String(new Date().getFullYear()),
     NOTES: escapeHtml(booking.notes || '—'),
     PREPARED_BY: escapeHtml(booking.creator?.name || 'Front desk'),
-    SIGNATURE: signature,
+    SIGNATURES: signatures,
     ID_PROOFS: idProofs,
   });
 };
@@ -473,14 +450,8 @@ const buildRoomBillRows = async (booking, rooms) => {
     }];
   }
 
-  const nightlyPrices = await Promise.all(rooms.map(async (room) => {
-    try {
-      const found = await roomModel.findRoomById(room.id);
-      return Number(found?.custom_price_per_night) || 0;
-    } catch (_) {
-      return 0;
-    }
-  }));
+  const prices = await roomModel.findNightlyPricesByIds(rooms.map((room) => room.id));
+  const nightlyPrices = rooms.map((room) => prices[room.id] || 0);
   const nightlyTotal = nightlyPrices.reduce((sum, price) => sum + price, 0);
 
   let amounts;
@@ -566,8 +537,7 @@ const buildBillPaymentMethodRows = (payments, booking) => {
 };
 
 /**
- * Totals box: Sub Total, Discount, Taxable Amount, CGST, SGST, Extra charges,
- * Late checkout, Grand Total. Amounts are in INR.
+ * Totals box: Sub Total, extra charges, late checkout, Discount, Taxable Amount, CGST, SGST, Grand Total.
  * @param {Object} booking
  * @returns {string}
  */
@@ -584,12 +554,12 @@ const buildBillSummaryRows = (booking) => {
 
   return [
     row('Sub Total', money(booking.base_amount), 'head'),
+    row('Extra Charges', money(booking.extra_charges_total)),
+    row(`Late Checkout Charges${lateHours > 0 ? ` (${lateHours} h)` : ''}`, money(booking.late_checkout_charge)),
     row('Discount', `${discount > 0 ? '−' : ''}${money(discount)}`, 'minus'),
     row('Taxable Amount', money(booking.taxable_amount), 'strong'),
     row(`Central Tax (${cgstRate}%)`, money(booking.cgst_amount)),
     row(`State/UT Tax (${sgstRate}%)`, money(booking.sgst_amount)),
-    row('Extra Charges', money(booking.extra_charges_total)),
-    row(`Late Checkout Charges${lateHours > 0 ? ` (${lateHours} h)` : ''}`, money(booking.late_checkout_charge)),
     row('Grand Total', money(booking.total_amount), 'grand'),
   ].join('');
 };
@@ -601,7 +571,7 @@ const buildBillSummaryRows = (booking) => {
  * @returns {Promise<string>}
  */
 const buildBillHtml = async (booking, hotel, payments) => {
-  const template = fs.readFileSync(BILL_TEMPLATE_PATH, 'utf8');
+  const template = readTemplate(BILL_TEMPLATE_PATH);
   const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
   const address = joinParts([hotel?.address, hotel?.city, hotel?.state, hotel?.pincode, hotel?.country]);
   const contact = joinParts([
@@ -653,14 +623,40 @@ const buildBillHtml = async (booking, hotel, payments) => {
 
 const getBrowser = async () => {
   if (browser && browser.connected) return browser;
+  pagePool.length = 0;
   browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-extensions',
+      '--no-first-run',
+      '--mute-audio',
+    ],
   });
   browser.on('disconnected', () => {
     browser = null;
+    pagePool.length = 0;
   });
   return browser;
+};
+
+const takePage = async () => {
+  const pooled = pagePool.pop();
+  if (pooled && !pooled.isClosed()) return pooled;
+  const chrome = await getBrowser();
+  return chrome.newPage();
+};
+
+const releasePage = (page) => {
+  if (!page || page.isClosed()) return;
+  if (pagePool.length >= MAX_POOLED_PAGES) {
+    page.close().catch(() => {});
+    return;
+  }
+  pagePool.push(page);
 };
 
 const closePdfBrowser = async () => {
@@ -674,37 +670,59 @@ const closePdfBrowser = async () => {
  * @param {string} html
  * @param {string} fileName
  * @param {string} errorLabel
+ * @param {Object} [options]
+ * @param {boolean} [options.printBackground=true] - Leave false for a black-and-white report with no filled areas.
  * @returns {Promise<string>} Absolute file path
  */
-const renderPdfFile = async (html, fileName, errorLabel) => {
+const renderPdfFile = async (html, fileName, errorLabel, { printBackground = true } = {}) => {
   fs.mkdirSync(PDF_DIR, { recursive: true });
   const filePath = path.join(PDF_DIR, fileName);
-  const chrome = await getBrowser();
-  const page = await chrome.newPage();
+  const page = await takePage();
+  let reuse = true;
   try {
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await page.evaluateHandle('document.fonts.ready');
-    // The bill template shrinks itself to one page; measure again now that fonts are loaded.
-    await page.evaluate(() => { if (typeof window.fitToPage === 'function') window.fitToPage(); });
-    // Templates may ask for a print scale (the bill uses it to get hairline borders).
-    const scale = await page.evaluate(() => (typeof window.pdfScale === 'number' ? window.pdfScale : 1));
+    // System fonts are already available. The bill measures itself once fonts have settled.
+    const scale = await page.evaluate(async () => {
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      if (typeof window.fitToPage === 'function') window.fitToPage();
+      return typeof window.pdfScale === 'number' ? window.pdfScale : 1;
+    });
     await page.pdf({
       path: filePath,
       format: 'A4',
-      printBackground: true,
+      printBackground,
       preferCSSPageSize: true,
       scale,
       margin: { top: 0, bottom: 0, left: 0, right: 0 },
     });
   } catch (err) {
+    reuse = false;
     throw new AppError(
       `Failed to generate the ${errorLabel}: ${err.message}`,
       HTTP_STATUS.INTERNAL_SERVER_ERROR
     );
   } finally {
-    await page.close();
+    if (reuse) releasePage(page);
+    else page.close().catch(() => {});
   }
   return filePath;
+};
+
+/**
+ * Booking, the hotel fields printed on a document, and its payments.
+ * The bill does not show ID photos, so it skips that read.
+ * @param {number|string} bookingId
+ * @param {Object} reqUser
+ * @param {boolean} includeMedia
+ * @returns {Promise<{ booking: Object, hotel: Object|null, payments: Array<Object> }>}
+ */
+const loadDocumentSources = async (bookingId, reqUser, includeMedia) => {
+  const booking = await bookingService.getBookingById(bookingId, reqUser, { includeMedia });
+  const [hotel, payments] = await Promise.all([
+    hotelModel.findHotelForDocument(booking.hotel_id),
+    bookingPaymentModel.findPaymentsByBookingId(booking.id),
+  ]);
+  return { booking, hotel, payments };
 };
 
 const safeBookingFileToken = (booking) =>
@@ -718,9 +736,7 @@ const safeBookingFileToken = (booking) =>
  * @returns {Promise<{ url: string, file_name: string }>}
  */
 const generateBookingPdf = async (bookingId, reqUser, baseUrl) => {
-  const booking = await bookingService.getBookingById(bookingId, reqUser);
-  const hotel = await hotelModel.findHotelById(booking.hotel_id);
-  const payments = await bookingPaymentModel.findPaymentsByBookingId(booking.id);
+  const { booking, hotel, payments } = await loadDocumentSources(bookingId, reqUser, true);
   const html = await buildHtml(booking, hotel, payments);
   const fileName = `booking_${safeBookingFileToken(booking)}_${Date.now()}.pdf`;
   await renderPdfFile(html, fileName, 'booking PDF');
@@ -738,9 +754,7 @@ const generateBookingPdf = async (bookingId, reqUser, baseUrl) => {
  * @returns {Promise<{ url: string, file_name: string }>}
  */
 const generateBookingBillPdf = async (bookingId, reqUser, baseUrl) => {
-  const booking = await bookingService.getBookingById(bookingId, reqUser);
-  const hotel = await hotelModel.findHotelById(booking.hotel_id);
-  const payments = await bookingPaymentModel.findPaymentsByBookingId(booking.id);
+  const { booking, hotel, payments } = await loadDocumentSources(bookingId, reqUser, false);
   const html = await buildBillHtml(booking, hotel, payments);
   const fileName = `bill_${safeBookingFileToken(booking)}_${Date.now()}.pdf`;
   await renderPdfFile(html, fileName, 'booking bill');

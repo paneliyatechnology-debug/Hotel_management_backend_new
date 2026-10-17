@@ -1,10 +1,10 @@
 /**
  * Booking database operations using Knex.
  */
-const crypto = require('crypto');
 const db = require('../database/knex');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');
-const { NON_BLOCKING_BOOKING_STATUSES } = require('../constants');
+const { HTTP_STATUS, NON_BLOCKING_BOOKING_STATUSES } = require('../constants');
+const { AppError } = require('../utils/response');
 /**
  * Format raw database row to structured Booking object
  * @param {Object} row
@@ -123,22 +123,141 @@ const formatBookingListItem = (row, rooms = []) => ({
 });
 
 /**
- * Generate a unique booking number safely under concurrent conditions.
- * Format: "BK-YYYYMMDD-XXXX" (e.g. BK-20261012-A8B9C1)
- * @param {import('knex').Knex} [trx=db]
+ * Initials of the hotel name. "BLUE OCEAN" becomes "BO".
+ * Words are split on anything that is not a letter or digit.
+ * @param {string} hotelName
+ * @returns {string}
+ */
+const buildHotelCode = (hotelName) => {
+  const words = String(hotelName || '').toUpperCase().match(/[A-Z0-9]+/g) || [];
+  return words.map((word) => word.charAt(0)).join('').slice(0, 12);
+};
+
+/**
+ * Indian financial year label for a moment, using Asia/Kolkata.
+ * 1 April 2026 through 31 March 2027 is "2026-27".
+ * @param {Date} [date=new Date()]
+ * @returns {string}
+ */
+const getIndianFinancialYear = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: 'numeric',
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === 'year').value);
+  const month = Number(parts.find((part) => part.type === 'month').value);
+  const startYear = month >= 4 ? year : year - 1;
+  return `${startYear}-${String(startYear + 1).slice(-2)}`;
+};
+
+/**
+ * Code taken from this hotel's name. Another hotel may use the same initials.
+ * The code is saved on the first booking so a later rename keeps the same series.
+ * Two creates at once can both see an empty code. The conditional update lets only one of them write it.
+ * @param {import('knex').Knex.Transaction} trx
+ * @param {{ id: number, name: string, booking_code: string|null }} hotel
  * @returns {Promise<string>}
  */
-const generateBookingNumber = async (trx = db) => {
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const randomSuffix = crypto.randomBytes(3).toString('hex').toUpperCase();
-    const candidate = `BK-${dateStr}-${randomSuffix}`;
-    const exists = await trx('bookings').where({ booking_number: candidate }).select('id').first();
-    if (!exists) {
-      return candidate;
+const allocateHotelCode = async (trx, hotel) => {
+  if (hotel.booking_code) return hotel.booking_code;
+
+  const code = (buildHotelCode(hotel.name) || `H${hotel.id}`).slice(0, 20);
+  const updated = await trx('hotels')
+    .where({ id: hotel.id })
+    .whereNull('booking_code')
+    .update({ booking_code: code, updated_at: new Date() });
+  if (updated === 1) return code;
+
+  const current = await trx('hotels').where({ id: hotel.id }).select('booking_code').first();
+  if (current && current.booking_code) return current.booking_code;
+
+  throw new AppError(
+    'Unable to assign a hotel code for the booking number.',
+    HTTP_STATUS.CONFLICT
+  );
+};
+
+/**
+ * Knex raw() for mysql2 returns [header, fields]. Some versions return the header itself.
+ * @param {*} result
+ * @returns {Object}
+ */
+const rawHeader = (result) => (Array.isArray(result) ? result[0] : result);
+
+/**
+ * Take the next sequence for this hotel and financial year.
+ * One UPDATE locks only that counter row. The hotel row is not locked, so other
+ * bookings at the hotel are not queued behind this one.
+ * @param {import('knex').Knex.Transaction} trx
+ * @param {number} hotelId
+ * @param {string} financialYear
+ * @returns {Promise<number>}
+ */
+const claimNextSequence = async (trx, hotelId, financialYear) => {
+  const now = new Date();
+  const claim = async () => {
+    const header = rawHeader(await trx.raw(
+      `UPDATE booking_sequences
+       SET last_sequence = LAST_INSERT_ID(last_sequence + 1), updated_at = ?
+       WHERE hotel_id = ? AND financial_year = ?`,
+      [now, hotelId, financialYear]
+    ));
+    if (!header || Number(header.affectedRows) !== 1) return null;
+
+    // mysql2 puts LAST_INSERT_ID(expr) on the OK packet. Read it from the same
+    // connection when the driver leaves insertId empty.
+    let sequence = Number(header.insertId);
+    if (!sequence) {
+      const rows = rawHeader(await trx.raw('SELECT LAST_INSERT_ID() AS seq'));
+      sequence = Number(Array.isArray(rows) ? rows[0]?.seq : rows?.seq);
     }
+    return sequence > 0 ? sequence : null;
+  };
+
+  const existing = await claim();
+  if (existing) return existing;
+
+  await trx.raw(
+    `INSERT IGNORE INTO booking_sequences (hotel_id, financial_year, last_sequence, created_at, updated_at)
+     VALUES (?, ?, 0, ?, ?)`,
+    [hotelId, financialYear, now, now]
+  );
+
+  const created = await claim();
+  if (created) return created;
+
+  throw new AppError('Unable to allocate a booking number.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+};
+
+/**
+ * Next booking number for one hotel, locked so two creates cannot take the same sequence.
+ * Format: HOTEL_CODE/YYYY-YY/SEQUENCE, for example BO/2026-27/0001.
+ * The sequence starts at 0001 for each hotel and financial year, then resets on 1 April.
+ * The same number may exist at another hotel. It may not be repeated for this hotel.
+ * @param {import('knex').Knex.Transaction} trx
+ * @param {number|string} hotelId
+ * @returns {Promise<string>}
+ */
+const generateBookingNumber = async (trx, hotelId) => {
+  const id = Number(hotelId);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new AppError('A valid hotel is required to generate a booking number.', HTTP_STATUS.BAD_REQUEST);
   }
-  return `BK-${dateStr}-${Date.now().toString(36).toUpperCase()}`;
+
+  const hotel = await trx('hotels')
+    .where({ id })
+    .select('id', 'name', 'booking_code')
+    .first();
+  if (!hotel) {
+    throw new AppError('Hotel not found.', HTTP_STATUS.NOT_FOUND);
+  }
+
+  const code = await allocateHotelCode(trx, hotel);
+  const financialYear = getIndianFinancialYear();
+  const next = await claimNextSequence(trx, id, financialYear);
+
+  return `${code}/${financialYear}/${String(next).padStart(4, '0')}`;
 };
 
 /**
@@ -248,6 +367,73 @@ const whereBookingIncludesRoom = (qb, roomId) => {
 };
 
 /**
+ * Stays that still block a room: not deleted, not checked out, and not cancelled or no-show.
+ * @param {import('knex').Knex.QueryBuilder} query
+ * @param {Date} inDate
+ * @param {Date} outDate
+ * @param {number|string|null} excludeBookingId
+ * @returns {import('knex').Knex.QueryBuilder}
+ */
+const whereStayBlocksDates = (query, inDate, outDate, excludeBookingId) => {
+  query
+    .whereNull('bookings.deleted_at')
+    .whereNull('bookings.actual_check_out')
+    .whereNotIn('bookings.booking_status', NON_BLOCKING_BOOKING_STATUSES)
+    .where('bookings.check_in_date', '<', outDate)
+    .where('bookings.check_out_date', '>', inDate);
+  if (excludeBookingId) query.whereNot('bookings.id', Number(excludeBookingId));
+  return query;
+};
+
+const OVERLAP_COLUMNS = [
+  'bookings.id as booking_id',
+  'bookings.booking_number',
+  'bookings.check_in_date',
+  'bookings.check_out_date',
+  'bookings.room_id',
+];
+
+/**
+ * One row per blocking stay and room. conflict_room_id is the room that overlaps.
+ * Primary-room stays and booking_rooms stays are read together, once for the whole list.
+ * @param {Array<number|string>} roomIds
+ * @param {Date|string} checkInDate
+ * @param {Date|string} checkOutDate
+ * @param {Object} [options={}]
+ * @param {number|string|null} [options.excludeBookingId=null]
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Array<Object>>}
+ */
+const checkRoomsOverlaps = async (
+  roomIds,
+  checkInDate,
+  checkOutDate,
+  { excludeBookingId = null } = {},
+  client = db
+) => {
+  const ids = [...new Set(roomIds.map((roomId) => Number(roomId)).filter((roomId) => roomId > 0))];
+  if (!ids.length) return [];
+
+  const inDate = new Date(checkInDate);
+  const outDate = new Date(checkOutDate);
+
+  const primary = whereStayBlocksDates(client('bookings'), inDate, outDate, excludeBookingId)
+    .whereIn('bookings.room_id', ids)
+    .select(...OVERLAP_COLUMNS, client.raw('bookings.room_id as conflict_room_id'));
+
+  const linked = whereStayBlocksDates(
+    client('bookings').innerJoin('booking_rooms', 'booking_rooms.booking_id', 'bookings.id'),
+    inDate,
+    outDate,
+    excludeBookingId
+  )
+    .whereIn('booking_rooms.room_id', ids)
+    .select(...OVERLAP_COLUMNS, 'booking_rooms.room_id as conflict_room_id');
+
+  return primary.union(linked);
+};
+
+/**
  * Check if the room already has a stay on these dates.
  * Soft-deleted rows are ignored. A stay also stops blocking the room once it is
  * checked out, cancelled, or marked no-show. Both actual_check_out and
@@ -268,32 +454,25 @@ const checkRoomOverlaps = async (
   roomId,
   checkInDate,
   checkOutDate,
-  { excludeBookingId = null } = {},
+  options = {},
   client = db
 ) => {
-  const inDate = new Date(checkInDate);
-  const outDate = new Date(checkOutDate);
-
-  let query = client('bookings')
-    .whereNull('bookings.deleted_at')
-    .whereNull('bookings.actual_check_out')
-    .whereNotIn('bookings.booking_status', NON_BLOCKING_BOOKING_STATUSES)
-    .where('bookings.check_in_date', '<', outDate)
-    .where('bookings.check_out_date', '>', inDate);
-
-  whereBookingIncludesRoom(query, Number(roomId));
-
-  if (excludeBookingId) {
-    query = query.whereNot('bookings.id', excludeBookingId);
+  const rows = await checkRoomsOverlaps([roomId], checkInDate, checkOutDate, options, client);
+  const seen = new Set();
+  const conflicts = [];
+  for (const row of rows) {
+    if (Number(row.conflict_room_id) !== Number(roomId)) continue;
+    if (seen.has(row.booking_id)) continue;
+    seen.add(row.booking_id);
+    conflicts.push({
+      booking_id: row.booking_id,
+      booking_number: row.booking_number,
+      check_in_date: row.check_in_date,
+      check_out_date: row.check_out_date,
+      room_id: row.room_id,
+    });
   }
-
-  return query.select(
-    'bookings.id as booking_id',
-    'bookings.booking_number',
-    'bookings.check_in_date',
-    'bookings.check_out_date',
-    'bookings.room_id'
-  );
+  return conflicts;
 };
 
 /**
@@ -301,10 +480,11 @@ const checkRoomOverlaps = async (
  * @param {number|string} id
  * @param {Object} [options={}]
  * @param {boolean} [options.includeDeleted=false]
+ * @param {boolean} [options.includeMedia=true] - Guest photos and the signature. The bill does not print them.
  * @param {import('knex').Knex} [client=db]
  * @returns {Promise<Object|null>}
  */
-const findBookingById = async (id, { includeDeleted = false } = {}, client = db) => {
+const findBookingById = async (id, { includeDeleted = false, includeMedia = true } = {}, client = db) => {
   let query = client('bookings')
     .leftJoin('hotels', 'bookings.hotel_id', 'hotels.id')
     .leftJoin('rooms', 'bookings.room_id', 'rooms.id')
@@ -330,14 +510,90 @@ const findBookingById = async (id, { includeDeleted = false } = {}, client = db)
   const row = await query.first();
   if (!row) return null;
 
-  const { imagesMap, signaturesMap } = await loadBookingMedia([row.id], client);
-  const roomsMap = await loadRoomsByBookingIds([row.id], client);
+  const [media, roomsMap] = await Promise.all([
+    includeMedia
+      ? loadBookingMedia([row.id], client)
+      : Promise.resolve({ imagesMap: {}, signaturesMap: {} }),
+    loadRoomsByBookingIds([row.id], client),
+  ]);
+  const { imagesMap, signaturesMap } = media;
 
   return formatBooking(row, {
     images: imagesMap[row.id] || [],
     signatures: signaturesMap[row.id] || [],
     rooms: roomsMap[row.id] || [],
   });
+};
+
+/**
+ * Booking columns plus every assigned room id.
+ * Used by checkout, which does not need photos, the hotel profile, or the creator.
+ * @param {number|string} id
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Object|null>}
+ */
+const findBookingForWrite = async (id, client = db) => {
+  const numericId = Number(id);
+  const [row, roomRows] = await Promise.all([
+    client('bookings').where('id', numericId).whereNull('deleted_at').first(),
+    client('booking_rooms').where({ booking_id: numericId }).orderBy('id', 'asc').select('room_id'),
+  ]);
+  if (!row) return null;
+
+  const linked = roomRows
+    .map((room) => Number(room.room_id))
+    .filter((roomId) => Number.isInteger(roomId) && roomId > 0);
+  const money = (value) => Number(value) || 0;
+
+  // Same number and text shape as the full booking read, so checkout audit diffs stay accurate.
+  return {
+    ...row,
+    room_id: linked.length ? linked : (row.room_id ? [Number(row.room_id)] : []),
+    number_of_nights: Number(row.number_of_nights) || 1,
+    adults: Number(row.adults) || 1,
+    children: Number(row.children) || 0,
+    base_amount: money(row.base_amount),
+    tax_amount: money(row.tax_amount),
+    gst_rate: Number(row.gst_rate) || 18,
+    cgst_rate: Number(row.cgst_rate) || 9,
+    sgst_rate: Number(row.sgst_rate) || 9,
+    gst_amount: money(row.gst_amount),
+    cgst_amount: money(row.cgst_amount),
+    sgst_amount: money(row.sgst_amount),
+    taxable_amount: money(row.taxable_amount),
+    discount_amount: money(row.discount_amount),
+    extra_charges_total: money(row.extra_charges_total),
+    late_checkout_charge: money(row.late_checkout_charge),
+    late_checkout_hours: Number(row.late_checkout_hours) || 0,
+    total_amount: money(row.total_amount),
+    paid_amount: money(row.paid_amount),
+    due_amount: money(row.due_amount),
+    notes: row.notes || '',
+    address: row.address || '',
+  };
+};
+
+/**
+ * Write booking columns without opening a transaction or reloading photos and rooms.
+ * @param {number|string} id
+ * @param {Object} updateData
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<{ id: number }>}
+ */
+const saveBookingColumns = async (id, updateData, client = db) => {
+  const {
+    room_ids: _roomIds,
+    images: _images,
+    signatures: _signatures,
+    ...columnUpdates
+  } = updateData;
+
+  await client('bookings').where({ id }).update({
+    ...columnUpdates,
+    updated_at: new Date(),
+  });
+
+  return { id: Number(id) };
 };
 
 /**
@@ -417,14 +673,11 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
     }
   };
 
-  // Total count
+  // The count and the page do not depend on each other.
   const countQuery = client('bookings');
   applyFilters(countQuery);
-  const totalResult = await countQuery.count('bookings.id as total').first();
-  const total = Number(totalResult?.total || 0);
 
-  // Paginated query. The list only needs these columns.
-  let dataQuery = client('bookings').select(
+  const dataQuery = client('bookings').select(
     'bookings.id',
     'bookings.hotel_id',
     'bookings.booking_number',
@@ -432,12 +685,16 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
     'bookings.mobile_number',
     'bookings.booking_status'
   );
-
   applyFilters(dataQuery);
-  dataQuery = dataQuery.orderBy('bookings.created_at', 'desc').offset(offset).limit(limit);
 
-  const rows = await dataQuery;
-  const roomsMap = await loadRoomsByBookingIds(rows.map((r) => r.id), client);
+  const [totalResult, rows] = await Promise.all([
+    countQuery.count('bookings.id as total').first(),
+    dataQuery.orderBy('bookings.created_at', 'desc').offset(offset).limit(limit),
+  ]);
+  const total = Number(totalResult?.total || 0);
+  const roomsMap = rows.length
+    ? await loadRoomsByBookingIds(rows.map((row) => row.id), client)
+    : {};
 
   const bookings = rows.map((row) => formatBookingListItem(row, roomsMap[row.id] || []));
 
@@ -465,16 +722,17 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
   const { imageRecords = [], signatureRecords = [] } = relations;
 
   return client.transaction(async (trx) => {
-    // 1. Generate unique booking number if not provided
-    const bookingNumber = bookingData.booking_number || (await generateBookingNumber(trx));
-
     const roomIds = Array.isArray(bookingData.room_ids) ? bookingData.room_ids : [];
     const {
       room_ids: _roomIds,
       images: _clientImages,
       signatures: _clientSignatures,
+      booking_number: _clientBookingNumber,
       ...bookingColumns
     } = bookingData;
+
+    // Always assigned here. A number sent by the client is ignored.
+    const bookingNumber = await generateBookingNumber(trx, bookingColumns.hotel_id);
 
     const insertPayload = {
       ...bookingColumns,
@@ -531,7 +789,21 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
       await trx('images').insert(allImageInserts);
     }
 
-    return findBookingById(bookingId, {}, trx);
+    // The create API only needs these fields. Reloading photos, rooms, and the
+    // hotel here kept the sequence lock open for several extra queries.
+    const assignedRooms = roomIds.length
+      ? roomIds.map(Number)
+      : [Number(insertPayload.room_id)].filter((roomId) => roomId > 0);
+
+    return {
+      id: bookingId,
+      hotel_id: insertPayload.hotel_id,
+      booking_number: insertPayload.booking_number,
+      booking_status: insertPayload.booking_status || null,
+      actual_check_in: insertPayload.actual_check_in || null,
+      actual_check_out: insertPayload.actual_check_out || null,
+      room_id: assignedRooms,
+    };
   });
 };
 
@@ -649,7 +921,7 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
       await trx('images').insert(newMediaRows);
     }
 
-    return findBookingById(id, {}, trx);
+    return { id: Number(id) };
   });
 };
 
@@ -673,11 +945,16 @@ const softDeleteBooking = async (id, client = db) => {
 
 module.exports = {
   formatBooking,
+  buildHotelCode,
+  getIndianFinancialYear,
   generateBookingNumber,
   checkRoomOverlaps,
+  checkRoomsOverlaps,
   findBookingById,
+  findBookingForWrite,
   findBookings,
   createBooking,
   updateBooking,
+  saveBookingColumns,
   softDeleteBooking,
 };

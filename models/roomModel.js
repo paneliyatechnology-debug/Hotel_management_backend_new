@@ -2,7 +2,7 @@
  * Physical Room database operations using Knex.
  */
 const db = require('../database/knex');
-const { publishRoomStatus } = require('../sockets/roomSocket');
+const { publishRoomStatus, publishRoomStatusBreakdown } = require('../sockets/roomSocket');
 const { buildImageUrl, deleteFile } = require('../services/s3Service');
 const { parseJson } = require('../utils/json');
 
@@ -213,6 +213,23 @@ const findRoomById = async (id, { includeDeleted = false } = {}, client = db) =>
 };
 
 /**
+ * Nightly price of each room, without loading photos. Missing ids are omitted.
+ * @param {Array<number|string>} ids
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Record<number, number>>}
+ */
+const findNightlyPricesByIds = async (ids, client = db) => {
+  const unique = [...new Set((ids || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  if (!unique.length) return {};
+  const rows = await client('rooms').whereIn('id', unique).select('id', 'custom_price_per_night');
+  const prices = {};
+  rows.forEach((row) => {
+    prices[row.id] = Number(row.custom_price_per_night) || 0;
+  });
+  return prices;
+};
+
+/**
  * Apply filters to rooms query
  * @param {import('knex').Knex.QueryBuilder} query
  * @param {Object} filters
@@ -264,14 +281,11 @@ const findRooms = async (filters = {}, pagination = {}, sorting = {}, client = d
   const limit = Math.max(1, Math.min(100, Number(pagination.limit) || 10));
   const offset = (page - 1) * limit;
 
-  // Count total matching records
   const countQuery = client('rooms');
   applyRoomFilters(countQuery, filters);
-  const countRes = await countQuery.count('rooms.id as count').first();
-  const total = Number(countRes?.count || 0);
 
-  // Fetch paginated rows with joined names
-  const query = client('rooms')
+  const floorOrder = String(sorting.sort_order || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
+  const dataQuery = client('rooms')
     .leftJoin('room_types', 'rooms.room_type_id', 'room_types.id')
     .leftJoin('hotels', 'rooms.hotel_id', 'hotels.id')
     .select(
@@ -279,15 +293,18 @@ const findRooms = async (filters = {}, pagination = {}, sorting = {}, client = d
       'room_types.name as room_type_name',
       'hotels.name as hotel_name'
     );
+  applyRoomFilters(dataQuery, filters);
+  dataQuery.orderBy('rooms.floor', floorOrder).orderBy('rooms.room_number', floorOrder);
+  dataQuery.limit(limit).offset(offset);
 
-  applyRoomFilters(query, filters);
-  const floorOrder = String(sorting.sort_order || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
-  query.orderBy('rooms.floor', floorOrder).orderBy('rooms.room_number', floorOrder);
-  query.limit(limit).offset(offset);
-
-  const rows = await query;
-  const roomIds = rows.map((r) => r.id);
-  const imagesMap = await getImagesByRoomIds(roomIds, client);
+  const [countRes, rows] = await Promise.all([
+    countQuery.count('rooms.id as count').first(),
+    dataQuery,
+  ]);
+  const total = Number(countRes?.count || 0);
+  const imagesMap = rows.length
+    ? await getImagesByRoomIds(rows.map((row) => row.id), client)
+    : {};
 
   const rooms = rows.map((row) => formatRoom(row, imagesMap[row.id] || []));
   const totalPages = Math.ceil(total / limit) || (total === 0 ? 0 : 1);
@@ -450,6 +467,56 @@ const updateRoom = async (id, updates, newImageRecords = [], trx) => {
 };
 
 /**
+ * Set the same status fields on many rooms and tell connected clients once per room.
+ * The dashboard count is published once per hotel after those room events.
+ * @param {Array<number|string>} ids
+ * @param {{ status?: string, cleaning_started_at?: Date, cleaning_duration_minutes?: number }} updates
+ * @returns {Promise<Array<Object>>} Rooms that were updated, in the requested order
+ */
+const setRoomsState = async (ids, updates) => {
+  const roomIds = [...new Set(ids.map((id) => Number(id)))]
+    .filter((id) => Number.isInteger(id) && id > 0);
+  if (!roomIds.length) return [];
+
+  const fields = { updated_at: new Date() };
+  if (updates.status !== undefined) fields.status = String(updates.status).trim().toUpperCase();
+  if (updates.cleaning_started_at !== undefined) fields.cleaning_started_at = updates.cleaning_started_at;
+  if (updates.cleaning_duration_minutes !== undefined) {
+    fields.cleaning_duration_minutes = Number(updates.cleaning_duration_minutes);
+  }
+
+  await db('rooms').whereIn('id', roomIds).update(fields);
+
+  const rows = await db('rooms')
+    .whereIn('id', roomIds)
+    .select('id', 'hotel_id', 'room_number', 'floor', 'status', 'is_active', 'deleted_at', 'updated_at');
+  const byId = new Map(rows.map((row) => [Number(row.id), row]));
+  const hotelIds = new Set();
+  const published = [];
+
+  for (const id of roomIds) {
+    const room = byId.get(id);
+    if (!room) continue;
+    const payload = {
+      id: room.id,
+      hotel_id: room.hotel_id,
+      room_number: room.room_number,
+      floor: Number(room.floor),
+      status: room.status,
+      is_active: Boolean(room.is_active),
+      deleted_at: room.deleted_at || null,
+      updated_at: room.updated_at,
+    };
+    publishRoomStatus(payload, { includeBreakdown: false });
+    hotelIds.add(Number(room.hotel_id));
+    published.push(payload);
+  }
+
+  for (const hotelId of hotelIds) publishRoomStatusBreakdown(hotelId);
+  return published;
+};
+
+/**
  * Rooms that are CLEANING and have a start time, across all hotels.
  * @param {import('knex').Knex} [client=db]
  * @returns {Promise<Array<{ id: number, cleaning_started_at: Date, cleaning_duration_minutes: number }>>}
@@ -493,9 +560,11 @@ module.exports = {
   findRoomByHotelFloorAndNumber,
   countRoomsByHotel,
   findRoomById,
+  findNightlyPricesByIds,
   findRooms,
   createRoom,
   updateRoom,
+  setRoomsState,
   findCleaningRooms,
   softDeleteRoom,
 };

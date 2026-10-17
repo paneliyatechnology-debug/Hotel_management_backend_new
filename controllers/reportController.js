@@ -8,7 +8,7 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
  * GET /api/v1/reports/gst
- * Date-wise GST report with summaries, grand totals and pagination.
+ * Invoice-wise GST report: one line per booking, period totals and pagination.
  */
 const getGstReport = async (req, res, next) => {
   try {

@@ -150,8 +150,9 @@ const publishRoomStatusBreakdown = async (hotelId) => {
  * Also publishes the hotel's room_status_breakdown for live dashboard updates.
  * No-op when the socket server is not running.
  * @param {Object|null} room
+ * @param {{ includeBreakdown?: boolean }} [options]
  */
-const publishRoomStatus = (room) => {
+const publishRoomStatus = (room, { includeBreakdown = true } = {}) => {
   if (!io || !room || !room.hotel_id || !room.id) return;
 
   io.to(hotelChannel(room.hotel_id)).emit(ROOM_STATUS_EVENT, {
@@ -165,8 +166,8 @@ const publishRoomStatus = (room) => {
     updated_at: room.updated_at,
   });
 
-  // Fire-and-forget. Callers of publishRoomStatus stay synchronous.
-  publishRoomStatusBreakdown(room.hotel_id);
+  // A multi-room stay publishes one breakdown after every room event.
+  if (includeBreakdown) publishRoomStatusBreakdown(room.hotel_id);
 };
 
 /**
