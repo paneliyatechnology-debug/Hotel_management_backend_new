@@ -12,23 +12,37 @@ const { extractImageFiles } = require('../utils/files');
 const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
 
 /**
- * Get all active room categories for the authenticated user's hotel.
- * Query hotel_id is ignored. Unauthenticated callers receive every active category.
- * @param {Object} [_query={}]
+ * Active room categories for the authenticated user's hotel, one page at a time.
+ * Query hotel_id is ignored. The status summary covers every category, not only this page.
+ * @param {Object} [query={}]
  * @param {Object} [reqUser=null]
- * @returns {Promise<Object[]>}
+ * @returns {Promise<Object>}
  */
-const getAllRoomTypes = async (_query = {}, reqUser = null) => {
-  const filters = {};
+const getAllRoomTypes = async (query = {}, reqUser = null) => {
+  const filters = { includeImages: false };
   if (reqUser && reqUser.hotel_id) {
     filters.hotel_id = Number(reqUser.hotel_id);
   }
 
-  const roomCategories = await roomTypeModel.findActiveRoomTypes(filters);
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.max(1, Math.min(100, Number(query.limit) || 10));
+  const offset = (page - 1) * limit;
+
+  const categories = await roomTypeModel.findActiveRoomTypes(filters);
+  const total = categories.length;
+  const pageRows = categories.slice(offset, offset + limit);
+  const imagesMap = await roomTypeModel.getImagesByRoomTypeIds(pageRows.map((row) => row.id));
 
   return {
-    room_categories: roomCategories,
-    room_status_summary: roomTypeModel.summarizeRoomStatusCounts(roomCategories),
+    room_categories: pageRows.map((row) => ({
+      ...row,
+      images: imagesMap[row.id] || [],
+    })),
+    room_status_summary: roomTypeModel.summarizeRoomStatusCounts(categories),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit) || (total === 0 ? 0 : 1),
   };
 };
 

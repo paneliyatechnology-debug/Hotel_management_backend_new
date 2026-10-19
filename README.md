@@ -275,7 +275,7 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 
 | Method | Endpoint | Description | Access |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/room-types` | List room types. Each category includes `room_status_counts`. `room_status_summary` is the total of those counts. | `HOTEL_ADMIN`, `RECEPTIONIST` |
+| `GET` | `/room-types` | List room types. Optional `page` (default 1) and `limit` (default 10, max 100). Each category includes `room_status_counts`. `room_status_summary` is the total across every category, not only the page. | `HOTEL_ADMIN`, `RECEPTIONIST` |
 | `GET` | `/room-types/:id` | Room type details | `HOTEL_ADMIN`, `RECEPTIONIST` |
 | `POST` | `/room-types` | Create room type (multipart for images) | `HOTEL_ADMIN` |
 | `PUT` / `DELETE` | `/room-types/:id` | Update / delete | `HOTEL_ADMIN` |

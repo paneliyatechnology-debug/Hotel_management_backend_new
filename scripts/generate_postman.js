@@ -919,16 +919,24 @@ ${envelope}`,
       name: 'List room categories',
       method: 'GET',
       events: testScript(saveId('room_categories.0.id', 'roomTypeId')),
-      raw: '{{baseUrl}}/api/v1/room-types',
+      raw: '{{baseUrl}}/api/v1/room-types?page=1&limit=10',
       pathSegments: ['api', 'v1', 'room-types'],
+      query: [
+        queryParam('page', '1', 'Optional. Page number, starting at 1. Default 1.'),
+        queryParam('limit', '10', 'Optional. Page size, 1 to 100. Default 10.'),
+      ],
       description: `### GET /api/v1/room-types
-Returns every active category for the logged-in hotel. There is no pagination and no filter query. \`hotel_id\` in the query is ignored.
+Returns one page of active categories for the logged-in hotel. \`hotel_id\` in the query is ignored.
 
 **Response \`data\`**
 | Key | Meaning |
 | --- | --- |
-| \`room_categories\` | Active categories for this hotel. |
-| \`room_status_summary\` | Room counts for the whole list, one number per status, plus \`total_room_count\`. |
+| \`room_categories\` | Active categories on this page. |
+| \`room_status_summary\` | Room counts for every category in the hotel, not only this page. |
+| \`total\` | Number of active categories. |
+| \`page\` | Current page. |
+| \`limit\` | Page size. |
+| \`totalPages\` | Pages available for this \`limit\`. |
 
 Each category keeps \`id\`, \`hotel_id\`, \`name\`, \`description\`, \`images\`, \`deleted_at\`, \`created_at\`, and \`updated_at\`, and adds \`room_status_counts\`.
 
