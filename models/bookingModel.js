@@ -2,7 +2,7 @@
  * Booking database operations using Knex.
  */
 const db = require('../database/knex');
-const { buildImageUrl, deleteFile } = require('../services/s3Service');
+const { getAccessibleUrl, deleteFile } = require('../services/s3Service');
 const { HTTP_STATUS, NON_BLOCKING_BOOKING_STATUSES } = require('../constants');
 const { AppError } = require('../utils/response');
 /**
@@ -11,15 +11,17 @@ const { AppError } = require('../utils/response');
  * @param {Object} [relations={}]
  * @returns {Object|null}
  */
-const formatBooking = (row, relations = {}) => {
+const formatBooking = async (row, relations = {}) => {
   if (!row) return null;
 
   const imageRecords = Array.isArray(relations.images) ? relations.images : [];
   const signatureRecords = Array.isArray(relations.signatures) ? relations.signatures : [];
 
   // Photos and signatures live only in the images table.
-  const imageUrls = imageRecords.map((img) => buildImageUrl(img.image_url)).filter(Boolean);
-  const signatureUrls = signatureRecords.map((sig) => buildImageUrl(sig.image_url)).filter(Boolean);
+  const [imageUrls, signatureUrls] = await Promise.all([
+    Promise.all(imageRecords.map((img) => getAccessibleUrl(img.image_url))),
+    Promise.all(signatureRecords.map((sig) => getAccessibleUrl(sig.image_url))),
+  ]);
 
   const booking = {
     id: row.id,
@@ -62,8 +64,8 @@ const formatBooking = (row, relations = {}) => {
     // Stay lifecycle. Kept separate from payment_status above.
     booking_status: row.booking_status || 'PENDING',
 
-    signatures: signatureUrls,
-    images: imageUrls,
+    signatures: signatureUrls.filter(Boolean),
+    images: imageUrls.filter(Boolean),
     notes: row.notes || '',
     deleted_at: row.deleted_at || null,
     created_at: row.created_at,

@@ -2301,6 +2301,36 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 | \`shift_collections_today\` | Cash / UPI / card / online totals and \`total_shift_collected\` for today. |
 | \`room_status_summary\` | Counts for every room status. |`,
     }),
+    item({
+      name: 'Dashboard summary',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/dashboard/summary?start_date=2026-10-01&end_date=2026-10-31',
+      pathSegments: ['api', 'v1', 'dashboard', 'summary'],
+      query: [
+        queryParam('start_date', '2026-10-01', 'Required. YYYY-MM-DD, inclusive.'),
+        queryParam('end_date', '2026-10-31', 'Required. YYYY-MM-DD, inclusive. Must be on or after start_date.'),
+        queryParam('hotel_id', '{{targetHotelId}}', 'SUPER_ADMIN only and required for them. Ignored for hotel staff.', true),
+      ],
+      description: `### GET /api/v1/dashboard/summary
+${authNote('The same roles as Get dashboard. A super admin must send hotel_id.')}
+
+This does not change **Get dashboard**. Both dates are required.
+
+Bookings, guests, booking amount, and due use \`bookings.created_at\`. Collection uses \`booking_payments.created_at\`. Deleted bookings are omitted. Collection counts payments with status \`PAID\` or \`PARTIALLY_PAID\`.
+
+**Response \`data\`**
+| Key | Meaning |
+| --- | --- |
+| \`period_start_date\`, \`period_end_date\` | The dates that were applied, shown as \`DD-MM-YYYY\`. Send the query as \`YYYY-MM-DD\`. |
+| \`total_collected_amount\` | Money collected in the window. |
+| \`total_outstanding_amount\` | \`due_amount\` still on bookings created in the window. |
+| \`total_booking_count\` | Bookings created in the window. |
+| \`total_guest_count\` | \`adults + children\` on those bookings. |
+| \`total_booking_amount\` | \`total_amount\` of those bookings. Already includes extra charges and the late fee after the discount and GST. |
+| \`total_discount_amount\` | \`discount_amount\` saved on those bookings, before tax. |
+| \`total_extra_charges_amount\` | \`extra_charges_total\` saved on those bookings, before tax. |
+| \`total_late_checkout_charges_amount\` | \`late_checkout_charge\` saved on those bookings, before tax. |`,
+    }),
   ],
 };
 

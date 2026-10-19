@@ -234,6 +234,89 @@ const getFrontDeskDashboard = async (query = {}, reqUser) => {
   };
 };
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A real calendar day, or null when the text is not YYYY-MM-DD.
+ * @param {*} value
+ * @returns {Date|null}
+ */
+const parseDateOnly = (value) => {
+  const text = String(value || '').trim();
+  if (!DATE_ONLY_PATTERN.test(text)) return null;
+  const [year, month, day] = text.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  const isReal = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+  return isReal ? date : null;
+};
+
+/**
+ * @param {string} value - YYYY-MM-DD
+ * @returns {string} DD-MM-YYYY
+ */
+const toDisplayDate = (value) => {
+  const [year, month, day] = String(value).split('-');
+  return `${day}-${month}-${year}`;
+};
+
+/**
+ * Required inclusive dates for the period summary. end is exclusive on the next midnight.
+ * @param {Object} query
+ * @returns {{ start: Date, end: Date, startDate: string, endDate: string }}
+ */
+const resolveSummaryPeriod = (query = {}) => {
+  const startText = query.start_date === undefined || query.start_date === null ? '' : String(query.start_date).trim();
+  const endText = query.end_date === undefined || query.end_date === null ? '' : String(query.end_date).trim();
+  const errors = [];
+  if (!startText) errors.push({ field: 'start_date', message: 'start_date is required.' });
+  if (!endText) errors.push({ field: 'end_date', message: 'end_date is required.' });
+
+  const start = startText ? parseDateOnly(startText) : null;
+  const end = endText ? parseDateOnly(endText) : null;
+  if (startText && !start) errors.push({ field: 'start_date', message: 'start_date must be a real date in YYYY-MM-DD format.' });
+  if (endText && !end) errors.push({ field: 'end_date', message: 'end_date must be a real date in YYYY-MM-DD format.' });
+  if (errors.length) {
+    throw new AppError('Invalid dashboard summary dates.', HTTP_STATUS.BAD_REQUEST, errors);
+  }
+  if (start > end) {
+    throw new AppError('start_date must not be after end_date.', HTTP_STATUS.BAD_REQUEST, [
+      { field: 'start_date', message: 'start_date must be on or before end_date.' },
+    ]);
+  }
+
+  return {
+    start,
+    end: new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1),
+    startDate: startText,
+    endDate: endText,
+  };
+};
+
+/**
+ * Hotel totals for a start and end date. Does not change the role dashboard.
+ * @param {Object} query
+ * @param {Object} reqUser
+ * @returns {Promise<{ message: string, data: Object }>}
+ */
+const getDashboardSummary = async (query = {}, reqUser) => {
+  if (!reqUser) {
+    throw new AppError('Authentication required.', HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const hotelId = resolveScopedHotelId(reqUser, query);
+  const period = resolveSummaryPeriod(query);
+  const summary = await dashboardModel.getHotelPeriodSummary(hotelId, period.start, period.end);
+
+  return {
+    message: 'Dashboard summary retrieved successfully.',
+    data: {
+      period_start_date: toDisplayDate(period.startDate),
+      period_end_date: toDisplayDate(period.endDate),
+      ...summary,
+    },
+  };
+};
+
 /**
  * Auto-route to the dashboard that matches the authenticated role.
  * SUPER_ADMIN with hotel_id gets the hotel-admin dashboard for that hotel.
@@ -269,4 +352,5 @@ const getDashboard = async (query = {}, reqUser) => {
 
 module.exports = {
   getDashboard,
+  getDashboardSummary,
 };

@@ -3,8 +3,9 @@
  * Manages uploading and deleting room category images in S3-compatible storage.
  */
 require('dotenv').config();
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const path = require('path');
+const { getPublicBase } = require('../utils/requestContext');
 
 const endpoint = process.env.S3_ENDPOINT || '';
 const region = process.env.S3_REGION || 'auto';
@@ -20,7 +21,54 @@ const s3Client = new S3Client({
     secretAccessKey,
   },
   forcePathStyle: true,
+  // Railway buckets reject the default checksum headers on signed downloads.
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
+
+const MEDIA_PREFIXES = [
+  'bookings/images/',
+  'bookings/signatures/',
+  'rooms/',
+  'room-types/',
+  'hotels/logos/',
+];
+
+/**
+ * Guest photos, signatures, room pictures, and hotel logos only.
+ * @param {string} key
+ * @returns {boolean}
+ */
+const isAllowedMediaKey = (key) => {
+  if (!key || typeof key !== 'string') return false;
+  if (key.includes('..') || key.includes('\\') || key.includes('\0')) return false;
+  return MEDIA_PREFIXES.some((prefix) => key.startsWith(prefix));
+};
+
+/**
+ * Host used in image links. An explicit API_PUBLIC_URL wins.
+ * Otherwise the host of the current API request is used, so local and deployed links stay correct.
+ * @returns {string}
+ */
+const resolvePublicBase = () => {
+  const configured = (process.env.API_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+  if (configured) return configured;
+  const fromRequest = getPublicBase();
+  if (fromRequest) return fromRequest;
+  const railway = (process.env.RAILWAY_PUBLIC_DOMAIN || '').trim();
+  if (railway) return `https://${railway}`;
+  return `http://127.0.0.1:${process.env.PORT || 5001}`;
+};
+
+/**
+ * Short stable image address, for example /media/hotels/logos/logo.png
+ * @param {string} key
+ * @returns {string}
+ */
+const buildMediaUrl = (key) => {
+  const encoded = key.split('/').map((part) => encodeURIComponent(part)).join('/');
+  return `${resolvePublicBase()}/media/${encoded}`;
+};
 
 /**
  * Generate full public/accessible URL for an image name or S3 key.
@@ -77,6 +125,79 @@ const buildImageUrl = (imageNameOrKey) => {
 };
 
 /**
+ * True when the address points at this app's bucket rather than an outside website.
+ * @param {string} value
+ * @returns {boolean}
+ */
+const isOwnStorageUrl = (value) => {
+  const str = String(value);
+  const publicBase = (process.env.S3_PUBLIC_URL || '').replace(/\/+$/, '');
+  return str.includes('.tigrisfiles.io/')
+    || str.includes('.storageapi.dev/')
+    || str.includes('.storage.dev/')
+    || str.includes('.amazonaws.com/')
+    || Boolean(publicBase && str.startsWith(publicBase));
+};
+
+/**
+ * URL a browser can open for a stored image.
+ * Railway buckets are private, so the tigrisfiles.io address returns AccessDenied.
+ * The response link is a short /media/... address. The server reads the private file for that path.
+ * @param {string} imageNameOrKey
+ * @returns {Promise<string>}
+ */
+const getAccessibleUrl = async (imageNameOrKey) => {
+  if (!imageNameOrKey) return '';
+  const raw = String(imageNameOrKey).trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw) && !isOwnStorageUrl(raw) && !isMediaAddress(raw)) return raw;
+  if ((process.env.S3_PUBLIC_URL || '').trim()) return buildImageUrl(raw);
+
+  const key = extractS3Key(raw);
+  if (!isAllowedMediaKey(key)) return /^https?:\/\//i.test(raw) ? raw : '';
+  return buildMediaUrl(key);
+};
+
+/**
+ * True when the path is one of this API's /media links.
+ * @param {string} value
+ * @returns {boolean}
+ */
+const isMediaAddress = (value) => {
+  const str = String(value || '');
+  if (str.startsWith('/media/')) return isAllowedMediaKey(safeDecode(str.slice('/media/'.length)));
+  try {
+    return isAllowedMediaKey(safeDecode(new URL(str).pathname.replace(/^\/media\//, '')));
+  } catch (_) {
+    return false;
+  }
+};
+
+const safeDecode = (value) => {
+  try {
+    return decodeURIComponent(value);
+  } catch (_) {
+    return '';
+  }
+};
+
+/**
+ * Read one private object for the public /media route.
+ * @param {string} key
+ * @returns {Promise<import('@aws-sdk/client-s3').GetObjectCommandOutput|null>}
+ */
+const openStoredObject = async (key) => {
+  if (!isAllowedMediaKey(key) || !bucket) return null;
+  try {
+    return await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  } catch (err) {
+    const status = err.$metadata && err.$metadata.httpStatusCode;
+    if (err.name === 'NoSuchKey' || status === 404) return null;
+    throw err;
+  }
+};
+
+/**
  * Upload single file buffer to S3
  * @param {Object} file - Multer file object
  * @param {string} [folder='room-types'] - S3 target directory
@@ -103,15 +224,22 @@ const uploadFile = async (file, folder = 'room-types') => {
     };
   }
 
-  const command = new PutObjectCommand({
+  const input = {
     Bucket: bucket,
     Key: s3Key,
     Body: file.buffer,
     ContentType: file.mimetype || 'image/jpeg',
-    ACL: 'public-read',
-  });
+  };
 
-  await s3Client.send(command);
+  try {
+    await s3Client.send(new PutObjectCommand({ ...input, ACL: 'public-read' }));
+  } catch (err) {
+    const status = err.$metadata && err.$metadata.httpStatusCode;
+    const denied = status === 403 || err.name === 'AccessDenied' || err.Code === 'AccessDenied';
+    if (!denied) throw err;
+    // This bucket does not allow a public file. Store it as private; responses use /media links.
+    await s3Client.send(new PutObjectCommand(input));
+  }
 
   return {
     imageName,
@@ -139,7 +267,19 @@ const uploadFiles = async (files, folder = 'room-types') => {
  */
 const extractS3Key = (keyOrUrl) => {
   if (!keyOrUrl || typeof keyOrUrl !== 'string') return '';
-  const str = keyOrUrl.trim();
+  const str = keyOrUrl.trim().split('#')[0].split('?')[0];
+
+  if (str.startsWith('/media/')) {
+    return safeDecode(str.slice('/media/'.length));
+  }
+  if (str.startsWith('http://') || str.startsWith('https://')) {
+    try {
+      const pathname = new URL(str).pathname;
+      if (pathname.startsWith('/media/')) return safeDecode(pathname.slice('/media/'.length));
+    } catch (_) {
+      return '';
+    }
+  }
 
   // Tigris public delivery domain: https://<bucket>.<subdomain>.tigrisfiles.io/<key>
   if (str.includes('.tigrisfiles.io/')) {
@@ -208,6 +348,9 @@ const deleteFile = async (s3KeyOrUrl) => {
 module.exports = {
   s3Client,
   buildImageUrl,
+  getAccessibleUrl,
+  isAllowedMediaKey,
+  openStoredObject,
   extractS3Key,
   uploadFile,
   uploadFiles,

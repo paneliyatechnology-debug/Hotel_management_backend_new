@@ -2,7 +2,7 @@
  * Hotel database operations using Knex.
  */
 const db = require('../database/knex');
-const { buildImageUrl, deleteFile } = require('../services/s3Service');
+const { getAccessibleUrl, deleteFile } = require('../services/s3Service');
 const { parseJson } = require('../utils/json');
 const { joinCurrentPurchase } = require('./subscriptionPlanModel');
 
@@ -28,7 +28,7 @@ const purchaseWindow = (row) => {
  * @param {Object} row - Raw hotel row from MySQL
  * @returns {Object|null}
  */
-const formatHotel = (row) => {
+const formatHotel = async (row) => {
   if (!row) return null;
 
   const window = purchaseWindow(row);
@@ -52,7 +52,7 @@ const formatHotel = (row) => {
     total_rooms: Number(row.total_rooms) || 0,
     hotel_type: row.hotel_type || 'Boutique Hotel',
     website: row.website || '',
-    logo: buildImageUrl(row.logo || ''),
+    logo: await getAccessibleUrl(row.logo || ''),
     is_active: row.is_active === undefined ? true : Boolean(row.is_active),
     subscription_plan_id: row.subscription_plan_id !== undefined ? row.subscription_plan_id : null,
     subscription: {
@@ -100,13 +100,13 @@ const formatHotel = (row) => {
  * @param {Object} row - Hotel row joined with its owner
  * @returns {Object}
  */
-const formatHotelListItem = (row) => {
+const formatHotelListItem = async (row) => {
   const window = purchaseWindow(row);
   return {
   id: row.id,
   name: row.name,
   slug: row.slug,
-  logo_url: buildImageUrl(row.logo || ''),
+  logo_url: await getAccessibleUrl(row.logo || ''),
   owner: {
     id: row.owner_id,
     name: row.owner_name || null,
@@ -363,7 +363,7 @@ const findHotels = async (filters = {}, pagination = {}, sorting = {}) => {
   const total = Number(totalResult?.total || 0);
 
   return {
-    hotels: rows.map(formatHotelListItem),
+    hotels: await Promise.all(rows.map(formatHotelListItem)),
     total,
     page,
     limit,

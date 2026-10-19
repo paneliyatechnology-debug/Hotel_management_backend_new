@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const dashboardController = require('../controllers/dashboardController');
-const { getDashboardQueryValidator } = require('../middleware/dashboardValidator');
+const { getDashboardQueryValidator, getDashboardSummaryQueryValidator } = require('../middleware/dashboardValidator');
 const { validate } = require('../middleware/validation');
 const { authenticateUser, requireRole } = require('../middleware/auth');
 const { ROLE_CODES } = require('../constants');
@@ -20,6 +20,17 @@ router.use(
     ROLE_CODES.HOUSEKEEPING,
     ROLE_CODES.ACCOUNTANT
   )
+);
+
+/**
+ * GET /api/v1/dashboard/summary
+ * Totals for one hotel between start_date and end_date.
+ */
+router.get(
+  '/summary',
+  getDashboardSummaryQueryValidator,
+  validate,
+  dashboardController.getDashboardSummary
 );
 
 /**

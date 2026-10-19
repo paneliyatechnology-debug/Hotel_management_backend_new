@@ -19,6 +19,20 @@ const getDashboard = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/v1/dashboard/summary
+ * Hotel totals between start_date and end_date.
+ */
+const getDashboardSummary = async (req, res, next) => {
+  try {
+    const { message, data } = await dashboardService.getDashboardSummary(req.query, req.user);
+    return success(res, message, data, HTTP_STATUS.OK);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getDashboard,
+  getDashboardSummary,
 };

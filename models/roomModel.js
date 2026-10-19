@@ -3,7 +3,7 @@
  */
 const db = require('../database/knex');
 const { publishRoomStatus, publishRoomStatusBreakdown } = require('../sockets/roomSocket');
-const { buildImageUrl, deleteFile } = require('../services/s3Service');
+const { getAccessibleUrl, deleteFile } = require('../services/s3Service');
 const { parseJson } = require('../utils/json');
 
 /**
@@ -56,13 +56,12 @@ const getImagesByRoomId = async (roomId, client = db) => {
     .orderBy('id', 'asc')
     .select('*');
 
-  return rows.map((r) => {
-    if (r.image_url && (r.image_url.startsWith('http://') || r.image_url.startsWith('https://'))) {
-      return buildImageUrl(r.image_url);
-    }
-    const key = r.image_name || r.s3_key || '';
-    return buildImageUrl(key);
-  });
+  return Promise.all(rows.map((r) => {
+    const source = r.image_url && (r.image_url.startsWith('http://') || r.image_url.startsWith('https://'))
+      ? r.image_url
+      : (r.image_name || r.s3_key || '');
+    return getAccessibleUrl(source);
+  }));
 };
 
 /**
@@ -88,11 +87,10 @@ const getImagesByRoomIds = async (roomIds, client = db) => {
     if (!map[row.room_id]) {
       map[row.room_id] = [];
     }
-    const url =
-      row.image_url && (row.image_url.startsWith('http://') || row.image_url.startsWith('https://'))
-        ? buildImageUrl(row.image_url)
-        : buildImageUrl(row.image_name || row.s3_key || '');
-    map[row.room_id].push(url);
+    const source = row.image_url && (row.image_url.startsWith('http://') || row.image_url.startsWith('https://'))
+      ? row.image_url
+      : (row.image_name || row.s3_key || '');
+    map[row.room_id].push(await getAccessibleUrl(source));
   }
 
   return map;

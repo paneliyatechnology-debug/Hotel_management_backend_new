@@ -9,7 +9,9 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const routers = require('./routers');
+const mediaRouter = require('./routers/mediaRouter');
 const errorHandler = require('./middleware/errorHandler');
+const { runWithRequest } = require('./utils/requestContext');
 const { success } = require('./utils/response');
 const { HTTP_STATUS } = require('./constants');
 
@@ -17,6 +19,9 @@ const app = express();
 
 // Behind the Railway proxy. Makes req.ip the real caller address for the audit trail.
 app.set('trust proxy', 1);
+
+// Image links use the host the client already called.
+app.use((req, _res, next) => runWithRequest(req, next));
 
 // ==========================================
 // Dynamic Multi-Origin CORS Configuration
@@ -123,6 +128,9 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
     }
   },
 }));
+
+// Short image addresses. The file stays in the private bucket.
+app.use('/media', mediaRouter);
 
 // ==========================================
 // API Routes

@@ -513,6 +513,51 @@ const getHotelShiftCollectionsToday = async (hotelId, todayFrom, todayTo, client
   };
 };
 
+/**
+ * Bookings created in the window, plus money collected in the same window.
+ * Collection uses booking_payments.created_at. The booking figures use bookings.created_at.
+ * @param {number} hotelId
+ * @param {Date} from
+ * @param {Date} to
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<{ total_collected_amount: number, total_outstanding_amount: number, total_booking_count: number, total_guest_count: number, total_booking_amount: number }>}
+ */
+const getHotelPeriodSummary = async (hotelId, from, to, client = db) => {
+  const [bookings, collection] = await Promise.all([
+    client('bookings')
+      .where({ hotel_id: hotelId })
+      .whereNull('deleted_at')
+      .modify((qb) => whereBetweenDates(qb, 'created_at', from, to))
+      .select(
+        client.raw('COUNT(id) as total_bookings'),
+        client.raw('COALESCE(SUM(adults + children), 0) as total_guests'),
+        client.raw('COALESCE(SUM(total_amount), 0) as total_booking_amount'),
+        client.raw('COALESCE(SUM(due_amount), 0) as total_due_amount'),
+        client.raw('COALESCE(SUM(discount_amount), 0) as total_discount_amount'),
+        client.raw('COALESCE(SUM(extra_charges_total), 0) as total_extra_charges_amount'),
+        client.raw('COALESCE(SUM(late_checkout_charge), 0) as total_late_checkout_charges_amount')
+      )
+      .first(),
+    client('booking_payments')
+      .where({ hotel_id: hotelId })
+      .whereIn('status', COLLECTED_PAYMENT_STATUSES)
+      .modify((qb) => whereBetweenDates(qb, 'created_at', from, to))
+      .sum('amount as total')
+      .first(),
+  ]);
+
+  return {
+    total_collected_amount: money(collection?.total),
+    total_outstanding_amount: money(bookings?.total_due_amount),
+    total_booking_count: asCount(bookings?.total_bookings),
+    total_guest_count: asCount(bookings?.total_guests),
+    total_booking_amount: money(bookings?.total_booking_amount),
+    total_discount_amount: money(bookings?.total_discount_amount),
+    total_extra_charges_amount: money(bookings?.total_extra_charges_amount),
+    total_late_checkout_charges_amount: money(bookings?.total_late_checkout_charges_amount),
+  };
+};
+
 module.exports = {
   countHotelsByActiveState,
   countTrialHotels,
@@ -533,4 +578,5 @@ module.exports = {
   getHotelDailyCollections,
   getHotelTodayPulse,
   getHotelShiftCollectionsToday,
+  getHotelPeriodSummary,
 };
