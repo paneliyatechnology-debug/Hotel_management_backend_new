@@ -2323,6 +2323,7 @@ Bookings, guests, booking amount, and due use \`bookings.created_at\`. Collectio
 | --- | --- |
 | \`period_start_date\`, \`period_end_date\` | The dates that were applied, shown as \`DD-MM-YYYY\`. Send the query as \`YYYY-MM-DD\`. |
 | \`total_collected_amount\` | Money collected in the window. |
+| \`collection_by_payment_method\` | That collection split by method: \`cash_collected_amount\`, \`online_collected_amount\`, \`card_collected_amount\`, \`upi_collected_amount\`, \`bank_transfer_collected_amount\`. The five amounts add up to \`total_collected_amount\`. |
 | \`total_outstanding_amount\` | \`due_amount\` still on bookings created in the window. |
 | \`total_booking_count\` | Bookings created in the window. |
 | \`total_guest_count\` | \`adults + children\` on those bookings. |

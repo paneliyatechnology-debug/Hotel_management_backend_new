@@ -520,10 +520,10 @@ const getHotelShiftCollectionsToday = async (hotelId, todayFrom, todayTo, client
  * @param {Date} from
  * @param {Date} to
  * @param {import('knex').Knex} [client=db]
- * @returns {Promise<{ total_collected_amount: number, total_outstanding_amount: number, total_booking_count: number, total_guest_count: number, total_booking_amount: number }>}
+ * @returns {Promise<Object>}
  */
 const getHotelPeriodSummary = async (hotelId, from, to, client = db) => {
-  const [bookings, collection] = await Promise.all([
+  const [bookings, collection, byMethod] = await Promise.all([
     client('bookings')
       .where({ hotel_id: hotelId })
       .whereNull('deleted_at')
@@ -544,10 +544,18 @@ const getHotelPeriodSummary = async (hotelId, from, to, client = db) => {
       .modify((qb) => whereBetweenDates(qb, 'created_at', from, to))
       .sum('amount as total')
       .first(),
+    getHotelRevenueByPaymentMethod(hotelId, from, to, client),
   ]);
 
   return {
     total_collected_amount: money(collection?.total),
+    collection_by_payment_method: {
+      cash_collected_amount: byMethod.CASH,
+      online_collected_amount: byMethod.ONLINE,
+      card_collected_amount: byMethod.CARD,
+      upi_collected_amount: byMethod.UPI,
+      bank_transfer_collected_amount: byMethod.BANK_TRANSFER,
+    },
     total_outstanding_amount: money(bookings?.total_due_amount),
     total_booking_count: asCount(bookings?.total_bookings),
     total_guest_count: asCount(bookings?.total_guests),

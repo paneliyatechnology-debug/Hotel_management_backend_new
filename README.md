@@ -337,7 +337,7 @@ Payment methods: `CASH`, `ONLINE`, `CARD`, `UPI`, `BANK_TRANSFER`.
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `GET` | `/dashboard` | Returns the dashboard for the caller's role. Optional `date_range` (`today`, `this_week`, `this_month`, `this_year`). Super admins may send `hotel_id` to open that hotel's dashboard. |
-| `GET` | `/dashboard/summary` | Hotel totals for required `start_date` and `end_date` (`YYYY-MM-DD`). The response dates are `period_start_date` and `period_end_date` in `DD-MM-YYYY`, plus collected amount, outstanding amount, booking count, guest count, booking amount, discount, extra charges, and late checkout charges. A super admin must send `hotel_id`. |
+| `GET` | `/dashboard/summary` | Hotel totals for required `start_date` and `end_date` (`YYYY-MM-DD`). The response dates are `period_start_date` and `period_end_date` in `DD-MM-YYYY`, plus collected amount, collection by payment method, outstanding amount, booking count, guest count, booking amount, discount, extra charges, and late checkout charges. A super admin must send `hotel_id`. |
 
 | Role | Dashboard |
 | :--- | :--- |
