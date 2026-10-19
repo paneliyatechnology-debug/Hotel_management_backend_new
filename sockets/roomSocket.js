@@ -1,15 +1,17 @@
 /**
  * Live room status for one hotel.
  * Clients join only their own hotel. A user from another hotel never receives these events.
- * Every room:status publish also sends room:status_breakdown so dashboards can refresh counts live.
+ * Every room:status publish also sends room:status_breakdown and room:category_counts.
  */
 const { Server } = require('socket.io');
 const { authenticateUser, validateHotelAccess } = require('../middleware/auth');
 const dashboardModel = require('../models/dashboardModel');
+const roomTypeModel = require('../models/roomTypeModel');
 const { ROLE_CODES } = require('../constants');
 
 const ROOM_STATUS_EVENT = 'room:status';
 const ROOM_STATUS_BREAKDOWN_EVENT = 'room:status_breakdown';
+const ROOM_CATEGORY_COUNTS_EVENT = 'room:category_counts';
 
 let io = null;
 
@@ -140,8 +142,31 @@ const publishRoomStatusBreakdown = async (hotelId) => {
       hotel_id: Number(hotelId),
       room_status_breakdown: roomStatusBreakdown,
     });
+    await publishRoomCategoryCounts(hotelId);
   } catch (err) {
     console.error('[RoomSocket] Failed to publish room status breakdown:', err.message);
+  }
+};
+
+/**
+ * Tell the hotel's connected clients the category list counts.
+ * Same numbers as GET /room-types: each category, then the hotel total.
+ * Sent when a room is created, updated, or deleted, and when a stay changes a room's status.
+ * @param {number|string} hotelId
+ * @returns {Promise<void>}
+ */
+const publishRoomCategoryCounts = async (hotelId) => {
+  if (!io || !hotelId) return;
+
+  try {
+    const counts = await roomTypeModel.getHotelRoomCategoryCounts(hotelId);
+    io.to(hotelChannel(hotelId)).emit(ROOM_CATEGORY_COUNTS_EVENT, {
+      hotel_id: Number(hotelId),
+      room_categories: counts.room_categories,
+      room_status_summary: counts.room_status_summary,
+    });
+  } catch (err) {
+    console.error('[RoomSocket] Failed to publish room category counts:', err.message);
   }
 };
 
@@ -189,8 +214,10 @@ module.exports = {
   attachRoomSocket,
   publishRoomStatus,
   publishRoomStatusBreakdown,
+  publishRoomCategoryCounts,
   disconnectHotel,
   closeRoomSocket,
   ROOM_STATUS_EVENT,
   ROOM_STATUS_BREAKDOWN_EVENT,
+  ROOM_CATEGORY_COUNTS_EVENT,
 };

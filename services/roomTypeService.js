@@ -24,7 +24,12 @@ const getAllRoomTypes = async (_query = {}, reqUser = null) => {
     filters.hotel_id = Number(reqUser.hotel_id);
   }
 
-  return roomTypeModel.findActiveRoomTypes(filters);
+  const roomCategories = await roomTypeModel.findActiveRoomTypes(filters);
+
+  return {
+    room_categories: roomCategories,
+    room_status_summary: roomTypeModel.summarizeRoomStatusCounts(roomCategories),
+  };
 };
 
 /**

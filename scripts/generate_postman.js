@@ -918,23 +918,21 @@ ${envelope}`,
     item({
       name: 'List room categories',
       method: 'GET',
-      events: testScript(saveId('0.id', 'roomTypeId')),
+      events: testScript(saveId('room_categories.0.id', 'roomTypeId')),
       raw: '{{baseUrl}}/api/v1/room-types',
       pathSegments: ['api', 'v1', 'room-types'],
       description: `### GET /api/v1/room-types
 Returns every active category for the logged-in hotel. There is no pagination and no filter query. \`hotel_id\` in the query is ignored.
 
-**Response \`data\`:** an array. Each item:
+**Response \`data\`**
+| Key | Meaning |
+| --- | --- |
+| \`room_categories\` | Active categories for this hotel. |
+| \`room_status_summary\` | Room counts for the whole list, one number per status, plus \`total_room_count\`. |
 
-| Key | Type | Meaning |
-| --- | --- | --- |
-| \`id\` | number | Category id. |
-| \`hotel_id\` | number | Hotel that owns it. |
-| \`name\` | string | Category name. |
-| \`description\` | string | Description, or empty. |
-| \`images\` | string array | Full image URLs. |
-| \`deleted_at\` | null | Always null in this list. |
-| \`created_at\`, \`updated_at\` | string | Timestamps. |`,
+Each category keeps \`id\`, \`hotel_id\`, \`name\`, \`description\`, \`images\`, \`deleted_at\`, \`created_at\`, and \`updated_at\`, and adds \`room_status_counts\`.
+
+\`room_status_counts\` and \`room_status_summary\` use the same keys: \`available_count\`, \`reserved_count\`, \`occupied_count\`, \`cleaning_count\`, \`maintenance_count\`, \`blocked_count\`, and \`total_room_count\`. Deleted rooms are not counted. A status with no rooms is \`0\`. The summary is the sum of the category counts.`,
     }),
     item({
       name: 'Get room category',
@@ -1053,7 +1051,42 @@ Any logged-in hotel role can connect: hotel admin, receptionist, manager, housek
 
 Listen for \`room:status\`. The payload is \`id\`, \`hotel_id\`, \`room_number\`, \`floor\`, \`status\`, \`is_active\`, \`deleted_at\`, \`updated_at\`. It is sent when a room is created, when its status or active flag changes, and when a booking moves the room (occupied, reserved, cleaning, available).
 
-Every \`room:status\` is followed by \`room:status_breakdown\` for the same hotel. Use that for live dashboard cards. Payload:
+Every \`room:status\` is followed by \`room:status_breakdown\` and \`room:category_counts\` for the same hotel.
+
+\`room:category_counts\` is also sent when a room is updated without a status change, for example when it moves to another category. Use it to refresh the room category list. The keys match \`GET /room-types\`: each category has \`id\`, \`hotel_id\`, \`name\`, and \`room_status_counts\`. \`room_status_summary\` is the hotel total. Images are not included.
+
+\`\`\`json
+{
+  "hotel_id": 3,
+  "room_categories": [
+    {
+      "id": 12,
+      "hotel_id": 3,
+      "name": "Deluxe",
+      "room_status_counts": {
+        "available_count": 2,
+        "reserved_count": 0,
+        "occupied_count": 1,
+        "cleaning_count": 0,
+        "maintenance_count": 0,
+        "blocked_count": 0,
+        "total_room_count": 3
+      }
+    }
+  ],
+  "room_status_summary": {
+    "available_count": 4,
+    "reserved_count": 0,
+    "occupied_count": 1,
+    "cleaning_count": 2,
+    "maintenance_count": 0,
+    "blocked_count": 0,
+    "total_room_count": 7
+  }
+}
+\`\`\`
+
+\`room:status_breakdown\` is the hotel total by status code, for dashboard cards. Payload:
 
 \`\`\`json
 {

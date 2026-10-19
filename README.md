@@ -7,7 +7,7 @@ live room status updates.
 - **Runtime:** Node.js 18+ (20 LTS recommended), Express 4
 - **Database:** MySQL 8+ through Knex (migrations and seeds)
 - **Auth:** JWT access and refresh tokens (Bearer header or HTTP-only cookies), role-based access control
-- **Real time:** Socket.IO (`room:status` and `room:status_breakdown` events)
+- **Real time:** Socket.IO (`room:status`, `room:status_breakdown`, and `room:category_counts` events)
 - **Storage:** S3-compatible object storage for images (AWS S3, Cloudflare R2, MinIO)
 - **Email:** Brevo transactional API, BullMQ queue with in-memory fallback
 - **WhatsApp:** Cloud API booking confirmation, separate BullMQ queue with in-memory retry
@@ -275,7 +275,7 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 
 | Method | Endpoint | Description | Access |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/room-types` | List room types | `HOTEL_ADMIN`, `RECEPTIONIST` |
+| `GET` | `/room-types` | List room types. Each category includes `room_status_counts`. `room_status_summary` is the total of those counts. | `HOTEL_ADMIN`, `RECEPTIONIST` |
 | `GET` | `/room-types/:id` | Room type details | `HOTEL_ADMIN`, `RECEPTIONIST` |
 | `POST` | `/room-types` | Create room type (multipart for images) | `HOTEL_ADMIN` |
 | `PUT` / `DELETE` | `/room-types/:id` | Update / delete | `HOTEL_ADMIN` |
@@ -464,6 +464,14 @@ socket.on('room:status_breakdown', (payload) => {
   //   }
   // }
 });
+
+socket.on('room:category_counts', (payload) => {
+  // {
+  //   hotel_id,
+  //   room_categories: [{ id, hotel_id, name, room_status_counts }],
+  //   room_status_summary
+  // }
+});
 ```
 
 - Every hotel user joins only the channel of their own hotel (`hotel:<hotel_id>`).
@@ -472,6 +480,8 @@ socket.on('room:status_breakdown', (payload) => {
   status is changed through the API, and when cleaning finishes (`AVAILABLE`).
 - Every `room:status` is followed by `room:status_breakdown` with live counts for that hotel. Use it to
   refresh dashboard room-status cards without polling.
+- `room:category_counts` is sent when a room is created, updated, or deleted, and when a stay changes a
+  room's status. `room_status_counts` and `room_status_summary` use the same keys as `GET /room-types`.
 - Use Socket.IO client v4. A plain WebSocket client does not work.
 
 ---

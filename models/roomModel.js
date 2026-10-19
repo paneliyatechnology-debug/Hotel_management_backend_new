@@ -2,7 +2,7 @@
  * Physical Room database operations using Knex.
  */
 const db = require('../database/knex');
-const { publishRoomStatus, publishRoomStatusBreakdown } = require('../sockets/roomSocket');
+const { publishRoomStatus, publishRoomStatusBreakdown, publishRoomCategoryCounts } = require('../sockets/roomSocket');
 const { getAccessibleUrl, deleteFile } = require('../services/s3Service');
 const { parseJson } = require('../utils/json');
 
@@ -465,6 +465,8 @@ const updateRoom = async (id, updates, newImageRecords = [], trx) => {
   const room = await db.transaction(execute);
   if (updates.status !== undefined || updates.is_active !== undefined) {
     publishRoomStatus(room);
+  } else if (room && room.hotel_id) {
+    publishRoomCategoryCounts(room.hotel_id);
   }
   return room;
 };

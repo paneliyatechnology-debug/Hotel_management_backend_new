@@ -3,6 +3,36 @@
  */
 const db = require('../database/knex');
 const { getAccessibleUrl, deleteFile } = require('../services/s3Service');
+const { ROOM_STATUSES } = require('../constants');
+
+/**
+ * Zero count for every room status, plus the total.
+ * @returns {Object}
+ */
+const emptyRoomStatusCounts = () => {
+  const counts = {};
+  for (const status of ROOM_STATUSES) {
+    counts[`${status.toLowerCase()}_count`] = 0;
+  }
+  counts.total_room_count = 0;
+  return counts;
+};
+
+/**
+ * Add each category's status counts into one hotel total.
+ * @param {Array<{ room_status_counts?: Object }>} categories
+ * @returns {Object}
+ */
+const summarizeRoomStatusCounts = (categories) => {
+  const summary = emptyRoomStatusCounts();
+  for (const category of categories) {
+    const counts = category.room_status_counts || {};
+    for (const key of Object.keys(summary)) {
+      summary[key] += Number(counts[key]) || 0;
+    }
+  }
+  return summary;
+};
 
 /**
  * Format raw database row to structured RoomType object.
@@ -79,6 +109,39 @@ const getImagesByRoomTypeIds = async (roomTypeIds, client = db) => {
 };
 
 /**
+ * Non-deleted room counts for each category, one number per room status.
+ * @param {Array<number|string>} roomTypeIds
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Record<number, Object>>}
+ */
+const getRoomStatusCountsByRoomTypeIds = async (roomTypeIds, client = db) => {
+  const map = {};
+  for (const id of roomTypeIds) {
+    map[id] = emptyRoomStatusCounts();
+  }
+  if (!roomTypeIds || roomTypeIds.length === 0) return map;
+
+  const rows = await client('rooms')
+    .whereIn('room_type_id', roomTypeIds)
+    .whereNull('deleted_at')
+    .select('room_type_id', 'status')
+    .count('id as total')
+    .groupBy('room_type_id', 'status');
+
+  for (const row of rows) {
+    const bucket = map[row.room_type_id];
+    if (!bucket) continue;
+    const key = `${String(row.status || '').toLowerCase()}_count`;
+    if (!Object.prototype.hasOwnProperty.call(bucket, key)) continue;
+    const count = Number(row.total) || 0;
+    bucket[key] = count;
+    bucket.total_room_count += count;
+  }
+
+  return map;
+};
+
+/**
  * Check if hotel exists in hotels table
  * @param {number|string} hotelId
  * @param {import('knex').Knex} [client=db]
@@ -123,6 +186,7 @@ const findRoomTypeById = async (id, { includeDeleted = false } = {}, client = db
  * @returns {Promise<Object[]>}
  */
 const findActiveRoomTypes = async (filters = {}, client = db) => {
+  const includeImages = filters.includeImages !== false;
   let query = client('room_types').whereNull('deleted_at');
 
   if (filters.hotel_id) {
@@ -133,9 +197,38 @@ const findActiveRoomTypes = async (filters = {}, client = db) => {
 
   const rows = await query;
   const ids = rows.map((r) => r.id);
-  const imagesMap = await getImagesByRoomTypeIds(ids, client);
+  const [imagesMap, statusCounts] = await Promise.all([
+    includeImages ? getImagesByRoomTypeIds(ids, client) : Promise.resolve({}),
+    getRoomStatusCountsByRoomTypeIds(ids, client),
+  ]);
 
-  return rows.map((row) => formatRoomType(row, imagesMap[row.id] || []));
+  return rows.map((row) => ({
+    ...formatRoomType(row, imagesMap[row.id] || []),
+    room_status_counts: statusCounts[row.id] || emptyRoomStatusCounts(),
+  }));
+};
+
+/**
+ * Live category counts for one hotel. Images are omitted; this is for the socket payload.
+ * @param {number|string} hotelId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<{ room_categories: Object[], room_status_summary: Object }>}
+ */
+const getHotelRoomCategoryCounts = async (hotelId, client = db) => {
+  const categories = await findActiveRoomTypes(
+    { hotel_id: hotelId, includeImages: false },
+    client
+  );
+
+  return {
+    room_categories: categories.map((category) => ({
+      id: category.id,
+      hotel_id: category.hotel_id,
+      name: category.name,
+      room_status_counts: category.room_status_counts,
+    })),
+    room_status_summary: summarizeRoomStatusCounts(categories),
+  };
 };
 
 /**
@@ -332,6 +425,8 @@ module.exports = {
   hotelExists,
   findRoomTypeById,
   findActiveRoomTypes,
+  summarizeRoomStatusCounts,
+  getHotelRoomCategoryCounts,
   findRoomTypeByNameAndHotel,
   countAssignedRooms,
   createRoomType,
