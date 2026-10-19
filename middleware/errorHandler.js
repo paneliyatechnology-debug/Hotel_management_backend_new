@@ -30,6 +30,7 @@ const errorHandler = async (err, req, res, _next) => {
     const sqlMsg = err.sqlMessage || '';
     if (
       sqlMsg.includes('users_email_unique') ||
+      sqlMsg.includes('users_active_email_unique') ||
       sqlMsg.includes('users.email') ||
       sqlMsg.includes('hotels_owner_email_unique') ||
       sqlMsg.includes('owner_email')
