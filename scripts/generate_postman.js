@@ -1619,6 +1619,7 @@ ${idNote('Use **Get booking** to read the updated booking.')}`,
         paid_amount: 1500,
         payment_method: 'UPI',
         extra_charges_total: 300,
+        discount_amount: 500,
         late_checkout_charge: 500,
         late_checkout_hours: 2,
         notes: 'Collected remaining balance at the desk',
@@ -1643,6 +1644,7 @@ A second checkout, when \`actual_check_out\` is already set, returns 400.
 | \`paid_amount\` | number | No | Collected now. Added to the existing \`paid_amount\`. It does not replace it. Together with what was already paid, this must clear the bill after extra charges, the late fee, the discount, and GST. A shortfall returns 400 with that remaining \`due_amount\`, and checkout does not happen. |
 | \`payment_method\` | string | No | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. Default \`CASH\`. Saved with the payment. |
 | \`extra_charges_total\` | number | No | Extra charges for the whole stay (minibar, laundry, and so on). Included with the room charge before the discount and GST. This is the full total, not only the new amount: it replaces the stored \`extra_charges_total\`. Leave it out to keep the stored value. Updates total and due. 0 or more. |
+| \`discount_amount\` | number | No | Discount for the stay, same as on create. Taken off the room charge, extra charges, and late fee before GST. Replaces the stored discount. Leave it out to keep the booking discount. 0 or more. |
 | \`late_checkout_charge\` | number | No | Late fee. Included before the discount and GST, and updates due. 0 or more. |
 | \`late_checkout_hours\` | number | No | Hours late. 0 or more. |
 | \`notes\` | string | No | Appended to the existing note. It does not wipe the old note. |

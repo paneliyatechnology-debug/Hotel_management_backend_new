@@ -278,6 +278,11 @@ const checkOutBookingValidator = [
     .isFloat({ min: 0 })
     .withMessage('extra_charges_total cannot be negative.'),
 
+  body('discount_amount')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('discount_amount cannot be negative.'),
+
   body('late_checkout_charge')
     .optional()
     .isFloat({ min: 0 })

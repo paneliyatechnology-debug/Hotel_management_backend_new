@@ -969,14 +969,18 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
   const extraCharges = body.extra_charges_total !== undefined && body.extra_charges_total !== ''
     ? Number(body.extra_charges_total)
     : Number(existing.extra_charges_total) || 0;
+  // Same discount field as booking create. A sent value replaces the stored discount. Leave it out to keep it.
+  const discountAmount = body.discount_amount !== undefined && body.discount_amount !== ''
+    ? Number(body.discount_amount)
+    : Number(existing.discount_amount) || 0;
 
-  if ([collectedNow, lateCharge, lateHours, extraCharges].some((value) => Number.isNaN(value) || value < 0)) {
+  if ([collectedNow, lateCharge, lateHours, extraCharges, discountAmount].some((value) => Number.isNaN(value) || value < 0)) {
     throw new AppError('Checkout amounts cannot be negative.', HTTP_STATUS.BAD_REQUEST);
   }
 
   const pricing = calculatePricing({
     base_amount: existing.base_amount,
-    discount_amount: existing.discount_amount,
+    discount_amount: discountAmount,
     extra_charges_total: extraCharges,
     late_checkout_charge: lateCharge,
     late_checkout_hours: lateHours,
