@@ -281,8 +281,8 @@ All routes are mounted under `/api/v1` and `/api`. Singular aliases (`/hotel`, `
 | `PUT` / `DELETE` | `/room-types/:id` | Update / delete | `HOTEL_ADMIN` |
 | `GET` | `/rooms` | List (filters: `floor`, `room_type_id`, `status`, `is_active`, `page`, `limit`, `sort_by`, `sort_order`) | `HOTEL_ADMIN`, `RECEPTIONIST` |
 | `GET` | `/rooms/:id` | Room details | `HOTEL_ADMIN`, `RECEPTIONIST` |
-| `POST` | `/rooms` | Create room | `HOTEL_ADMIN` |
-| `PUT` / `DELETE` | `/rooms/:id` | Update / soft delete (only `AVAILABLE` rooms) | `HOTEL_ADMIN` |
+| `POST` | `/rooms` | Create room. Status is always `AVAILABLE`. Optional `beds` is an array of `{ bed_type, bed_count }`. | `HOTEL_ADMIN` |
+| `PUT` / `DELETE` | `/rooms/:id` | Update / soft delete (only `AVAILABLE` rooms). Update does not change status. Send `beds` to replace the bed list. | `HOTEL_ADMIN` |
 | `PATCH` | `/rooms/:id/status` | Change room status | `HOTEL_ADMIN`, `RECEPTIONIST` |
 
 Room statuses: `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, `BLOCKED`.

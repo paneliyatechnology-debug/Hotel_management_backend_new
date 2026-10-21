@@ -10,6 +10,7 @@ const auditService = require('./auditService');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
 const { extractImageFiles } = require('../utils/files');
+const { parseRoomBeds } = require('../utils/roomBeds');
 const {
   HTTP_STATUS,
   ROOM_STATUSES,
@@ -128,10 +129,7 @@ const createRoom = async (body, files = [], reqUser = null) => {
       room_number: roomNumber,
       room_type_id: roomTypeId,
       floor,
-      status: body.status ? String(body.status).toUpperCase() : 'AVAILABLE',
-      seating_capacity: body.seating_capacity !== undefined ? Number(body.seating_capacity) : 2,
-      bed_count: body.bed_count !== undefined ? Number(body.bed_count) : 1,
-      bed_type: body.bed_type ? String(body.bed_type).trim() : '1 King Bed',
+      beds: parseRoomBeds(body.beds),
       custom_price_per_night:
         body.custom_price_per_night !== undefined && body.custom_price_per_night !== ''
           ? Number(body.custom_price_per_night)
@@ -310,10 +308,9 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
   if (body.room_type_id !== undefined) updates.room_type_id = targetRoomTypeId;
   if (body.room_number !== undefined) updates.room_number = targetRoomNumber;
   if (body.floor !== undefined) updates.floor = targetFloor;
-  if (body.status !== undefined) updates.status = String(body.status).toUpperCase();
-  if (body.seating_capacity !== undefined) updates.seating_capacity = Number(body.seating_capacity);
-  if (body.bed_count !== undefined) updates.bed_count = Number(body.bed_count);
-  if (body.bed_type !== undefined) updates.bed_type = String(body.bed_type).trim();
+  if (body.beds !== undefined && body.beds !== '') {
+    updates.beds = parseRoomBeds(body.beds);
+  }
   if (body.custom_price_per_night !== undefined) {
     updates.custom_price_per_night =
       body.custom_price_per_night !== '' && body.custom_price_per_night !== null

@@ -1042,7 +1042,9 @@ const roomFolder = {
 
 Room number is unique per hotel and floor. Room 101 on floor 1 and room 101 on floor 2 are both allowed. The same number on the same floor is not.
 
-Room status values: \`AVAILABLE\`, \`RESERVED\`, \`OCCUPIED\`, \`CLEANING\`, \`MAINTENANCE\`, \`BLOCKED\`. Send any case. The server stores uppercase.
+Room status values: \`AVAILABLE\`, \`RESERVED\`, \`OCCUPIED\`, \`CLEANING\`, \`MAINTENANCE\`, \`BLOCKED\`. Create always stores \`AVAILABLE\`. Update does not change status. Use **Update room status** for that. The server stores uppercase.
+
+A room's beds are a JSON array of \`{ bed_type, bed_count }\`. One room can have several bed types. \`seating_capacity\`, a single \`bed_count\`, and a single \`bed_type\` are no longer accepted.
 
 Use JSON when you are not uploading images. Use multipart when you are. File field names: \`images\`, \`images[]\`, or \`image\`.
 
@@ -1125,10 +1127,7 @@ ${envelope}`,
           textField('room_number', '101', 'Required. Room number or label. Max 50 characters. Unique with floor inside this hotel.'),
           textField('room_type_id', '{{roomTypeId}}', 'Required. Category id from Room categories. Must belong to this hotel.'),
           textField('floor', '1', 'Optional. Integer floor. Default 1. Negative floors are allowed, for example -1 for basement.'),
-          textField('status', 'AVAILABLE', 'Optional. AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, or BLOCKED. Default AVAILABLE.'),
-          textField('seating_capacity', '2', 'Optional. Positive integer. Default 2. Guest capacity, not bed count.'),
-          textField('bed_count', '1', 'Optional. Positive integer. Default 1.'),
-          textField('bed_type', '1 King Bed', 'Optional. Free text, max 100 characters. Default "1 King Bed".'),
+          textField('beds', '[{"bed_type":"King","bed_count":1},{"bed_type":"Single","bed_count":2}]', 'Optional. JSON array. Each object has bed_type (max 100 characters) and bed_count (1 to 50). A room can have several bed types. Omit it for no beds. Status is not accepted here; a new room is AVAILABLE. Change status with PATCH /rooms/:id/status.'),
           textField('custom_price_per_night', '3500', 'Optional. Number, 0 or more. Nightly rate for this room. Empty means no custom price.'),
           textField('notes', 'Corner room', 'Optional. Internal note.'),
           textField('key_code', '4521', 'Optional. Door or lock code. Max 50 characters. Leave empty when the room has no code.', true),
@@ -1219,10 +1218,8 @@ Another hotel's room returns 403.
 | \`room_type_id\` | number | Category id. |
 | \`room_type_name\` | string or null | Category name. |
 | \`floor\` | number | Floor. |
-| \`status\` | string | One of the six room statuses. |
-| \`seating_capacity\` | number | Guest capacity. |
-| \`bed_count\` | number | Beds. |
-| \`bed_type\` | string | Bed description. |
+| \`status\` | string | One of the six room statuses. Create sets this to AVAILABLE. Update does not change it. |
+| \`beds\` | object array | Each item is \`id\`, \`bed_type\`, and \`bed_count\`. Empty when the room has no beds. |
 | \`custom_price_per_night\` | number or null | Custom nightly rate. |
 | \`notes\` | string | Internal note. |
 | \`key_code\` | string or null | Door or lock code. Null when not set. |
@@ -1247,10 +1244,7 @@ Another hotel's room returns 403.
           textField('room_number', '101', 'Optional. New room number. Still unique per hotel and floor.', true),
           textField('room_type_id', '{{roomTypeId}}', 'Optional. Move the room to another category in this hotel.', true),
           textField('floor', '1', 'Optional. New floor. Uniqueness is checked with the room number.', true),
-          textField('status', 'MAINTENANCE', 'Optional. One of the six room statuses. Prefer Update room status when only the status changes.', true),
-          textField('seating_capacity', '3', 'Optional. Positive integer.', true),
-          textField('bed_count', '2', 'Optional. Positive integer.', true),
-          textField('bed_type', '2 Twin Beds', 'Optional. Max 100 characters.', true),
+          textField('beds', '[{"bed_type":"King","bed_count":1},{"bed_type":"Single","bed_count":2}]', 'Optional. Replaces the room beds. JSON array of bed_type and bed_count. Send [] to clear them. Omit the field to leave the current beds. Status is not changed here.', true),
           textField('custom_price_per_night', '4000', 'Optional. 0 or more. Send an empty value to clear the custom price.', true),
           textField('notes', 'Under maintenance until Friday', 'Optional. Replaces the note.', true),
           textField('key_code', '4521', 'Optional. Door or lock code, max 50 characters. Send an empty value to clear it.', true),

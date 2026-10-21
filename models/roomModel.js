@@ -10,9 +10,10 @@ const { parseJson } = require('../utils/json');
  * Format raw database row to structured Room object.
  * @param {Object} row - Raw row from rooms table
  * @param {string[]} [images=[]] - Array of full image URLs
+ * @param {Array<{ id: number, bed_type: string, bed_count: number }>} [beds=[]]
  * @returns {Object|null}
  */
-const formatRoom = (row, images = []) => {
+const formatRoom = (row, images = [], beds = []) => {
   if (!row) return null;
 
   return {
@@ -24,9 +25,7 @@ const formatRoom = (row, images = []) => {
     room_type_name: row.room_type_name || null,
     floor: Number(row.floor),
     status: row.status || 'AVAILABLE',
-    seating_capacity: Number(row.seating_capacity ?? 2),
-    bed_count: Number(row.bed_count ?? 1),
-    bed_type: row.bed_type || '1 King Bed',
+    beds: Array.isArray(beds) ? beds : [],
     custom_price_per_night:
       row.custom_price_per_night !== null && row.custom_price_per_night !== undefined
         ? Number(row.custom_price_per_night)
@@ -94,6 +93,60 @@ const getImagesByRoomIds = async (roomIds, client = db) => {
   }
 
   return map;
+};
+
+/**
+ * Bed rows for many rooms, ordered as they were saved.
+ * @param {Array<number|string>} roomIds
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Record<number, Array<{ id: number, bed_type: string, bed_count: number }>>>}
+ */
+const getBedsByRoomIds = async (roomIds, client = db) => {
+  const map = {};
+  const ids = [...new Set((roomIds || []).map((id) => Number(id)).filter((id) => id > 0))];
+  ids.forEach((id) => {
+    map[id] = [];
+  });
+  if (!ids.length) return map;
+
+  const rows = await client('room_beds')
+    .whereIn('room_id', ids)
+    .orderBy('display_order', 'asc')
+    .orderBy('id', 'asc')
+    .select('id', 'room_id', 'bed_type', 'bed_count');
+
+  rows.forEach((row) => {
+    const roomId = Number(row.room_id);
+    if (!map[roomId]) map[roomId] = [];
+    map[roomId].push({
+      id: row.id,
+      bed_type: row.bed_type,
+      bed_count: Number(row.bed_count) || 0,
+    });
+  });
+
+  return map;
+};
+
+/**
+ * Replace every bed on a room. An empty list clears them.
+ * @param {import('knex').Knex} client
+ * @param {number|string} roomId
+ * @param {Array<{ bed_type: string, bed_count: number }>} beds
+ */
+const replaceRoomBeds = async (client, roomId, beds) => {
+  await client('room_beds').where({ room_id: roomId }).del();
+  if (!Array.isArray(beds) || beds.length === 0) return;
+
+  const now = new Date();
+  await client('room_beds').insert(beds.map((bed, index) => ({
+    room_id: roomId,
+    bed_type: bed.bed_type,
+    bed_count: bed.bed_count,
+    display_order: index + 1,
+    created_at: now,
+    updated_at: now,
+  })));
 };
 
 /**
@@ -207,8 +260,11 @@ const findRoomById = async (id, { includeDeleted = false } = {}, client = db) =>
   const row = await query.first();
   if (!row) return null;
 
-  const images = await getImagesByRoomId(row.id, client);
-  return formatRoom(row, images);
+  const [images, bedsMap] = await Promise.all([
+    getImagesByRoomId(row.id, client),
+    getBedsByRoomIds([row.id], client),
+  ]);
+  return formatRoom(row, images, bedsMap[row.id] || []);
 };
 
 /**
@@ -301,11 +357,15 @@ const findRooms = async (filters = {}, pagination = {}, sorting = {}, client = d
     dataQuery,
   ]);
   const total = Number(countRes?.count || 0);
-  const imagesMap = rows.length
-    ? await getImagesByRoomIds(rows.map((row) => row.id), client)
-    : {};
+  const roomIds = rows.map((row) => row.id);
+  const [imagesMap, bedsMap] = roomIds.length
+    ? await Promise.all([
+      getImagesByRoomIds(roomIds, client),
+      getBedsByRoomIds(roomIds, client),
+    ])
+    : [{}, {}];
 
-  const rooms = rows.map((row) => formatRoom(row, imagesMap[row.id] || []));
+  const rooms = rows.map((row) => formatRoom(row, imagesMap[row.id] || [], bedsMap[row.id] || []));
   const totalPages = Math.ceil(total / limit) || (total === 0 ? 0 : 1);
 
   return {
@@ -332,10 +392,7 @@ const createRoom = async (roomData, imageRecords = [], trx) => {
       room_number: String(roomData.room_number).trim(),
       room_type_id: roomData.room_type_id,
       floor: roomData.floor !== undefined ? Number(roomData.floor) : 1,
-      status: roomData.status || 'AVAILABLE',
-      seating_capacity: roomData.seating_capacity !== undefined ? Number(roomData.seating_capacity) : 2,
-      bed_count: roomData.bed_count !== undefined ? Number(roomData.bed_count) : 1,
-      bed_type: roomData.bed_type || '1 King Bed',
+      status: 'AVAILABLE',
       custom_price_per_night:
         roomData.custom_price_per_night !== undefined && roomData.custom_price_per_night !== null
           ? Number(roomData.custom_price_per_night)
@@ -351,6 +408,8 @@ const createRoom = async (roomData, imageRecords = [], trx) => {
       created_at: now,
       updated_at: now,
     });
+
+    await replaceRoomBeds(client, id, roomData.beds || []);
 
     if (Array.isArray(imageRecords) && imageRecords.length > 0) {
       for (let i = 0; i < imageRecords.length; i++) {
@@ -400,9 +459,6 @@ const updateRoom = async (id, updates, newImageRecords = [], trx) => {
     if (updates.room_type_id !== undefined) updateFields.room_type_id = Number(updates.room_type_id);
     if (updates.floor !== undefined) updateFields.floor = Number(updates.floor);
     if (updates.status !== undefined) updateFields.status = String(updates.status).trim().toUpperCase();
-    if (updates.seating_capacity !== undefined) updateFields.seating_capacity = Number(updates.seating_capacity);
-    if (updates.bed_count !== undefined) updateFields.bed_count = Number(updates.bed_count);
-    if (updates.bed_type !== undefined) updateFields.bed_type = String(updates.bed_type).trim();
     if (updates.custom_price_per_night !== undefined) {
       updateFields.custom_price_per_night =
         updates.custom_price_per_night !== null ? Number(updates.custom_price_per_night) : null;
@@ -421,6 +477,10 @@ const updateRoom = async (id, updates, newImageRecords = [], trx) => {
     if (updates.is_active !== undefined) updateFields.is_active = Boolean(updates.is_active);
 
     await client('rooms').where({ id }).update(updateFields);
+
+    if (updates.beds !== undefined) {
+      await replaceRoomBeds(client, id, updates.beds);
+    }
 
     if (Array.isArray(newImageRecords) && newImageRecords.length > 0) {
       // 1. Fetch old images for this room

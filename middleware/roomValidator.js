@@ -3,6 +3,14 @@
  */
 const { body, param, query } = require('express-validator');
 const { ROOM_STATUSES } = require('../constants');
+const { parseRoomBeds } = require('../utils/roomBeds');
+
+const bedsValidator = () => body('beds')
+  .optional({ nullable: true, checkFalsy: true })
+  .custom((value) => {
+    parseRoomBeds(value);
+    return true;
+  });
 
 /**
  * Validation schema for POST /api/v1/rooms
@@ -26,27 +34,7 @@ const createRoomValidator = [
     .isInt()
     .withMessage('Floor must be a valid integer.'),
 
-  body('status')
-    .optional()
-    .toUpperCase()
-    .isIn(ROOM_STATUSES)
-    .withMessage(`Status must be one of: ${ROOM_STATUSES.join(', ')}.`),
-
-  body('seating_capacity')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Seating capacity must be a positive integer.'),
-
-  body('bed_count')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Bed count must be a positive integer.'),
-
-  body('bed_type')
-    .optional()
-    .isString()
-    .isLength({ max: 100 })
-    .withMessage('Bed type must not exceed 100 characters.'),
+  bedsValidator(),
 
   body('custom_price_per_night')
     .optional({ nullable: true, checkFalsy: false })
@@ -107,27 +95,7 @@ const updateRoomValidator = [
     .isInt()
     .withMessage('Floor must be a valid integer.'),
 
-  body('status')
-    .optional()
-    .toUpperCase()
-    .isIn(ROOM_STATUSES)
-    .withMessage(`Status must be one of: ${ROOM_STATUSES.join(', ')}.`),
-
-  body('seating_capacity')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Seating capacity must be a positive integer.'),
-
-  body('bed_count')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Bed count must be a positive integer.'),
-
-  body('bed_type')
-    .optional()
-    .isString()
-    .isLength({ max: 100 })
-    .withMessage('Bed type must not exceed 100 characters.'),
+  bedsValidator(),
 
   body('custom_price_per_night')
     .optional({ nullable: true, checkFalsy: false })
