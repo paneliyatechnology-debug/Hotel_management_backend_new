@@ -6,6 +6,7 @@
 const bookingModel = require('../models/bookingModel');
 const bookingPaymentModel = require('../models/bookingPaymentModel');
 const roomModel = require('../models/roomModel');
+const { publishBookingDetail } = require('../sockets/roomSocket');
 const s3Service = require('./s3Service');
 const auditService = require('./auditService');
 const db = require('../database/knex');
@@ -350,6 +351,25 @@ const recordPayment = async (booking, amount, { source, method, bookingPaymentSt
     source,
     received_by: reqUser?.id,
   });
+};
+
+/**
+ * Push the saved booking to the hotel socket. A socket failure does not change the API result.
+ * @param {number|string} bookingId
+ * @returns {Promise<void>}
+ */
+const notifyBookingUpdated = async (bookingId) => {
+  try {
+    const booking = await bookingModel.findBookingById(bookingId, {
+      includeDeleted: true,
+      includeMedia: true,
+    });
+    if (!booking) return;
+    const paymentHistory = await bookingPaymentModel.findPaymentsByBookingId(booking.id);
+    publishBookingDetail({ ...booking, payment_history: paymentHistory });
+  } catch (err) {
+    console.error('[Booking] Failed to publish booking update:', err.message);
+  }
 };
 
 /**
@@ -716,6 +736,7 @@ const createBooking = async (body, files = [], reqUser = null) => {
     description: `Booking ${newBooking.booking_number} created for ${primaryGuestName}.`,
   });
 
+  await notifyBookingUpdated(newBooking.id);
   return { id: newBooking.id };
 };
 
@@ -926,6 +947,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
     changes: auditService.diffChanges(existing, auditFields),
   });
 
+  await notifyBookingUpdated(existing.id);
   return { id: existing.id };
 };
 
@@ -1033,6 +1055,7 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
     changes: auditService.diffChanges(existing, updates),
   });
 
+  await notifyBookingUpdated(existing.id);
   return { id: existing.id };
 };
 
@@ -1071,6 +1094,7 @@ const updateBookingStatus = async (id, body = {}, reqUser = null) => {
     changes: auditService.diffChanges(existing, { booking_status: status }),
   });
 
+  await notifyBookingUpdated(existing.id);
   return { id: existing.id };
 };
 
@@ -1108,6 +1132,7 @@ const deleteBooking = async (id, reqUser = null) => {
     description: `Booking ${existing.booking_number} deleted.`,
   });
 
+  await notifyBookingUpdated(existing.id);
   return { id: existing.id };
 };
 

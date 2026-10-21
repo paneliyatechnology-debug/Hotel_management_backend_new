@@ -1334,6 +1334,8 @@ Two different statuses:
 
 Create stores \`CHECKED_IN\` when \`booking_status\` is omitted. \`created_by\` is the logged-in user. \`actual_check_in\` is the current time. The room is marked \`OCCUPIED\`.
 
+Listen on the same Socket.IO connection for \`booking:updated\`. It is sent after create, update, check-out, status change, and delete. The payload is the booking from \`GET /bookings/:id\`, including \`payment_history\`. A deleted booking has \`deleted_at\` set.
+
 What each stay status does to the room:
 | booking_status | Room |
 | --- | --- |

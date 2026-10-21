@@ -472,6 +472,11 @@ socket.on('room:category_counts', (payload) => {
   //   room_status_summary
   // }
 });
+
+socket.on('booking:updated', (booking) => {
+  // Same object as GET /bookings/:id, including payment_history.
+  // deleted_at is set when the booking was deleted.
+});
 ```
 
 - Every hotel user joins only the channel of their own hotel (`hotel:<hotel_id>`).
@@ -482,6 +487,9 @@ socket.on('room:category_counts', (payload) => {
   refresh dashboard room-status cards without polling.
 - `room:category_counts` is sent when a room is created, updated, or deleted, and when a stay changes a
   room's status. `room_status_counts` and `room_status_summary` use the same keys as `GET /room-types`.
+- `booking:updated` is sent to the same hotel channel when a booking is created, updated, checked out,
+  has its status changed, or is deleted. The payload is the booking detail from `GET /bookings/:id`,
+  including `payment_history`. A deleted booking includes `deleted_at`.
 - Use Socket.IO client v4. A plain WebSocket client does not work.
 
 ---

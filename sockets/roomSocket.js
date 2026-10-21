@@ -12,6 +12,7 @@ const { ROLE_CODES } = require('../constants');
 const ROOM_STATUS_EVENT = 'room:status';
 const ROOM_STATUS_BREAKDOWN_EVENT = 'room:status_breakdown';
 const ROOM_CATEGORY_COUNTS_EVENT = 'room:category_counts';
+const BOOKING_UPDATED_EVENT = 'booking:updated';
 
 let io = null;
 
@@ -196,6 +197,18 @@ const publishRoomStatus = (room, { includeBreakdown = true } = {}) => {
 };
 
 /**
+ * Tell the hotel's connected clients that a booking changed.
+ * The payload matches GET /bookings/:id, including payment_history.
+ * No-op when the socket server is not running.
+ * @param {Object|null} booking
+ */
+const publishBookingDetail = (booking) => {
+  if (!io || !booking || !booking.hotel_id || !booking.id) return;
+
+  io.to(hotelChannel(booking.hotel_id)).emit(BOOKING_UPDATED_EVENT, booking);
+};
+
+/**
  * Drop every connected client of a hotel. Used when the hotel is deactivated.
  * @param {number|string} hotelId
  */
@@ -215,9 +228,11 @@ module.exports = {
   publishRoomStatus,
   publishRoomStatusBreakdown,
   publishRoomCategoryCounts,
+  publishBookingDetail,
   disconnectHotel,
   closeRoomSocket,
   ROOM_STATUS_EVENT,
   ROOM_STATUS_BREAKDOWN_EVENT,
   ROOM_CATEGORY_COUNTS_EVENT,
+  BOOKING_UPDATED_EVENT,
 };
