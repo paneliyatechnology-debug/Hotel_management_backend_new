@@ -2366,7 +2366,7 @@ Bookings, guests, booking amount, and due use \`bookings.created_at\`. Collectio
 | --- | --- |
 | \`period_start_date\`, \`period_end_date\` | The dates that were applied, shown as \`DD-MM-YYYY\`. Send the query as \`YYYY-MM-DD\`. |
 | \`total_collected_amount\` | Money collected in the window. |
-| \`collection_by_payment_method\` | That collection split by method: \`cash_collected_amount\`, \`online_collected_amount\`, \`card_collected_amount\`, \`upi_collected_amount\`, \`bank_transfer_collected_amount\`. The five amounts add up to \`total_collected_amount\`. |
+| \`collection_by_payment_method\` | That collection split by method: \`cash_collected_amount\`, \`online_collected_amount\`, \`card_collected_amount\`, \`upi_collected_amount\`, \`bank_transfer_collected_amount\`, and \`other_collected_amount\` for a method a hotel admin added. These amounts add up to \`total_collected_amount\`. |
 | \`total_outstanding_amount\` | \`due_amount\` still on bookings created in the window. |
 | \`total_booking_count\` | Bookings created in the window. |
 | \`total_guest_count\` | \`adults + children\` on those bookings. |
@@ -2483,8 +2483,82 @@ There is no row cap. An \`end_date\` more than one year after \`start_date\` ret
   ],
 };
 
+const paymentMethodFolder = {
+  name: '13 Payment methods',
+  description: `${authNote('Read: hotel staff or SUPER_ADMIN. Create, update, and delete: HOTEL_ADMIN only.')}
+
+Each hotel has its own methods. Registering or creating a hotel adds \`CASH\`, \`CARD\`, \`UPI\`, and \`BANK_TRANSFER\`. Those four have \`is_system: true\` and cannot be renamed or deleted. A hotel admin can add, rename, and delete any other method. Other roles can read the list and send a method name when taking a payment.
+
+${envelope}`,
+  item: [
+    item({
+      name: 'List payment methods',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/payment-methods',
+      pathSegments: ['api', 'v1', 'payment-methods'],
+      query: [
+        queryParam('hotel_id', '{{targetHotelId}}', 'SUPER_ADMIN only and required for them. Ignored for hotel staff.', true),
+      ],
+      description: `### GET /api/v1/payment-methods
+${authNote('HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, ACCOUNTANT, or SUPER_ADMIN (with hotel_id).')}
+
+**Response \`data.payment_methods[]\`**
+| Key | Meaning |
+| --- | --- |
+| \`id\`, \`hotel_id\`, \`name\` | The method. Booking and checkout send this \`name\` as \`payment_method\`. |
+| \`is_system\` | \`true\` for \`CASH\`, \`CARD\`, \`UPI\`, and \`BANK_TRANSFER\`. |
+| \`display_order\` | Built-in methods stay first. |`,
+    }),
+    item({
+      name: 'Get payment method',
+      method: 'GET',
+      raw: '{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}',
+      pathSegments: ['api', 'v1', 'payment-methods', ':id'],
+      variable: [idVar('id', '{{paymentMethodId}}', 'Required. Payment method id.')],
+      description: `### GET /api/v1/payment-methods/:id
+${authNote('Same roles as List payment methods.')}
+
+A hotel user can read a method of their own hotel.`,
+    }),
+    item({
+      name: 'Create payment method',
+      method: 'POST',
+      raw: '{{baseUrl}}/api/v1/payment-methods',
+      pathSegments: ['api', 'v1', 'payment-methods'],
+      body: jsonBody({ name: 'PhonePe' }),
+      description: `### POST /api/v1/payment-methods
+${authNote('HOTEL_ADMIN only. A super admin and other hotel roles receive 403.')}
+
+\`name\` is 2 to 50 characters. The hotel comes from the token. A name that matches an existing method, including \`CASH\`, returns 409.`,
+    }),
+    item({
+      name: 'Update payment method',
+      method: 'PUT',
+      raw: '{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}',
+      pathSegments: ['api', 'v1', 'payment-methods', ':id'],
+      variable: [idVar('id', '{{paymentMethodId}}', 'Required. Payment method id.')],
+      body: jsonBody({ name: 'Google Pay' }),
+      description: `### PUT /api/v1/payment-methods/:id
+${authNote('HOTEL_ADMIN only.')}
+
+Renames a method this hotel added. \`CASH\`, \`CARD\`, \`UPI\`, and \`BANK_TRANSFER\` return 400.`,
+    }),
+    item({
+      name: 'Delete payment method',
+      method: 'DELETE',
+      raw: '{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}',
+      pathSegments: ['api', 'v1', 'payment-methods', ':id'],
+      variable: [idVar('id', '{{paymentMethodId}}', 'Required. Payment method id.')],
+      description: `### DELETE /api/v1/payment-methods/:id
+${authNote('HOTEL_ADMIN only.')}
+
+Removes a method this hotel added. The four built-in methods return 400. Payments already saved keep their method name.`,
+    }),
+  ],
+};
+
 const transactionFolder = {
-  name: '13 Transactions',
+  name: '14 Transactions',
   description: `${authNote('HOTEL_ADMIN, RECEPTIONIST, MANAGER, ACCOUNTANT, or SUPER_ADMIN.')}
 
 One list. Each row is a payment recorded on a booking (\`booking_payments\`). The hotel comes from the access token. A super admin must send \`hotel_id\`.
@@ -2505,7 +2579,7 @@ ${envelope}`,
         queryParam('limit', '10', 'Optional. Page size, 1 to 100. Default 10.'),
         queryParam('sort_by', 'created_at', 'Optional. created_at, amount, payment_method, status, or id. Default created_at.'),
         queryParam('sort_order', 'desc', 'Optional. asc or desc. Default desc.'),
-        queryParam('payment_method', 'CASH', 'Optional. CASH, ONLINE, CARD, UPI, or BANK_TRANSFER.', true),
+        queryParam('payment_method', 'CASH', 'Optional. A method name from this hotel, for example CASH or a name the hotel admin added.', true),
         queryParam('status', 'PAID', 'Optional. PAID, PARTIALLY_PAID, FAILED, or REFUNDED.', true),
         queryParam('source', 'CHECKOUT', 'Optional. BOOKING, UPDATE, or CHECKOUT.', true),
         queryParam('booking_id', '{{bookingId}}', 'Optional. Only payments for this booking.', true),
@@ -2556,6 +2630,7 @@ collection.item = [
   auditFolder,
   dashboardFolder,
   reportFolder,
+  paymentMethodFolder,
   transactionFolder,
 ];
 

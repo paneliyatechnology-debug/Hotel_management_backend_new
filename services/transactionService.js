@@ -65,7 +65,7 @@ const getTransactions = async (query = {}, reqUser) => {
   return bookingPaymentModel.findTransactions({
     hotel_id: hotelId,
     booking_id: query.booking_id || null,
-    payment_method: query.payment_method ? String(query.payment_method).trim().toUpperCase() : null,
+    payment_method: query.payment_method ? String(query.payment_method).trim() : null,
     status: query.status ? String(query.status).trim().toUpperCase() : null,
     source: query.source ? String(query.source).trim().toUpperCase() : null,
     search: query.search ? String(query.search).trim() : null,

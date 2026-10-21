@@ -3920,7 +3920,7 @@
                 }
               ]
             },
-            "description": "### GET /api/v1/dashboard/summary\n**Who can call this:** The same roles as Get dashboard. A super admin must send hotel_id.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis does not change **Get dashboard**. Both dates are required.\n\nBookings, guests, booking amount, and due use `bookings.created_at`. Collection uses `booking_payments.created_at`. Deleted bookings are omitted. Collection counts payments with status `PAID` or `PARTIALLY_PAID`.\n\n**Response `data`**\n| Key | Meaning |\n| --- | --- |\n| `period_start_date`, `period_end_date` | The dates that were applied, shown as `DD-MM-YYYY`. Send the query as `YYYY-MM-DD`. |\n| `total_collected_amount` | Money collected in the window. |\n| `collection_by_payment_method` | That collection split by method: `cash_collected_amount`, `online_collected_amount`, `card_collected_amount`, `upi_collected_amount`, `bank_transfer_collected_amount`. The five amounts add up to `total_collected_amount`. |\n| `total_outstanding_amount` | `due_amount` still on bookings created in the window. |\n| `total_booking_count` | Bookings created in the window. |\n| `total_guest_count` | `adults + children` on those bookings. |\n| `total_booking_amount` | `total_amount` of those bookings. Already includes extra charges and the late fee after the discount and GST. |\n| `total_discount_amount` | `discount_amount` saved on those bookings, before tax. |\n| `total_extra_charges_amount` | `extra_charges_total` saved on those bookings, before tax. |\n| `total_late_checkout_charges_amount` | `late_checkout_charge` saved on those bookings, before tax. |"
+            "description": "### GET /api/v1/dashboard/summary\n**Who can call this:** The same roles as Get dashboard. A super admin must send hotel_id.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nThis does not change **Get dashboard**. Both dates are required.\n\nBookings, guests, booking amount, and due use `bookings.created_at`. Collection uses `booking_payments.created_at`. Deleted bookings are omitted. Collection counts payments with status `PAID` or `PARTIALLY_PAID`.\n\n**Response `data`**\n| Key | Meaning |\n| --- | --- |\n| `period_start_date`, `period_end_date` | The dates that were applied, shown as `DD-MM-YYYY`. Send the query as `YYYY-MM-DD`. |\n| `total_collected_amount` | Money collected in the window. |\n| `collection_by_payment_method` | That collection split by method: `cash_collected_amount`, `online_collected_amount`, `card_collected_amount`, `upi_collected_amount`, `bank_transfer_collected_amount`, and `other_collected_amount` for a method a hotel admin added. These amounts add up to `total_collected_amount`. |\n| `total_outstanding_amount` | `due_amount` still on bookings created in the window. |\n| `total_booking_count` | Bookings created in the window. |\n| `total_guest_count` | `adults + children` on those bookings. |\n| `total_booking_amount` | `total_amount` of those bookings. Already includes extra charges and the late fee after the discount and GST. |\n| `total_discount_amount` | `discount_amount` saved on those bookings, before tax. |\n| `total_extra_charges_amount` | `extra_charges_total` saved on those bookings, before tax. |\n| `total_late_checkout_charges_amount` | `late_checkout_charge` saved on those bookings, before tax. |"
           }
         }
       ]
@@ -4072,7 +4072,198 @@
       ]
     },
     {
-      "name": "13 Transactions",
+      "name": "13 Payment methods",
+      "description": "**Who can call this:** Read: hotel staff or SUPER_ADMIN. Create, update, and delete: HOTEL_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nEach hotel has its own methods. Registering or creating a hotel adds `CASH`, `CARD`, `UPI`, and `BANK_TRANSFER`. Those four have `is_system: true` and cannot be renamed or deleted. A hotel admin can add, rename, and delete any other method. Other roles can read the list and send a method name when taking a payment.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError. `errors` is included only when a field failed:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
+      "item": [
+        {
+          "name": "List payment methods",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payment-methods",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-methods"
+              ],
+              "query": [
+                {
+                  "key": "hotel_id",
+                  "value": "{{targetHotelId}}",
+                  "description": "SUPER_ADMIN only and required for them. Ignored for hotel staff.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "### GET /api/v1/payment-methods\n**Who can call this:** HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, ACCOUNTANT, or SUPER_ADMIN (with hotel_id).\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n**Response `data.payment_methods[]`**\n| Key | Meaning |\n| --- | --- |\n| `id`, `hotel_id`, `name` | The method. Booking and checkout send this `name` as `payment_method`. |\n| `is_system` | `true` for `CASH`, `CARD`, `UPI`, and `BANK_TRANSFER`. |\n| `display_order` | Built-in methods stay first. |"
+          }
+        },
+        {
+          "name": "Get payment method",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-methods",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{paymentMethodId}}",
+                  "description": "Required. Payment method id."
+                }
+              ]
+            },
+            "description": "### GET /api/v1/payment-methods/:id\n**Who can call this:** Same roles as List payment methods.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nA hotel user can read a method of their own hotel."
+          }
+        },
+        {
+          "name": "Create payment method",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"PhonePe\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payment-methods",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-methods"
+              ]
+            },
+            "description": "### POST /api/v1/payment-methods\n**Who can call this:** HOTEL_ADMIN only. A super admin and other hotel roles receive 403.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n`name` is 2 to 50 characters. The hotel comes from the token. A name that matches an existing method, including `CASH`, returns 409."
+          }
+        },
+        {
+          "name": "Update payment method",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Google Pay\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-methods",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{paymentMethodId}}",
+                  "description": "Required. Payment method id."
+                }
+              ]
+            },
+            "description": "### PUT /api/v1/payment-methods/:id\n**Who can call this:** HOTEL_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRenames a method this hotel added. `CASH`, `CARD`, `UPI`, and `BANK_TRANSFER` return 400."
+          }
+        },
+        {
+          "name": "Delete payment method",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-methods",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{paymentMethodId}}",
+                  "description": "Required. Payment method id."
+                }
+              ]
+            },
+            "description": "### DELETE /api/v1/payment-methods/:id\n**Who can call this:** HOTEL_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRemoves a method this hotel added. The four built-in methods return 400. Payments already saved keep their method name."
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Transactions",
       "description": "**Who can call this:** HOTEL_ADMIN, RECEPTIONIST, MANAGER, ACCOUNTANT, or SUPER_ADMIN.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nOne list. Each row is a payment recorded on a booking (`booking_payments`). The hotel comes from the access token. A super admin must send `hotel_id`.\n\n`start_date` and `end_date` are optional calendar dates (`YYYY-MM-DD`) and filter `created_at`. Both ends are inclusive. Send one date, both, or neither. `start_date` after `end_date` returns 400.\n\n\nEvery response uses the same envelope.\n\nSuccess with data (read APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": {} }\n```\n\nSuccess with the record id (create, update and delete APIs):\n```json\n{ \"success\": true, \"message\": \"Human readable message\", \"data\": { \"id\": 12 } }\n```\n\nError. `errors` is included only when a field failed:\n```json\n{ \"success\": false, \"message\": \"First error\", \"errors\": [{ \"field\": \"email\", \"message\": \"Why this field failed\" }] }\n```\n",
       "item": [
         {
@@ -4130,7 +4321,7 @@
                 {
                   "key": "payment_method",
                   "value": "CASH",
-                  "description": "Optional. CASH, ONLINE, CARD, UPI, or BANK_TRANSFER.",
+                  "description": "Optional. A method name from this hotel, for example CASH or a name the hotel admin added.",
                   "disabled": true
                 },
                 {

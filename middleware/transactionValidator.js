@@ -2,7 +2,7 @@
  * Transaction request validation.
  */
 const { query } = require('express-validator');
-const { PAYMENT_METHODS, PAYMENT_STATUSES, PAYMENT_SOURCES } = require('../constants');
+const { PAYMENT_STATUSES, PAYMENT_SOURCES } = require('../constants');
 
 const SORT_FIELDS = ['created_at', 'amount', 'payment_method', 'status', 'id'];
 
@@ -32,9 +32,8 @@ const getTransactionsQueryValidator = [
   query('payment_method')
     .optional({ checkFalsy: true })
     .trim()
-    .toUpperCase()
-    .isIn(PAYMENT_METHODS)
-    .withMessage(`payment_method must be one of: ${PAYMENT_METHODS.join(', ')}.`),
+    .isLength({ min: 2, max: 50 })
+    .withMessage('payment_method must be between 2 and 50 characters.'),
 
   query('status')
     .optional({ checkFalsy: true })

@@ -5,6 +5,7 @@
  */
 const bookingModel = require('../models/bookingModel');
 const bookingPaymentModel = require('../models/bookingPaymentModel');
+const paymentMethodModel = require('../models/paymentMethodModel');
 const roomModel = require('../models/roomModel');
 const { publishBookingDetail, scheduleHotelDashboard } = require('../sockets/roomSocket');
 const s3Service = require('./s3Service');
@@ -18,7 +19,6 @@ const {
   BOOKING_STATUSES,
   NON_BLOCKING_BOOKING_STATUSES,
   CLEANING_DURATION_MINUTES,
-  PAYMENT_METHODS,
   AUDIT_ACTIONS,
   AUDIT_ENTITIES,
 } = require('../constants');
@@ -332,22 +332,25 @@ const readCheckoutDiscount = (body, existing) => {
 };
 
 /**
- * Accept a payment method from the client. Blank input means CASH.
+ * Accept a payment method from this hotel's list. A blank value means CASH.
+ * The saved name is the one stored for the hotel, so letter case matches that row.
  * @param {*} value
- * @returns {string}
+ * @param {number|string} hotelId
+ * @returns {Promise<string>}
  */
-const resolvePaymentMethod = (value) => {
-  if (value === undefined || value === null || String(value).trim() === '') return 'CASH';
-
-  const method = String(value).trim().toUpperCase();
-  if (!PAYMENT_METHODS.includes(method)) {
+const resolvePaymentMethod = async (value, hotelId) => {
+  const requested = value === undefined || value === null || String(value).trim() === ''
+    ? 'CASH'
+    : String(value).trim();
+  const method = await paymentMethodModel.findActiveByName(hotelId, requested);
+  if (!method) {
     throw new AppError(
-      `payment_method must be one of: ${PAYMENT_METHODS.join(', ')}.`,
+      'payment_method is not available for this hotel.',
       HTTP_STATUS.BAD_REQUEST,
-      [{ field: 'payment_method', message: `Must be one of: ${PAYMENT_METHODS.join(', ')}.` }]
+      [{ field: 'payment_method', message: 'Choose a payment method from this hotel.' }]
     );
   }
-  return method;
+  return method.name;
 };
 
 /**
@@ -730,7 +733,7 @@ const createBooking = async (body, files = [], reqUser = null) => {
   // Front desk create checks the guest in unless booking_status is sent.
   const bookingStatus = resolveBookingStatus(body.booking_status, { fallback: 'CHECKED_IN' });
   if (bookingStatus === 'CHECKED_OUT') assertNoDueForCheckout(pricing.due_amount);
-  const paymentMethod = resolvePaymentMethod(body.payment_method);
+  const paymentMethod = await resolvePaymentMethod(body.payment_method, hotelId);
 
   // Guest photos and signatures arrive only as form-data files. The two folders upload together.
   const { imageFiles, signatureFiles } = categorizeUploadedFiles(files);
@@ -909,7 +912,9 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   const existing = await getBookingForWrite(id, reqUser);
   const paidAmountProvided = wasProvided(body.paid_amount);
   const paymentMethodProvided = wasProvided(body.payment_method);
-  const paymentMethod = paymentMethodProvided ? resolvePaymentMethod(body.payment_method) : null;
+  const paymentMethod = paymentMethodProvided
+    ? await resolvePaymentMethod(body.payment_method, existing.hotel_id)
+    : null;
 
   const hotelId = existing.hotel_id;
   const inDate = body.check_in_date ? new Date(body.check_in_date) : new Date(existing.check_in_date);
@@ -1074,7 +1079,7 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
     numberOfNights: existing.number_of_nights,
   });
 
-  const paymentMethod = resolvePaymentMethod(body.payment_method);
+  const paymentMethod = await resolvePaymentMethod(body.payment_method, existing.hotel_id);
 
   // Due after this request's discount, extras, late fee, and GST, minus what was already paid.
   // The payment in this request is not saved unless it clears that balance.

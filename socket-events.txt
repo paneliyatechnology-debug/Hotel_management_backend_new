@@ -1,0 +1,280 @@
+Hotel Management Backend — Socket events
+==========================================
+
+Path: /socket.io
+Channel: hotel:<hotel_id>
+
+A client joins only its own hotel. A user from another hotel never receives these events.
+SUPER_ADMIN must send hotel_id when connecting.
+
+Token: auth.token, Authorization: Bearer header, or accessToken cookie.
+
+All four events go to clients joined to that hotel. A booking that moves rooms sends the room events and booking:updated together.
+
+
+1. room:status
+--------------
+
+Sent for one room.
+
+{
+  "id": 24,
+  "hotel_id": 66,
+  "room_number": "101",
+  "floor": 1,
+  "status": "OCCUPIED",
+  "is_active": true,
+  "deleted_at": null,
+  "updated_at": "2026-10-21T08:15:00.000Z"
+}
+
+status is one of: AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, BLOCKED.
+After a delete, deleted_at is set and is_active is false.
+
+Triggered by:
+
+- POST /api/v1/rooms — room created
+- PUT /api/v1/rooms/:id — only when status or is_active changes
+- PATCH /api/v1/rooms/:id/status — status changed by hand
+- DELETE /api/v1/rooms/:id — room deleted
+- Cleaning timer ends and the room becomes AVAILABLE
+- A booking occupies, reserves, or releases its rooms (create, update, check-out, status change, or delete)
+
+Each of these also sends room:status_breakdown and room:category_counts for the same hotel.
+
+
+2. room:status_breakdown
+------------------------
+
+Hotel-wide counts. Deleted rooms are excluded.
+
+{
+  "hotel_id": 66,
+  "room_status_breakdown": {
+    "AVAILABLE": 8,
+    "RESERVED": 1,
+    "OCCUPIED": 2,
+    "CLEANING": 1,
+    "MAINTENANCE": 0,
+    "BLOCKED": 0
+  }
+}
+
+Triggered right after every room:status. When one booking changes several rooms, each room gets its own room:status, then this event is sent once.
+
+
+3. room:category_counts
+-----------------------
+
+Same numbers as GET /api/v1/room-types, without images or pagination.
+
+{
+  "hotel_id": 66,
+  "room_categories": [
+    {
+      "id": 25,
+      "hotel_id": 66,
+      "name": "Deluxe Sea View",
+      "room_status_counts": {
+        "available_count": 2,
+        "reserved_count": 0,
+        "occupied_count": 1,
+        "cleaning_count": 0,
+        "maintenance_count": 0,
+        "blocked_count": 0,
+        "total_room_count": 3
+      }
+    }
+  ],
+  "room_status_summary": {
+    "available_count": 8,
+    "reserved_count": 1,
+    "occupied_count": 2,
+    "cleaning_count": 1,
+    "maintenance_count": 0,
+    "blocked_count": 0,
+    "total_room_count": 12
+  }
+}
+
+room_status_summary is the total across every category.
+
+Triggered by:
+
+- Every room:status (it follows room:status_breakdown)
+- PUT /api/v1/rooms/:id when the room changes but status and is_active stay the same, such as a category move, beds, price, or room number
+
+
+4. booking:updated
+------------------
+
+The full booking, the same object as GET /api/v1/bookings/:id.
+
+Main fields:
+
+- id
+- hotel_id
+- booking_number
+- primary_guest_name
+- secondary_guest_name
+- mobile_number
+- email
+- address
+- room_id
+- rooms
+- created_by
+- check_in_date
+- check_out_date
+- actual_check_in
+- actual_check_out
+- number_of_nights
+- adults
+- children
+- base_amount
+- tax_amount
+- gst_rate
+- cgst_rate
+- sgst_rate
+- gst_amount
+- cgst_amount
+- sgst_amount
+- taxable_amount
+- discount_amount
+- extra_charges_total
+- late_checkout_charge
+- late_checkout_hours
+- total_amount
+- paid_amount
+- due_amount
+- payment_status
+- booking_status
+- signatures
+- images
+- notes
+- deleted_at
+- created_at
+- updated_at
+- hotel
+- creator
+- payment_history
+
+hotel, when present:
+
+{
+  "id": 66,
+  "name": "Hotel name",
+  "slug": "hotel-name"
+}
+
+creator, when present:
+
+{
+  "id": 3,
+  "name": "Front desk",
+  "email": "desk@hotel.com",
+  "role": "RECEPTIONIST"
+}
+
+rooms item:
+
+{
+  "id": 24,
+  "room_number": "101",
+  "floor": 1,
+  "room_type_name": "Deluxe Sea View"
+}
+
+Each payment in payment_history:
+
+{
+  "id": 10,
+  "booking_id": 41,
+  "amount": 5000,
+  "payment_method": "CASH",
+  "status": "PAID",
+  "source": "BOOKING",
+  "received_by": { "id": 3, "name": "Front desk" },
+  "received_at": "2026-10-21T08:15:00.000Z"
+}
+
+payment_method is a name from that hotel's payment methods. Every hotel has CASH, CARD, UPI, and BANK_TRANSFER.
+payment_status is one of: PENDING, PARTIALLY_PAID, PAID.
+booking_status is one of: PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, NO_SHOW.
+source is one of: BOOKING, UPDATE, CHECKOUT.
+An update that sends paid_amount or payment_method replaces this list with one row. Leaving both out leaves payment_history unchanged.
+
+Triggered after the save succeeds:
+
+- POST /api/v1/bookings — created
+- PUT /api/v1/bookings/:id — updated
+- POST /api/v1/bookings/:id/check-out — checked out
+- PATCH /api/v1/bookings/:id/status — status changed
+- DELETE /api/v1/bookings/:id — deleted (deleted_at is set)
+
+A check-out rejected for an unpaid due does not send this event.
+
+
+5. dashboard:updated
+-------------------
+
+Sent to each connected user. The data object is the same as GET /api/v1/dashboard for that user's role.
+
+{
+  "hotel_id": 66,
+  "date_range": "this_month",
+  "data": {}
+}
+
+date_range is today, this_week, this_month, or this_year.
+
+Hotel admin data (also what a super admin receives for the hotel they joined):
+
+- hotel: id, name, slug, currency, tax_percentage, gst_enabled
+- kpis.today_revenue: collections recorded today
+- kpis.month_revenue: collections in date_range
+- kpis.total_outstanding_due
+- kpis.occupancy_rate_percentage
+- kpis.total_physical_rooms
+- kpis.active_staff_count
+- today_pulse: actual_checked_in_today, actual_checked_out_today, current_in_house_guests
+- room_status_summary: AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, BLOCKED
+- revenue_by_payment_method: CASH, ONLINE, CARD, UPI, BANK_TRANSFER for date_range
+- room_status_graph: hotel admin only. total_rooms and statuses[] with status, count, percentage
+- weekly_revenue_graph: hotel admin only. Monday to Sunday, date, day, revenue. Not affected by date_range
+- subscription_quota: plan_id, plan_name, max_rooms_allowed, rooms_configured, remaining_room_slots, plan_start_date, plan_end_date, days_left, is_active
+
+A super admin on a hotel socket receives the hotel admin data without room_status_graph and weekly_revenue_graph.
+
+Front desk data (RECEPTIONIST, MANAGER, HOUSEKEEPING, ACCOUNTANT):
+
+- shift_collections_today: cash_collected, upi_collected, card_collected, online_collected, total_shift_collected
+- room_status_summary
+
+Triggered:
+
+- When the user connects. Hotel admin and super admin start on this_month. Front desk starts on today.
+- When the client emits dashboard:subscribe with { "date_range": "today" }
+- After a booking is created, updated, checked out, has its status changed, or is deleted
+- After a room is created, deleted, or its status or active flag changes, including the cleaning timer
+- After a staff user is created, updated, deleted, or enabled or disabled
+- After the hotel profile, tax, or subscription changes, including a plan purchase
+
+A check-out rejected for an unpaid due does not send this event. GET /dashboard/summary is not this event. That summary uses a custom start_date and end_date.
+
+
+Client example
+--------------
+
+import { io } from 'socket.io-client';
+
+const socket = io('http://127.0.0.1:5001', {
+  auth: { token: accessToken }
+});
+
+socket.on('room:status', (room) => {});
+socket.on('room:status_breakdown', (payload) => {});
+socket.on('room:category_counts', (payload) => {});
+socket.on('booking:updated', (booking) => {});
+socket.on('dashboard:updated', (payload) => {});
+
+socket.emit('dashboard:subscribe', { date_range: 'today' });

@@ -137,7 +137,9 @@ const findTransactions = async (filters = {}, pagination = {}, client = db) => {
     qb.whereNull('bookings.deleted_at');
 
     if (filters.booking_id) qb.where('booking_payments.booking_id', Number(filters.booking_id));
-    if (filters.payment_method) qb.where('booking_payments.payment_method', filters.payment_method);
+    if (filters.payment_method) {
+      qb.whereRaw('LOWER(booking_payments.payment_method) = ?', [String(filters.payment_method).trim().toLowerCase()]);
+    }
     if (filters.status) qb.where('booking_payments.status', filters.status);
     if (filters.source) qb.where('booking_payments.source', filters.source);
     if (filters.start) qb.where('booking_payments.created_at', '>=', filters.start);

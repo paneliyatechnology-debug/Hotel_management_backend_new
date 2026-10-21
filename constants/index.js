@@ -37,6 +37,11 @@ const MESSAGES = {
   HOTEL_DELETED_SUCCESS: 'Hotel deleted successfully.',
   HOTEL_RETRIEVED_SUCCESS: 'Hotel retrieved successfully.',
   HOTELS_RETRIEVED_SUCCESS: 'Hotels retrieved successfully.',
+  PAYMENT_METHODS_RETRIEVED_SUCCESS: 'Payment methods retrieved successfully.',
+  PAYMENT_METHOD_RETRIEVED_SUCCESS: 'Payment method retrieved successfully.',
+  PAYMENT_METHOD_CREATED_SUCCESS: 'Payment method created successfully.',
+  PAYMENT_METHOD_UPDATED_SUCCESS: 'Payment method updated successfully.',
+  PAYMENT_METHOD_DELETED_SUCCESS: 'Payment method deleted successfully.',
   PLAN_CREATED_SUCCESS: 'Subscription plan created successfully.',
   PLAN_PURCHASED_SUCCESS: 'Subscription plan purchased successfully.',
   PLAN_UPDATED_SUCCESS: 'Subscription plan updated successfully.',
@@ -162,6 +167,7 @@ const AUDIT_ENTITIES = {
   ROOM_TYPE: 'ROOM_TYPE',
   ROOM: 'ROOM',
   BOOKING: 'BOOKING',
+  PAYMENT_METHOD: 'PAYMENT_METHOD',
 };
 
 // ==========================================

@@ -40,6 +40,8 @@ const errorHandler = async (err, req, res, _next) => {
       message = 'A hotel with this slug already exists';
     } else if (sqlMsg.includes('subscription_plans_code_unique') || sqlMsg.includes('subscription_plans.code')) {
       message = 'A subscription plan with this code already exists';
+    } else if (sqlMsg.includes('hotel_payment_methods_name_unique')) {
+      message = 'A payment method with this name already exists for this hotel.';
     } else if (sqlMsg.includes('room_types_active_name_key') || sqlMsg.includes('active_name_key')) {
       message = 'A room category with this name already exists for this hotel.';
     } else if (sqlMsg.includes('rooms_active_room_key') || sqlMsg.includes('active_room_key')) {

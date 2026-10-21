@@ -11,6 +11,7 @@ const tokenModel = require('../models/tokenModel');
 const subscriptionPlanModel = require('../models/subscriptionPlanModel');
 const s3Service = require('./s3Service');
 const auditService = require('./auditService');
+const paymentMethodModel = require('../models/paymentMethodModel');
 const { checkEmailExistsGlobally } = require('../utils/emailValidator');
 const { queueEmail } = require('../queues/emailQueue');
 const { buildPortalLinks } = require('../utils/frontendUrl');
@@ -344,6 +345,7 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
     };
 
     createdHotel = await hotelModel.createHotel(hotelData);
+    await paymentMethodModel.seedSystemMethods(createdHotel.id);
 
     await subscriptionPlanModel.createPurchase({
       hotel_id: createdHotel.id,

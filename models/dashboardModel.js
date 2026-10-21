@@ -449,6 +449,8 @@ const getHotelRevenueByPaymentMethod = async (hotelId, from, to, client = db) =>
     const method = String(row.payment_method || '').toUpperCase();
     if (Object.prototype.hasOwnProperty.call(summary, method)) {
       summary[method] = money(row.total);
+    } else {
+      summary.OTHER = money((summary.OTHER || 0) + (Number(row.total) || 0));
     }
   });
 
@@ -507,8 +509,10 @@ const getHotelShiftCollectionsToday = async (hotelId, todayFrom, todayTo, client
     upi_collected: byMethod.UPI,
     card_collected: byMethod.CARD,
     online_collected: byMethod.ONLINE,
+    bank_transfer_collected: byMethod.BANK_TRANSFER,
+    other_collected: byMethod.OTHER || 0,
     total_shift_collected: money(
-      byMethod.CASH + byMethod.UPI + byMethod.CARD + byMethod.ONLINE + byMethod.BANK_TRANSFER
+      byMethod.CASH + byMethod.UPI + byMethod.CARD + byMethod.ONLINE + byMethod.BANK_TRANSFER + (byMethod.OTHER || 0)
     ),
   };
 };
@@ -555,6 +559,7 @@ const getHotelPeriodSummary = async (hotelId, from, to, client = db) => {
       card_collected_amount: byMethod.CARD,
       upi_collected_amount: byMethod.UPI,
       bank_transfer_collected_amount: byMethod.BANK_TRANSFER,
+      other_collected_amount: byMethod.OTHER || 0,
     },
     total_outstanding_amount: money(bookings?.total_due_amount),
     total_booking_count: asCount(bookings?.total_bookings),

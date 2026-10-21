@@ -2,15 +2,15 @@
  * Booking Request Validators using express-validator.
  */
 const { body, param, query } = require('express-validator');
-const { BOOKING_STATUSES, PAYMENT_METHODS } = require('../constants');
+const { BOOKING_STATUSES } = require('../constants');
 
-// Optional. Says how paid_amount was paid. The service stores CASH when it is omitted.
+// Optional. The service checks the name against this hotel's payment methods.
+// A blank value means CASH.
 const paymentMethodValidator = body('payment_method')
   .optional({ checkFalsy: true })
   .trim()
-  .toUpperCase()
-  .isIn(PAYMENT_METHODS)
-  .withMessage(`payment_method must be one of: ${PAYMENT_METHODS.join(', ')}.`);
+  .isLength({ min: 2, max: 50 })
+  .withMessage('payment_method must be between 2 and 50 characters.');
 
 /**
  * room_id is an array of room ids. A JSON string or one id is accepted.

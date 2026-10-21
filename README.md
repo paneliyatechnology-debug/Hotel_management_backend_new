@@ -319,6 +319,18 @@ Payment methods: `CASH`, `ONLINE`, `CARD`, `UPI`, `BANK_TRANSFER`.
 | `GET` / `PUT` / `DELETE` | `/users/:id` | Details / update / soft delete (not yourself) |
 | `PATCH` | `/users/:id/account-status` | Enable or disable an account |
 
+### Payment methods
+
+`CASH`, `CARD`, `UPI`, and `BANK_TRANSFER` are created when a hotel is registered or created. `is_system` is true on those four. Nobody can rename or delete them. A hotel admin can add, rename, and delete any other method for that hotel. Receptionist, manager, housekeeping, and accountant can read the list and use a method on a booking. They cannot change the list.
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/payment-methods` | Methods for the token hotel. A super admin must send `hotel_id`. |
+| `GET` | `/payment-methods/:id` | One method. |
+| `POST` | `/payment-methods` | Hotel admin only. Body `name`, 2 to 50 characters. |
+| `PUT` | `/payment-methods/:id` | Hotel admin only. Renames a method that hotel added. |
+| `DELETE` | `/payment-methods/:id` | Hotel admin only. Removes a method that hotel added. Past payments keep the name they were saved with. |
+
 ### Transactions (`HOTEL_ADMIN`, `RECEPTIONIST`, `MANAGER`, `ACCOUNTANT`, `SUPER_ADMIN`)
 
 | Method | Endpoint | Description |
