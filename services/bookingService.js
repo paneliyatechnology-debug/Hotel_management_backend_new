@@ -303,6 +303,35 @@ const assertNoDueForCheckout = (dueAmount) => {
 };
 
 /**
+ * A checkout amount from the body, or the value already stored on the booking.
+ * A missing or blank field keeps the stored value. Zero is a real amount.
+ * @param {*} value
+ * @param {*} fallback
+ * @returns {number}
+ */
+const readCheckoutAmount = (value, fallback) => {
+  if (value === undefined || value === null || value === '') return Number(fallback) || 0;
+  return Number(value);
+};
+
+/**
+ * Discount for this checkout. discount_amount replaces the discount saved at booking.
+ * discount is accepted as the same field. Leave both out to keep the saved discount.
+ * @param {Object} body
+ * @param {Object} existing
+ * @returns {number}
+ */
+const readCheckoutDiscount = (body, existing) => {
+  if (body.discount_amount !== undefined && body.discount_amount !== null && body.discount_amount !== '') {
+    return Number(body.discount_amount);
+  }
+  if (body.discount !== undefined && body.discount !== null && body.discount !== '') {
+    return Number(body.discount);
+  }
+  return Number(existing.discount_amount) || 0;
+};
+
+/**
  * Accept a payment method from the client. Blank input means CASH.
  * @param {*} value
  * @returns {string}
@@ -325,10 +354,11 @@ const resolvePaymentMethod = (value) => {
  * Add a payment history row when the amount paid on a booking changed.
  * Money taken back (a lower paid_amount) is REFUNDED. Otherwise the row is PAID when the bill
  * is fully paid after it, and PARTIALLY_PAID while a balance is left.
+ * Used by create and check-out. An update replaces the history instead of adding a row.
  * @param {Object} booking - Needs id and hotel_id
  * @param {number} amount - Signed change in paid_amount. Zero is ignored.
  * @param {Object} details
- * @param {string} details.source - BOOKING, UPDATE, or CHECKOUT
+ * @param {string} details.source - BOOKING or CHECKOUT
  * @param {string} details.method - One of PAYMENT_METHODS
  * @param {string} details.bookingPaymentStatus - Booking payment_status after this change
  * @param {Object} reqUser
@@ -351,6 +381,37 @@ const recordPayment = async (booking, amount, { source, method, bookingPaymentSt
     source,
     received_by: reqUser?.id,
   });
+};
+
+/**
+ * True when the client sent a value. A missing or blank field is left alone.
+ * @param {*} value
+ * @returns {boolean}
+ */
+const wasProvided = (value) => value !== undefined && value !== null && String(value).trim() !== '';
+
+/**
+ * Replace this booking's payment history with the paid amount from the update.
+ * Called only when the request includes paid_amount or payment_method.
+ * @param {Object} booking
+ * @param {number} paidAmount
+ * @param {string} method
+ * @param {string} bookingPaymentStatus
+ * @param {Object} reqUser
+ * @returns {Promise<void>}
+ */
+const replaceBookingPayment = async (booking, paidAmount, method, bookingPaymentStatus, reqUser) => {
+  const amount = Math.round(Number(paidAmount) * 100) / 100;
+  const status = bookingPaymentStatus === 'PAID' ? 'PAID' : 'PARTIALLY_PAID';
+
+  await bookingPaymentModel.replacePaymentsForBooking(booking.id, amount > 0 ? {
+    hotel_id: booking.hotel_id,
+    amount,
+    payment_method: method,
+    status,
+    source: 'UPDATE',
+    received_by: reqUser?.id,
+  } : null);
 };
 
 /**
@@ -846,7 +907,9 @@ const getBookingForWrite = async (id, reqUser = null) => {
  */
 const updateBooking = async (id, body, files = [], reqUser = null) => {
   const existing = await getBookingForWrite(id, reqUser);
-  const paymentMethod = resolvePaymentMethod(body.payment_method);
+  const paidAmountProvided = wasProvided(body.paid_amount);
+  const paymentMethodProvided = wasProvided(body.payment_method);
+  const paymentMethod = paymentMethodProvided ? resolvePaymentMethod(body.payment_method) : null;
 
   const hotelId = existing.hotel_id;
   const inDate = body.check_in_date ? new Date(body.check_in_date) : new Date(existing.check_in_date);
@@ -873,7 +936,7 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
     late_checkout_charge: existing.late_checkout_charge,
     late_checkout_hours: existing.late_checkout_hours,
     gst_rate: body.gst_rate !== undefined ? body.gst_rate : existing.gst_rate,
-    paid_amount: body.paid_amount !== undefined ? body.paid_amount : existing.paid_amount,
+    paid_amount: paidAmountProvided ? body.paid_amount : existing.paid_amount,
     rooms,
     numberOfNights,
   });
@@ -919,13 +982,22 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   // Rooms dropped from the stay are released. Rooms added pick up the current stay status.
   const removedRoomIds = previousRoomIds.filter((roomId) => !roomIds.includes(roomId));
   const addedRoomIds = roomIds.filter((roomId) => !previousRoomIds.includes(roomId));
-  const roomFollowUps = [
-    recordPayment(existing, pricing.paid_amount - existing.paid_amount, {
-      source: 'UPDATE',
-      method: paymentMethod,
-      bookingPaymentStatus: pricing.payment_status,
-    }, reqUser),
-  ];
+  const roomFollowUps = [];
+  if (paidAmountProvided || paymentMethodProvided) {
+    let method = paymentMethod;
+    if (!method) {
+      const history = await bookingPaymentModel.findPaymentsByBookingId(existing.id);
+      const previous = history.find((row) => Number(row.amount) > 0 && row.payment_method);
+      method = previous?.payment_method || 'CASH';
+    }
+    roomFollowUps.push(replaceBookingPayment(
+      existing,
+      pricing.paid_amount,
+      method,
+      pricing.payment_status,
+      reqUser
+    ));
+  }
   if (removedRoomIds.length > 0) {
     roomFollowUps.push(syncRoomForBookingStatus(existing, 'CANCELLED', new Date(), removedRoomIds));
   }
@@ -979,23 +1051,13 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
     throw new AppError('This booking has already been checked out.', HTTP_STATUS.BAD_REQUEST);
   }
 
-  const collectedNow = body.paid_amount !== undefined && body.paid_amount !== ''
-    ? Number(body.paid_amount)
-    : 0;
-  const lateCharge = body.late_checkout_charge !== undefined && body.late_checkout_charge !== ''
-    ? Number(body.late_checkout_charge)
-    : Number(existing.late_checkout_charge) || 0;
-  const lateHours = body.late_checkout_hours !== undefined && body.late_checkout_hours !== ''
-    ? Number(body.late_checkout_hours)
-    : Number(existing.late_checkout_hours) || 0;
+  const collectedNow = readCheckoutAmount(body.paid_amount, 0);
+  const lateCharge = readCheckoutAmount(body.late_checkout_charge, existing.late_checkout_charge);
+  const lateHours = readCheckoutAmount(body.late_checkout_hours, existing.late_checkout_hours);
   // Extra charges (minibar, laundry, ...) can be settled at checkout. The value is the full total for the stay.
-  const extraCharges = body.extra_charges_total !== undefined && body.extra_charges_total !== ''
-    ? Number(body.extra_charges_total)
-    : Number(existing.extra_charges_total) || 0;
-  // Same discount field as booking create. A sent value replaces the stored discount. Leave it out to keep it.
-  const discountAmount = body.discount_amount !== undefined && body.discount_amount !== ''
-    ? Number(body.discount_amount)
-    : Number(existing.discount_amount) || 0;
+  const extraCharges = readCheckoutAmount(body.extra_charges_total, existing.extra_charges_total);
+  // A discount sent here replaces the one saved at booking, then the due is calculated from that bill.
+  const discountAmount = readCheckoutDiscount(body, existing);
 
   if ([collectedNow, lateCharge, lateHours, extraCharges, discountAmount].some((value) => Number.isNaN(value) || value < 0)) {
     throw new AppError('Checkout amounts cannot be negative.', HTTP_STATUS.BAD_REQUEST);
@@ -1014,14 +1076,14 @@ const checkOutBooking = async (id, body = {}, reqUser = null) => {
 
   const paymentMethod = resolvePaymentMethod(body.payment_method);
 
-  // Due left after extras, the late fee, the discount, and GST, minus what was already paid.
-  // This payment is not saved unless it clears that balance, so the error is the amount still due.
-  const dueBeforePayment = Math.max(
+  // Due after this request's discount, extras, late fee, and GST, minus what was already paid.
+  // The payment in this request is not saved unless it clears that balance.
+  const dueAfterDiscount = Math.max(
     0,
     Math.round((pricing.total_amount - Number(existing.paid_amount)) * 100) / 100
   );
   if (pricing.due_amount > 0) {
-    assertNoDueForCheckout(dueBeforePayment);
+    assertNoDueForCheckout(dueAfterDiscount);
   }
 
   const now = new Date();

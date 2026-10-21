@@ -47,6 +47,31 @@ const createPayment = async (data, client = db) => {
 };
 
 /**
+ * Remove every payment row for one booking.
+ * @param {number|string} bookingId
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<void>}
+ */
+const deletePaymentsByBookingId = async (bookingId, client = db) => {
+  await client('booking_payments').where({ booking_id: bookingId }).delete();
+};
+
+/**
+ * Replace a booking's payment history with one row, or with none when nothing was collected.
+ * @param {number|string} bookingId
+ * @param {Object|null} payment - Fields for createPayment, without booking_id. Null clears the history.
+ * @returns {Promise<void>}
+ */
+const replacePaymentsForBooking = async (bookingId, payment) => {
+  await db.transaction(async (trx) => {
+    await deletePaymentsByBookingId(bookingId, trx);
+    if (payment && Number(payment.amount) > 0) {
+      await createPayment({ ...payment, booking_id: bookingId }, trx);
+    }
+  });
+};
+
+/**
  * Payment history of a booking, newest first.
  * @param {number|string} bookingId
  * @param {import('knex').Knex} [client=db]
@@ -172,6 +197,8 @@ const findTransactions = async (filters = {}, pagination = {}, client = db) => {
 
 module.exports = {
   createPayment,
+  deletePaymentsByBookingId,
+  replacePaymentsForBooking,
   findPaymentsByBookingId,
   findTransactions,
 };

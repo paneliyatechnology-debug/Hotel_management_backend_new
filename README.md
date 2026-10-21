@@ -434,9 +434,9 @@ due_amount     = total_amount - paid_amount
 
 - GST applies to the room charge, extra charges, and the late checkout fee after the discount.
 - `extra_charges_total`, `late_checkout_charge` and `late_checkout_hours` are accepted **only at check-out**. `discount_amount` is accepted on create, update, and check-out. At check-out a sent discount replaces the stored one; leaving it out keeps the booking discount.
-- Check-out is rejected with 400 while any due remains after the payment collected in that request. The error `due_amount` is the balance left after extra charges, the late fee, the discount, and GST, minus what was already paid. The booking is not changed. Sending that amount completes checkout.
+- Check-out is rejected with 400 while any due remains after the payment collected in that request. The error `due_amount` uses the discount sent on that request: a checkout discount of 300 replaces a booking discount of 200 before GST and the due are calculated. Leave `discount_amount` out to keep the saved discount. The booking is not changed. Sending that `due_amount` as `paid_amount`, with the same `discount_amount`, completes checkout.
 - After a booking is created, a WhatsApp template is queued to the guest mobile. The sender is the phone number in `WHATSAPP_PHONE_NUMBER_ID`. The hotel name and the other details come from that booking's `hotel_id`. A failed or skipped message does not change the `201` response. Retries run up to three times for network errors and rate limits. An invalid template or number is logged and not retried.
-- Each payment is stored in `booking_payments` and returned as `payment_history` on `GET /bookings/:id`.
+- Each payment is stored in `booking_payments` and returned as `payment_history` on `GET /bookings/:id`. An update that sends `paid_amount` or `payment_method` removes that booking's payment rows and saves one new row. Leaving both out does not change the payment history. Check-out still adds a row for the money collected then.
 
 ---
 

@@ -1500,13 +1500,13 @@ Another hotel's booking returns 403.
 | \`deleted_at\` | null | Null until deleted. |
 | \`created_at\`, \`updated_at\` | string | Timestamps. |
 
-**\`payment_history\`** lists every change to the amount paid, newest first. A row is added when the booking is created with a paid amount, when **Update booking** changes \`paid_amount\`, and when **Check out** collects \`paid_amount\`.
+**\`payment_history\`** lists payments for the booking, newest first. Create adds one row when money was collected. **Update booking** replaces that history with one row when \`paid_amount\` or \`payment_method\` is sent, and leaves it unchanged when both are left out. **Check out** adds a row for the money collected then.
 
 | Key | Type | Meaning |
 | --- | --- | --- |
 | \`id\` | number | Payment row id. |
 | \`booking_id\` | number | Booking id. |
-| \`amount\` | number | Money received. Negative when \`paid_amount\` was lowered on an update. |
+| \`amount\` | number | Money on this row. An update stores the full paid amount as one row. Check-out stores the money collected then, and a negative amount when money is taken back. |
 | \`payment_method\` | string | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. |
 | \`status\` | string | Status of this payment: \`PAID\` (the bill is fully paid after it), \`PARTIALLY_PAID\` (a balance is left), \`REFUNDED\` (money taken back), or \`FAILED\` (did not go through). The server sets \`PAID\`, \`PARTIALLY_PAID\` and \`REFUNDED\` itself. |
 | \`source\` | string | \`BOOKING\` (create), \`UPDATE\` (booking edit), or \`CHECKOUT\`. |
@@ -1582,8 +1582,8 @@ Builds a professional guest **tax invoice / bill slip** for this booking only (h
           textField('base_amount', '7000', 'Optional. Recalculates tax, total, due, and payment_status.', true),
           textField('discount_amount', '500', 'Optional. Recalculates pricing.', true),
           textField('gst_rate', '18', 'Optional. 0 to 100.', true),
-          textField('paid_amount', '2000', 'Optional. On this update API, this replaces the stored paid amount. On checkout, paid_amount is added instead.', true),
-          textField('payment_method', 'CASH', 'Optional. How the change in paid_amount was paid: CASH, ONLINE, CARD, UPI, or BANK_TRANSFER. Default CASH. Saved in the payment history.', true),
+          textField('paid_amount', '2000', 'Optional. When sent, replaces the stored paid amount and replaces the payment history with one row for this amount. Leave it out, and leave payment_method out, to keep the current payments.', true),
+          textField('payment_method', 'UPI', 'Optional. When sent, replaces the payment history with one row using this method and the paid amount. CASH, ONLINE, CARD, UPI, or BANK_TRANSFER. Leave both payment fields out to keep the current payments.', true),
           textField('notes', 'Guest requested an extra bed', 'Optional. Replaces the note.', true),
           fileField('images', 'Required. At least one guest photo. Replaces the stored photos.'),
           fileField('signatures', 'Required. At least one signature image. Replaces the stored signature.'),
@@ -1598,7 +1598,9 @@ Send at least one guest photo file and one signature file on every update. A URL
 
 \`extra_charges_total\`, \`late_checkout_charge\`, and \`late_checkout_hours\` are not accepted here. They are only set by **Check out**, and an update keeps the stored values.
 
-On this API, \`paid_amount\` replaces the stored paid amount. On checkout, \`paid_amount\` is added to what was already paid. Every change to the paid amount is added to the payment history.
+On this API, \`paid_amount\` replaces the stored paid amount. On checkout, \`paid_amount\` is added to what was already paid.
+
+Send \`paid_amount\` or \`payment_method\` to replace the payment history: the old rows for this booking are removed and one new row is saved for the paid amount. A paid amount of 0 removes the history and saves no row. When \`payment_method\` is sent without \`paid_amount\`, the stored paid amount is kept and the new row uses the method you sent. When \`paid_amount\` is sent without \`payment_method\`, the new row keeps the previous method, or \`CASH\` when there was no earlier payment. Leave both fields out and the payment history is not changed.
 
 Changing room or dates checks overlap again, ignoring this booking.
 
@@ -1646,7 +1648,7 @@ A second checkout, when \`actual_check_out\` is already set, returns 400.
 | \`paid_amount\` | number | No | Collected now. Added to the existing \`paid_amount\`. It does not replace it. Together with what was already paid, this must clear the bill after extra charges, the late fee, the discount, and GST. A shortfall returns 400 with that remaining \`due_amount\`, and checkout does not happen. |
 | \`payment_method\` | string | No | \`CASH\`, \`ONLINE\`, \`CARD\`, \`UPI\`, or \`BANK_TRANSFER\`. Default \`CASH\`. Saved with the payment. |
 | \`extra_charges_total\` | number | No | Extra charges for the whole stay (minibar, laundry, and so on). Included with the room charge before the discount and GST. This is the full total, not only the new amount: it replaces the stored \`extra_charges_total\`. Leave it out to keep the stored value. Updates total and due. 0 or more. |
-| \`discount_amount\` | number | No | Discount for the stay, same as on create. Taken off the room charge, extra charges, and late fee before GST. Replaces the stored discount. Leave it out to keep the booking discount. 0 or more. |
+| \`discount_amount\` | number | No | Discount for the stay. Taken off before GST and replaces the discount saved at booking. The 400 \`due_amount\` is calculated with this value. Leave it out to keep the booking discount. 0 or more. |
 | \`late_checkout_charge\` | number | No | Late fee. Included before the discount and GST, and updates due. 0 or more. |
 | \`late_checkout_hours\` | number | No | Hours late. 0 or more. |
 | \`notes\` | string | No | Appended to the existing note. It does not wipe the old note. |
