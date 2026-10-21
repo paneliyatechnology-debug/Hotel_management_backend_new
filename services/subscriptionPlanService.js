@@ -8,6 +8,7 @@ const auditService = require('./auditService');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
+const { scheduleHotelDashboard } = require('../sockets/roomSocket');
 const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES, ROLE_CODES } = require('../constants');
 
 /**
@@ -627,6 +628,7 @@ const purchasePlan = async (planId, payload = {}, reqUser) => {
     },
   });
 
+  scheduleHotelDashboard(hotelId);
   return {
     ...purchase,
     plan: {

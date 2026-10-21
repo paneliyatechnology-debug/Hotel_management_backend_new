@@ -7,14 +7,19 @@ const { Server } = require('socket.io');
 const { authenticateUser, validateHotelAccess } = require('../middleware/auth');
 const dashboardModel = require('../models/dashboardModel');
 const roomTypeModel = require('../models/roomTypeModel');
+const { getLiveDashboard, defaultDashboardDateRange } = require('../services/dashboardService');
+const { DATE_RANGES } = require('../utils/dateRange');
 const { ROLE_CODES } = require('../constants');
 
 const ROOM_STATUS_EVENT = 'room:status';
 const ROOM_STATUS_BREAKDOWN_EVENT = 'room:status_breakdown';
 const ROOM_CATEGORY_COUNTS_EVENT = 'room:category_counts';
 const BOOKING_UPDATED_EVENT = 'booking:updated';
+const DASHBOARD_UPDATED_EVENT = 'dashboard:updated';
+const DASHBOARD_SUBSCRIBE_EVENT = 'dashboard:subscribe';
 
 let io = null;
+const dashboardRefreshTimers = new Map();
 
 const hotelChannel = (hotelId) => `hotel:${Number(hotelId)}`;
 
@@ -123,6 +128,19 @@ const attachRoomSocket = (httpServer, { isOriginAllowed }) => {
   io.on('connection', (socket) => {
     const hotelId = socket.data.user.hotel_id;
     socket.join(hotelChannel(hotelId));
+    socket.data.dashboardDateRange = defaultDashboardDateRange(socket.data.user.role);
+
+    socket.on(DASHBOARD_SUBSCRIBE_EVENT, (payload) => {
+      const nextRange = readDashboardDateRange(payload);
+      if (nextRange) socket.data.dashboardDateRange = nextRange;
+      emitDashboardToSocket(socket).catch((err) => {
+        console.error('[RoomSocket] Failed to publish dashboard:', err.message);
+      });
+    });
+
+    emitDashboardToSocket(socket).catch((err) => {
+      console.error('[RoomSocket] Failed to publish dashboard:', err.message);
+    });
   });
 
   return io;
@@ -144,6 +162,7 @@ const publishRoomStatusBreakdown = async (hotelId) => {
       room_status_breakdown: roomStatusBreakdown,
     });
     await publishRoomCategoryCounts(hotelId);
+    scheduleHotelDashboard(hotelId);
   } catch (err) {
     console.error('[RoomSocket] Failed to publish room status breakdown:', err.message);
   }
@@ -209,6 +228,101 @@ const publishBookingDetail = (booking) => {
 };
 
 /**
+ * date_range from a dashboard:subscribe payload. Null when it is not a known range.
+ * @param {string|Object|null} payload
+ * @returns {string|null}
+ */
+const readDashboardDateRange = (payload) => {
+  const value = typeof payload === 'string' ? payload : payload?.date_range;
+  const key = String(value || '').trim().toLowerCase();
+  return DATE_RANGES.includes(key) ? key : null;
+};
+
+/**
+ * Push GET /dashboard data to one connected user.
+ * @param {import('socket.io').Socket} socket
+ * @returns {Promise<void>}
+ */
+const emitDashboardToSocket = async (socket) => {
+  if (!io || !socket?.data?.user?.hotel_id) return;
+
+  const built = await getLiveDashboard({
+    role: socket.data.user.role,
+    hotelId: socket.data.user.hotel_id,
+    dateRange: socket.data.dashboardDateRange,
+  });
+  if (!built) return;
+
+  socket.emit(DASHBOARD_UPDATED_EVENT, {
+    hotel_id: Number(socket.data.user.hotel_id),
+    date_range: built.date_range,
+    data: built.data,
+  });
+};
+
+/**
+ * Rebuild the dashboard once per role and date range, then send each client its own view.
+ * @param {number|string} hotelId
+ * @returns {Promise<void>}
+ */
+const emitHotelDashboards = async (hotelId) => {
+  if (!io || !hotelId) return;
+
+  const room = io.sockets.adapter.rooms.get(hotelChannel(hotelId));
+  if (!room || room.size === 0) return;
+
+  const groups = new Map();
+  for (const socketId of room) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket?.data?.user) continue;
+    const role = socket.data.user.role;
+    const dateRange = socket.data.dashboardDateRange || defaultDashboardDateRange(role);
+    const view = role === ROLE_CODES.HOTEL_ADMIN || role === ROLE_CODES.SUPER_ADMIN
+      ? role
+      : 'front_desk';
+    const key = `${view}:${dateRange}`;
+    if (!groups.has(key)) groups.set(key, { role, dateRange, sockets: [] });
+    groups.get(key).sockets.push(socket);
+  }
+
+  await Promise.all([...groups.values()].map(async (group) => {
+    const built = await getLiveDashboard({
+      role: group.role,
+      hotelId,
+      dateRange: group.dateRange,
+    });
+    if (!built) return;
+
+    const payload = {
+      hotel_id: Number(hotelId),
+      date_range: built.date_range,
+      data: built.data,
+    };
+    for (const socket of group.sockets) socket.emit(DASHBOARD_UPDATED_EVENT, payload);
+  }));
+};
+
+/**
+ * Refresh every connected dashboard for this hotel after the latest write settles.
+ * Repeated calls in the same moment share one refresh.
+ * @param {number|string} hotelId
+ */
+const scheduleHotelDashboard = (hotelId) => {
+  if (!io || !hotelId) return;
+  const key = Number(hotelId);
+  if (!Number.isInteger(key) || key <= 0) return;
+
+  const pending = dashboardRefreshTimers.get(key);
+  if (pending) clearTimeout(pending);
+  dashboardRefreshTimers.set(key, setTimeout(() => {
+    dashboardRefreshTimers.delete(key);
+    emitHotelDashboards(key).catch((err) => {
+      console.error('[RoomSocket] Failed to publish dashboard:', err.message);
+    });
+  }, 200));
+};
+
+/**
  * Drop every connected client of a hotel. Used when the hotel is deactivated.
  * @param {number|string} hotelId
  */
@@ -229,10 +343,12 @@ module.exports = {
   publishRoomStatusBreakdown,
   publishRoomCategoryCounts,
   publishBookingDetail,
+  scheduleHotelDashboard,
   disconnectHotel,
   closeRoomSocket,
   ROOM_STATUS_EVENT,
   ROOM_STATUS_BREAKDOWN_EVENT,
   ROOM_CATEGORY_COUNTS_EVENT,
   BOOKING_UPDATED_EVENT,
+  DASHBOARD_UPDATED_EVENT,
 };

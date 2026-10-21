@@ -6,7 +6,7 @@
  */
 const dashboardModel = require('../models/dashboardModel');
 const { resolveHotelId, resolveScopedHotelId } = require('../utils/hotelScope');
-const { resolveDateRange, percent, money, toDateKey, getCurrentWeekDays } = require('../utils/dateRange');
+const { resolveDateRange, percent, money, toDateKey, getCurrentWeekDays, DATE_RANGES } = require('../utils/dateRange');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, ROLE_CODES } = require('../constants');
 
@@ -350,7 +350,43 @@ const getDashboard = async (query = {}, reqUser) => {
   );
 };
 
+/**
+ * Date range a live dashboard uses until the client picks one.
+ * Hotel admin and super admin match GET /dashboard (this_month). Front desk matches its default (today).
+ * @param {string} role
+ * @returns {string}
+ */
+const defaultDashboardDateRange = (role) => (
+  FRONT_DESK_ROLES.includes(role) ? 'today' : 'this_month'
+);
+
+/**
+ * Same data as GET /dashboard for one connected user.
+ * A super admin on a hotel socket receives that hotel's admin dashboard.
+ * @param {{ role: string, hotelId: number|string, dateRange?: string }} viewer
+ * @returns {Promise<{ date_range: string, data: Object }|null>}
+ */
+const getLiveDashboard = async ({ role, hotelId, dateRange } = {}) => {
+  const rangeKey = DATE_RANGES.includes(dateRange) ? dateRange : defaultDashboardDateRange(role);
+  const viewer = { role, hotel_id: Number(hotelId) };
+  const query = { date_range: rangeKey, hotel_id: hotelId };
+
+  if (role === ROLE_CODES.SUPER_ADMIN || role === ROLE_CODES.HOTEL_ADMIN) {
+    const result = await getHotelAdminDashboard(query, viewer);
+    return { date_range: rangeKey, data: result.data };
+  }
+
+  if (FRONT_DESK_ROLES.includes(role)) {
+    const result = await getFrontDeskDashboard(query, viewer);
+    return { date_range: rangeKey, data: result.data };
+  }
+
+  return null;
+};
+
 module.exports = {
   getDashboard,
   getDashboardSummary,
+  getLiveDashboard,
+  defaultDashboardDateRange,
 };

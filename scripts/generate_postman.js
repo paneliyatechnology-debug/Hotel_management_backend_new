@@ -2292,6 +2292,8 @@ One endpoint. The server reads the role from the access token and returns the ma
 
 Optional query \`date_range\`: \`today\`, \`this_week\`, \`this_month\` (default), or \`this_year\`. It scopes platform booking volume / hotel \`month_revenue\` and \`revenue_by_payment_method\`. Today's fields always use the current calendar day.
 
+Listen for \`dashboard:updated\` on the hotel socket. \`data\` is this response for the connected role. Emit \`dashboard:subscribe\` with \`{ date_range }\` to switch the window. The server also sends it when a booking, room, staff user, hotel profile, or plan changes.
+
 ${envelope}`,
   item: [
     item({

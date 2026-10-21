@@ -14,7 +14,7 @@ const auditService = require('./auditService');
 const { checkEmailExistsGlobally } = require('../utils/emailValidator');
 const { queueEmail } = require('../queues/emailQueue');
 const { buildPortalLinks } = require('../utils/frontendUrl');
-const { disconnectHotel } = require('../sockets/roomSocket');
+const { disconnectHotel, scheduleHotelDashboard } = require('../sockets/roomSocket');
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -586,6 +586,7 @@ const saveHotelUpdate = async (existing, updates, files, reqUser) => {
     ),
   });
 
+  scheduleHotelDashboard(existing.id);
   return { id: existing.id };
 };
 
@@ -628,6 +629,7 @@ const updateHotel = async (id, payload, files = [], reqUser) => {
       hotelId: existing.id,
       description: `Hotel '${existing.name}' subscription updated.`,
     });
+    scheduleHotelDashboard(existing.id);
     return { id: existing.id };
   }
 

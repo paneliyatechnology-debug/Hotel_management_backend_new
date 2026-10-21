@@ -477,6 +477,13 @@ socket.on('booking:updated', (booking) => {
   // Same object as GET /bookings/:id, including payment_history.
   // deleted_at is set when the booking was deleted.
 });
+
+socket.on('dashboard:updated', (payload) => {
+  // { hotel_id, date_range, data }
+  // data matches GET /dashboard for this user's role and date_range.
+});
+
+socket.emit('dashboard:subscribe', { date_range: 'today' });
 ```
 
 - Every hotel user joins only the channel of their own hotel (`hotel:<hotel_id>`).
@@ -490,6 +497,11 @@ socket.on('booking:updated', (booking) => {
 - `booking:updated` is sent to the same hotel channel when a booking is created, updated, checked out,
   has its status changed, or is deleted. The payload is the booking detail from `GET /bookings/:id`,
   including `payment_history`. A deleted booking includes `deleted_at`.
+- `dashboard:updated` is sent to each connected user when they connect, when they emit
+  `dashboard:subscribe` with `{ date_range }`, and when a booking, room, staff user, hotel profile,
+  or plan changes. `data` is the same object as `GET /dashboard` for that user's role.
+  `date_range` is `today`, `this_week`, `this_month` (default for hotel admin), or `this_year`.
+  Front desk defaults to `today`. A super admin receives the hotel admin dashboard for the hotel they joined.
 - Use Socket.IO client v4. A plain WebSocket client does not work.
 
 ---

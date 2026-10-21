@@ -15,6 +15,7 @@ const { buildPortalLinks } = require('../utils/frontendUrl');
 const { generateSecureTempPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
 const { HTTP_STATUS, ROLE_CODES, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
+const { scheduleHotelDashboard } = require('../sockets/roomSocket');
 
 // Permitted staff roles that a HOTEL_ADMIN can manage
 const STAFF_ROLES = [
@@ -214,6 +215,7 @@ const createUser = async (payload, req_user) => {
     description: `User ${created_user.email} created with role ${created_user.role}.`,
   });
 
+  scheduleHotelDashboard(created_user.hotel_id);
   return { id: created_user.id };
 };
 
@@ -450,6 +452,8 @@ const updateUser = async (id, payload, req_user) => {
     changes: auditService.diffChanges(existing_user, updates),
   });
 
+  scheduleHotelDashboard(existing_user.hotel_id);
+  if (updates.hotel_id !== undefined) scheduleHotelDashboard(updates.hotel_id);
   return { id: existing_user.id };
 };
 
@@ -519,6 +523,7 @@ const deleteUser = async (id, req_user) => {
     description: `User ${existing_user.email} deleted.`,
   });
 
+  scheduleHotelDashboard(existing_user.hotel_id);
   return { id: existing_user.id };
 };
 
@@ -607,6 +612,7 @@ const updateAccountStatus = async (id, payload, req_user) => {
     changes: auditService.diffChanges(existing_user, updates),
   });
 
+  scheduleHotelDashboard(existing_user.hotel_id);
   return { id: existing_user.id };
 };
 

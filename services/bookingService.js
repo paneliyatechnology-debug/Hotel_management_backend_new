@@ -6,7 +6,7 @@
 const bookingModel = require('../models/bookingModel');
 const bookingPaymentModel = require('../models/bookingPaymentModel');
 const roomModel = require('../models/roomModel');
-const { publishBookingDetail } = require('../sockets/roomSocket');
+const { publishBookingDetail, scheduleHotelDashboard } = require('../sockets/roomSocket');
 const s3Service = require('./s3Service');
 const auditService = require('./auditService');
 const db = require('../database/knex');
@@ -367,6 +367,7 @@ const notifyBookingUpdated = async (bookingId) => {
     if (!booking) return;
     const paymentHistory = await bookingPaymentModel.findPaymentsByBookingId(booking.id);
     publishBookingDetail({ ...booking, payment_history: paymentHistory });
+    scheduleHotelDashboard(booking.hotel_id);
   } catch (err) {
     console.error('[Booking] Failed to publish booking update:', err.message);
   }
