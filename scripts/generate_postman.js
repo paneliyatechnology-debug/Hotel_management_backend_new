@@ -2529,7 +2529,9 @@ A hotel user can read a method of their own hotel.`,
       description: `### POST /api/v1/payment-methods
 ${authNote('HOTEL_ADMIN only. A super admin and other hotel roles receive 403.')}
 
-\`name\` is 2 to 50 characters. The hotel comes from the token. A name that matches an existing method, including \`CASH\`, returns 409.`,
+\`name\` is 2 to 50 characters. The hotel comes from the token. A name that matches an existing method, including \`CASH\`, returns 409.
+
+${idNote('Use **Get payment method** or **List payment methods** to read the saved row.')}`,
     }),
     item({
       name: 'Update payment method',
@@ -2541,7 +2543,9 @@ ${authNote('HOTEL_ADMIN only. A super admin and other hotel roles receive 403.')
       description: `### PUT /api/v1/payment-methods/:id
 ${authNote('HOTEL_ADMIN only.')}
 
-Renames a method this hotel added. \`CASH\`, \`CARD\`, \`UPI\`, and \`BANK_TRANSFER\` return 400.`,
+Renames a method this hotel added. \`CASH\`, \`CARD\`, \`UPI\`, and \`BANK_TRANSFER\` return 400.
+
+${idNote()}`,
     }),
     item({
       name: 'Delete payment method',
@@ -2552,7 +2556,9 @@ Renames a method this hotel added. \`CASH\`, \`CARD\`, \`UPI\`, and \`BANK_TRANS
       description: `### DELETE /api/v1/payment-methods/:id
 ${authNote('HOTEL_ADMIN only.')}
 
-Removes a method this hotel added. The four built-in methods return 400. Payments already saved keep their method name.`,
+Removes a method this hotel added. The four built-in methods return 400. Payments already saved keep their method name.
+
+${idNote()}`,
     }),
   ],
 };

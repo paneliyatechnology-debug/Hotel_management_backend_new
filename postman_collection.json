@@ -4177,7 +4177,7 @@
                 "payment-methods"
               ]
             },
-            "description": "### POST /api/v1/payment-methods\n**Who can call this:** HOTEL_ADMIN only. A super admin and other hotel roles receive 403.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n`name` is 2 to 50 characters. The hotel comes from the token. A name that matches an existing method, including `CASH`, returns 409."
+            "description": "### POST /api/v1/payment-methods\n**Who can call this:** HOTEL_ADMIN only. A super admin and other hotel roles receive 403.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\n`name` is 2 to 50 characters. The hotel comes from the token. A name that matches an existing method, including `CASH`, returns 409.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record). Use **Get payment method** or **List payment methods** to read the saved row."
           }
         },
         {
@@ -4224,7 +4224,7 @@
                 }
               ]
             },
-            "description": "### PUT /api/v1/payment-methods/:id\n**Who can call this:** HOTEL_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRenames a method this hotel added. `CASH`, `CARD`, `UPI`, and `BANK_TRANSFER` return 400."
+            "description": "### PUT /api/v1/payment-methods/:id\n**Who can call this:** HOTEL_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRenames a method this hotel added. `CASH`, `CARD`, `UPI`, and `BANK_TRANSFER` return 400.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record)."
           }
         },
         {
@@ -4257,7 +4257,7 @@
                 }
               ]
             },
-            "description": "### DELETE /api/v1/payment-methods/:id\n**Who can call this:** HOTEL_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRemoves a method this hotel added. The four built-in methods return 400. Payments already saved keep their method name."
+            "description": "### DELETE /api/v1/payment-methods/:id\n**Who can call this:** HOTEL_ADMIN only.\n\nSend the access token as `Authorization: Bearer {{accessToken}}`. Login stores that token in the collection variable automatically. The hotel is read from the logged-in user. Do not send `hotel_id` to choose a hotel. A hotel admin or receptionist always works inside their own hotel.\n\nRemoves a method this hotel added. The four built-in methods return 400. Payments already saved keep their method name.\n\n**Response:** `success`, `message`, and `data.id` (the id of the created, updated, or deleted record)."
           }
         }
       ]

@@ -96,7 +96,7 @@ const getPaymentMethodById = async (id, reqUser) => {
  * The four built-in names cannot be added again.
  * @param {Object} body
  * @param {Object} reqUser
- * @returns {Promise<Object>}
+ * @returns {Promise<{ id: number }>}
  */
 const createPaymentMethod = async (body, reqUser) => {
   assertHotelAdmin(reqUser);
@@ -115,7 +115,7 @@ const createPaymentMethod = async (body, reqUser) => {
     description: `Payment method '${created.name}' created.`,
   });
 
-  return created;
+  return { id: created.id };
 };
 
 /**
@@ -124,7 +124,7 @@ const createPaymentMethod = async (body, reqUser) => {
  * @param {number|string} id
  * @param {Object} body
  * @param {Object} reqUser
- * @returns {Promise<Object>}
+ * @returns {Promise<{ id: number }>}
  */
 const updatePaymentMethod = async (id, body, reqUser) => {
   assertHotelAdmin(reqUser);
@@ -155,7 +155,7 @@ const updatePaymentMethod = async (id, body, reqUser) => {
     changes: auditService.diffChanges(existing, { name }),
   });
 
-  return updated;
+  return { id: updated.id };
 };
 
 /**
