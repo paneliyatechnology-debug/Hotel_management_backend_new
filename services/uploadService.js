@@ -5,7 +5,11 @@
  */
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 const { getPublicBase } = require('../utils/requestContext');
+
+const MAX_EDGE = 1600;
+const JPEG_QUALITY = 72;
 
 const UPLOAD_ROOT = path.join(process.cwd(), 'uploads');
 
@@ -164,6 +168,56 @@ const resolveLocalPath = (keyOrUrl) => {
 };
 
 /**
+ * Shrink a photo so a phone image does not fill the disk.
+ * The longest side is capped, and the file is re-encoded. SVG stays as-is.
+ * The original is kept when compression would make it larger.
+ * @param {Object} file
+ * @returns {Promise<{ buffer: Buffer, extension: string }>}
+ */
+const compressImage = async (file) => {
+  const originalName = file.originalname || 'image.jpg';
+  const originalExt = (path.extname(originalName) || '.jpg').toLowerCase();
+  const mime = String(file.mimetype || '').toLowerCase();
+  if (mime === 'image/svg+xml' || originalExt === '.svg') {
+    return { buffer: file.buffer, extension: '.svg' };
+  }
+
+  try {
+    const source = sharp(file.buffer, { failOn: 'none', animated: false });
+    const meta = await source.metadata();
+    const hasAlpha = Boolean(meta.hasAlpha);
+    let pipeline = source.clone().rotate().resize({
+      width: MAX_EDGE,
+      height: MAX_EDGE,
+      fit: 'inside',
+      withoutEnlargement: true,
+    });
+
+    let extension = '.jpg';
+    if ((mime === 'image/png' || mime === 'image/webp' || mime === 'image/gif') && hasAlpha) {
+      pipeline = pipeline.webp({ quality: 75, effort: 4 });
+      extension = '.webp';
+    } else if (mime === 'image/webp') {
+      pipeline = pipeline.webp({ quality: 75, effort: 4 });
+      extension = '.webp';
+    } else if (mime === 'image/avif') {
+      pipeline = pipeline.avif({ quality: 45, effort: 4 });
+      extension = '.avif';
+    } else {
+      pipeline = pipeline.jpeg({ quality: JPEG_QUALITY, mozjpeg: true, chromaSubsampling: '4:2:0' });
+    }
+
+    const buffer = await pipeline.toBuffer();
+    if (buffer.length >= file.buffer.length) {
+      return { buffer: file.buffer, extension: originalExt };
+    }
+    return { buffer, extension };
+  } catch (_) {
+    return { buffer: file.buffer, extension: originalExt };
+  }
+};
+
+/**
  * Save one uploaded image under uploads/<folder>.
  * @param {Object} file - Multer file object
  * @param {string} [folder='room-types']
@@ -174,8 +228,9 @@ const uploadFile = async (file, folder = 'room-types') => {
     throw new Error('Invalid file payload: file buffer is missing.');
   }
 
-  const extension = (path.extname(file.originalname || '') || '.jpg').toLowerCase();
-  const rawBase = path.basename(file.originalname || 'image', extension);
+  const compressed = await compressImage(file);
+  const extension = compressed.extension;
+  const rawBase = path.basename(file.originalname || 'image', path.extname(file.originalname || ''));
   const safeBaseName = rawBase.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50) || 'image';
   const uniquePrefix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
   const imageName = `${uniquePrefix}-${safeBaseName}${extension}`;
@@ -188,7 +243,7 @@ const uploadFile = async (file, folder = 'room-types') => {
   if (process.env.NODE_ENV !== 'test') {
     const filePath = resolveLocalPath(storageKey);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, file.buffer);
+    fs.writeFileSync(filePath, compressed.buffer);
   }
 
   return {
