@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -12,20 +12,20 @@
       --muted: #000000;
       --line: #000000;
       --line-dark: #000000;
-      --bw: 0.6pt;
+      --bw: 0.5px;
       --panel: #ffffff;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: A4 portrait; margin: 10mm; }
+    @page { size: A4 portrait; margin: 8mm; }
     html, body { background: #ffffff; }
-    /* Printable width of A4 after the 10mm page margins. */
-    body { width: 190mm; }
+    /* Lay out at the printable width (A4 minus the 8mm margins) so measuring matches the PDF. */
+    body { width: 194mm; }
 
     body {
       font-family: "Segoe UI", Arial, "Helvetica Neue", sans-serif;
       font-size: 9px;
-      line-height: 1.35;
+      line-height: 1.5;
       color: var(--text);
       font-variant-numeric: tabular-nums;
       -webkit-font-smoothing: antialiased;
@@ -33,13 +33,27 @@
 
     .sheet {
       border: var(--bw) solid #000;
+      height: 275mm;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Keep header, guest block, totals, and footer at their natural size.
+       Only the room table grows or gives way when rooms are many. */
+    .masthead,
+    .doc-title,
+    .party,
+    .summary,
+    .closing,
+    .footer {
+      flex-shrink: 0;
     }
 
     /* Hotel name + address */
     .masthead {
       border-bottom: var(--bw) solid #000;
       text-align: center;
-      padding: 8px 14px 7px;
+      padding: 16px 24px 13px;
     }
     .hotel-name {
       font-size: 17px;
@@ -49,7 +63,7 @@
       color: var(--ink);
       line-height: 1.25;
     }
-    .hotel-address { margin-top: 3px; font-size: 9px; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text); }
+    .hotel-address { margin-top: 6px; font-size: 9px; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text); }
     .hotel-contact { margin-top: 2px; font-size: 9px; color: var(--muted); }
     .hotel-tax { margin-top: 3px; font-size: 9px; font-weight: 500; color: var(--ink); letter-spacing: 0.3px; }
     .hotel-tax:empty { display: none; }
@@ -63,7 +77,7 @@
       letter-spacing: 2.5px;
       text-transform: uppercase;
       color: var(--ink);
-      padding: 5px 10px;
+      padding: 8px 10px;
       border-bottom: var(--bw) solid #000;
     }
 
@@ -73,10 +87,10 @@
       grid-template-columns: 1.7fr 1fr;
       border-bottom: var(--bw) solid #000;
     }
-    .party-left { padding: 7px 12px; border-right: var(--bw) solid #000; }
+    .party-left { padding: 12px 16px 12px; border-right: var(--bw) solid #000; }
     .party-label { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
     .guest-name { font-size: 11.5px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
-    .guest-address { font-size: 9px; margin-bottom: 3px; }
+    .guest-address { font-size: 9px; margin-bottom: 6px; }
     table.kv { border-collapse: collapse; }
     table.kv td { padding: 1.5px 0; font-size: 9px; vertical-align: top; }
     table.kv .k { width: 54px; font-weight: 500; color: var(--muted); }
@@ -84,34 +98,67 @@
     table.kv .v { color: var(--ink); }
 
     .party-right table { width: 100%; border-collapse: collapse; }
-    .party-right td { padding: 4px 10px; font-size: 9px; vertical-align: top; border-bottom: var(--bw) solid #000; }
+    .party-right td { padding: 6px 12px; font-size: 9px; vertical-align: top; border-bottom: var(--bw) solid #000; }
     .party-right tr:last-child td { border-bottom: none; }
     .party-right .lbl { width: 40%; font-weight: 500; color: var(--muted); border-right: var(--bw) solid #000; }
     .party-right .val { font-weight: 500; color: var(--ink); }
 
-    /* Room table */
-    table.items { width: 100%; border-collapse: collapse; }
+    /* Room table: blank ruled rows fill leftover height so the bill covers the page. */
+    .items-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    table.items {
+      width: 100%;
+      border-collapse: collapse;
+      flex: 1 1 auto;
+      height: 100%;
+    }
+    table.items thead { display: table-header-group; }
+    table.items tbody { height: 100%; }
     table.items th {
       font-size: 8px;
       font-weight: 700;
       letter-spacing: 0.6px;
       text-transform: uppercase;
       color: var(--ink);
-      padding: 4px 6px;
+      padding: 7px 8px;
       border-bottom: var(--bw) solid #000;
       border-right: var(--bw) solid #000;
       text-align: center;
     }
     table.items th:last-child { border-right: none; }
     table.items td {
-      padding: 4px 6px;
+      padding: 8px 10px;
       font-size: 9px;
       border-right: var(--bw) solid #000;
       vertical-align: top;
       color: var(--ink);
     }
     table.items td:last-child { border-right: none; }
-    table.items tbody td { border-bottom: var(--bw) solid #000; }
+    table.items tbody tr:not(.fill) td { border-bottom: var(--bw) solid #000; }
+    /* Empty bottom of the room table: column lines + horizontal bill rules. */
+    table.items tr.fill td {
+      height: 100%;
+      min-height: 48px;
+      padding: 0;
+      border-bottom: none;
+      border-right: var(--bw) solid #000;
+      vertical-align: top;
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 21px,
+        #000 21px,
+        #000 calc(21px + var(--bw))
+      );
+      background-size: 100% calc(21px + var(--bw));
+      background-repeat: repeat-y;
+    }
+    table.items tr.fill td:last-child { border-right: none; }
+    table.items tr.fill[hidden] { display: none; }
     table.items .c { text-align: center; }
     table.items .r { text-align: right; }
     table.items .l { text-align: left; }
@@ -123,14 +170,14 @@
       border-top: var(--bw) solid #000;
     }
     .summary-left { border-right: var(--bw) solid #000; display: flex; flex-direction: column; }
-    .block { padding: 6px 12px; }
+    .block { padding: 10px 16px; }
     .block-title {
       font-size: 8px;
       font-weight: 700;
       letter-spacing: 0.8px;
       text-transform: uppercase;
       color: var(--muted);
-      margin-bottom: 3px;
+      margin-bottom: 5px;
     }
     .block.bank { border-top: var(--bw) solid #000; }
     .block.bank table.kv .k { width: 70px; }
@@ -142,13 +189,13 @@
     table.paid tr.total td { border-top: var(--bw) solid #000; font-weight: 700; padding-top: 4px; }
     table.paid tr.due td { font-weight: 700; }
     table.paid .none { color: var(--muted); }
-    .words-row { padding: 5px 12px; border-top: var(--bw) solid #000; font-size: 9px; color: var(--ink); }
+    .words-row { padding: 9px 16px; border-top: var(--bw) solid #000; font-size: 9px; color: var(--ink); }
     .words-row b { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
-    .note-row { padding: 5px 12px; border-top: var(--bw) solid #000; font-size: 9px; color: var(--ink); }
+    .note-row { padding: 9px 16px; border-top: var(--bw) solid #000; font-size: 9px; min-height: 34px; margin-top: auto; color: var(--ink); }
     .note-row b { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
 
     table.totals { width: 100%; border-collapse: collapse; }
-    table.totals td { padding: 3px 12px; font-size: 9px; color: var(--ink); border-bottom: var(--bw) solid #000; }
+    table.totals td { padding: 6px 14px; font-size: 9px; color: var(--ink); border-bottom: var(--bw) solid #000; }
     table.totals td.v { text-align: right; }
     table.totals tr.strong td { font-weight: 700; }
     table.totals tr.head td {
@@ -158,7 +205,7 @@
     table.totals tr.grand td {
       font-size: 11px;
       font-weight: 700;
-      padding: 5px 12px;
+      padding: 9px 14px;
       border-top: var(--bw) solid #000;
       border-bottom: none;
     }
@@ -169,23 +216,23 @@
       grid-template-columns: 1.55fr 1fr;
       border-top: var(--bw) solid #000;
     }
-    .terms { padding: 6px 12px; border-right: var(--bw) solid #000; font-size: 8px; line-height: 1.45; color: var(--muted); }
+    .terms { padding: 9px 16px 10px; border-right: var(--bw) solid #000; font-size: 8px; line-height: 1.65; color: var(--muted); }
     .terms .title { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 3px; color: var(--text); }
     .terms ol { margin-left: 13px; }
     .sign {
-      padding: 6px 12px;
+      padding: 9px 16px 8px;
       text-align: right;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      min-height: 64px;
+      min-height: 88px;
     }
     .sign .for { font-size: 9px; font-weight: 500; color: var(--ink); }
     .sign .cap { font-size: 8px; color: var(--muted); border-top: var(--bw) solid #000; padding-top: 4px; margin-top: 4px; }
 
     .footer {
       border-top: var(--bw) solid #000;
-      padding: 4px 10px;
+      padding: 6px 10px;
       text-align: center;
       font-size: 8px;
       color: var(--muted);
@@ -241,6 +288,7 @@
         </thead>
         <tbody>
           {{LINE_ITEMS}}
+          <tr class="fill"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
         </tbody>
       </table>
     </div>
@@ -282,9 +330,58 @@
   </div>
 
   <script>
-    /* Printed at 100% onto a real A4 page. No zoom, so the sheet is only as tall as its content. */
-    window.pdfScale = 1;
-    window.fitToPage = function () {};
+    /* Chrome never draws a border thinner than 1 layout pixel. To get hairline borders the PDF is
+       printed at PDF_SCALE (the PDF service reads window.pdfScale) while the page is laid out at
+       1 / PDF_SCALE zoom, so a 1px border ends up PDF_SCALE px thick on paper.
+
+       Few rooms: blank ruled rows under the room lines stretch so the bill fills A4.
+       Many rooms: those blank rows stay hidden and the whole sheet scales down together. */
+    var PDF_SCALE = 0.5;
+    window.pdfScale = PDF_SCALE;
+    window.fitToPage = function () {
+      var sheet = document.querySelector('.sheet');
+      var fill = document.querySelector('tr.fill');
+      if (!sheet) return;
+      var body = document.body;
+      var z = 1;
+
+      var apply = function () {
+        body.style.zoom = z / PDF_SCALE;
+        body.style.setProperty('--bw', (PDF_SCALE / z) + 'px');
+        body.style.width = (194 / z) + 'mm';
+        sheet.style.height = (275 / z) + 'mm';
+      };
+
+      var showFill = function (on) {
+        if (!fill) return;
+        if (on) fill.removeAttribute('hidden');
+        else fill.setAttribute('hidden', '');
+      };
+
+      // Measure with blank rows off so we know the true content height.
+      showFill(false);
+      apply();
+      var contentHeight = sheet.scrollHeight;
+      var available = sheet.clientHeight;
+
+      if (contentHeight > available + 1) {
+        // Too many rooms: hide blank rows and shrink everything so the UI stays on one page.
+        z = Math.max(0.35, available / contentHeight);
+        apply();
+        contentHeight = sheet.scrollHeight;
+        available = sheet.clientHeight;
+        if (contentHeight > available + 1) {
+          z = Math.max(0.35, z * (available / contentHeight));
+          apply();
+        }
+        return;
+      }
+
+      // Enough space: show blank ruled rows under rooms so the table covers the page.
+      showFill(true);
+      apply();
+    };
+    window.fitToPage();
   </script>
 </body>
 </html>

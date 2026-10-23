@@ -11,7 +11,7 @@ live room status updates.
 - **Storage:** Uploaded images are saved under `uploads/` and served at `/uploads/...`
 - **Email:** Brevo transactional API, BullMQ queue with in-memory fallback
 - **WhatsApp:** Cloud API booking confirmation, separate BullMQ queue with in-memory retry
-- **PDF:** PDFKit builds booking folios, bills, and GST reports under `uploads/pdfs`
+- **PDF:** Puppeteer renders the booking folio
 
 ---
 
@@ -577,4 +577,4 @@ Code style: 2-space indentation, single quotes, semicolons, `const` over `let`, 
 | Redis connection warnings | Redis is optional. The in-memory queue is used when it is offline |
 | WhatsApp confirmation is not delivered | Set `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`, and approve a template whose seven body variables match `.env.example`. A 10-digit mobile is prefixed with `WHATSAPP_DEFAULT_COUNTRY_CODE`. The booking is still created when the send fails. |
 | Image upload fails | The file must be an image up to 10 MB. It is saved under `uploads/` and returned as `/uploads/...` |
-| Folio / bill / GST PDF fails | PDFs are built with PDFKit (no Chrome). Redeploy the latest API code and retry. Files are saved under `uploads/pdfs`. |
+| Folio / bill PDF fails with `libnspr4.so` or Chrome Code 127 | On the Linux API server run `apt-get update && apt-get install -y libnspr4 libnss3`, then restart the API. Generated files are saved under `uploads/pdfs`. |
