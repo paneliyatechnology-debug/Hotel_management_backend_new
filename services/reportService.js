@@ -462,8 +462,12 @@ const htmlTable = (headers, rows, numericColumns, { rowClasses = [], totalRow = 
 };
 
 const getReportTemplate = () => {
-  if (!reportTemplate) reportTemplate = fs.readFileSync(TEMPLATE_PATH, 'utf8');
-  return reportTemplate;
+  // Re-read in non-production so HTML edits apply without a restart.
+  if (process.env.NODE_ENV === 'production') {
+    if (!reportTemplate) reportTemplate = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    return reportTemplate;
+  }
+  return fs.readFileSync(TEMPLATE_PATH, 'utf8');
 };
 
 /**

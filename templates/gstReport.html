@@ -6,6 +6,8 @@
   <style>
     /*{{FONT_FACE}}*/
 
+    :root { --bw: 0.5px; }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     @page { size: A4 landscape; margin: 0; }
     .sheet {
@@ -22,7 +24,7 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .head { border: 0.5px solid #000; padding: 6px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; }
+    .head { border: var(--bw) solid #000; padding: 6px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; }
     .head h1 { font-size: 14px; font-weight: 700; }
     .head .muted { font-size: 8px; color: #333; margin-top: 2px; }
     .head .tax { font-size: 8px; color: #000; margin-top: 3px; font-weight: 500; }
@@ -30,15 +32,15 @@
     .head .right { text-align: right; }
     .title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 4px 0; }
 
-    /* Thin hairline grid — avoid separate borders that look heavy in the PDF. */
-    table { width: 100%; border-collapse: collapse; border: 0.5px solid #000; }
-    th, td { border: 0.5px solid #000; padding: 2px 3px; vertical-align: top; background: #ffffff; }
-    th { font-weight: 700; text-align: left; }
+    /* Hairline grid (same trick as the bill: layout zoom + PDF scale → thin lines, not bold). */
+    table { width: 100%; border-collapse: collapse; border: var(--bw) solid #000; }
+    th, td { border: var(--bw) solid #000; padding: 2px 3px; vertical-align: top; background: #ffffff; font-weight: 400; }
+    th { font-weight: 600; text-align: left; }
     td.num, th.num { text-align: right; white-space: nowrap; }
     thead { display: table-header-group; }
     tfoot { display: table-row-group; }
     tr, th, td { break-inside: avoid; page-break-inside: avoid; }
-    tr.total td { font-weight: 700; }
+    tr.total td { font-weight: 600; }
     .cancelled td { text-decoration: line-through; }
     .foot {
       position: fixed;
@@ -48,7 +50,7 @@
       background: #ffffff;
       font-size: 8px;
       text-align: center;
-      border-top: 0.5px solid #000;
+      border-top: var(--bw) solid #000;
       padding-top: 3px;
     }
     .page-break { break-before: page; page-break-before: always; height: 0; }
@@ -75,9 +77,19 @@
 </div>
 <div class="foot">&copy; {{YEAR}} <strong>{{HOTEL_NAME}}</strong>. Powered by MYOWNPMS.</div>
 <script>
-  /* Each page gets its own finished table. A page never opens with only the total row. */
-  window.pdfScale = 1;
+  /* Chrome will not draw a border thinner than 1 layout pixel. Print at PDF_SCALE while
+     laying out at 1/PDF_SCALE zoom so table lines stay hairline (not bold) in the PDF.
+     Each page still gets its own finished table; a page never opens with only the total row. */
+  var PDF_SCALE = 0.5;
+  window.pdfScale = PDF_SCALE;
   window.fitToPage = function () {
+    var body = document.body;
+    var z = 1;
+    var zoomFactor = z / PDF_SCALE;
+    body.style.zoom = zoomFactor;
+    body.style.setProperty('--bw', (PDF_SCALE / z) + 'px');
+    body.style.width = (297 / z) + 'mm';
+
     var sheet = document.querySelector('.sheet');
     var table = sheet && sheet.querySelector('table');
     if (!sheet || !table || table.getAttribute('data-paged') === '1') return;
@@ -90,14 +102,15 @@
     var mm = 96 / 25.4;
     var padTop = parseFloat(window.getComputedStyle(sheet).paddingTop) || (8 * mm);
     var padBottom = parseFloat(window.getComputedStyle(sheet).paddingBottom) || (16 * mm);
-    var contentH = (210 * mm) - padTop - padBottom;
+    // getBoundingClientRect is zoomed; computed padding is not — scale both sides the same way.
+    var contentH = ((210 * mm) - padTop - padBottom) * zoomFactor;
     var rows = Array.prototype.slice.call(tbody.rows);
     if (!rows.length) return;
 
     var theadH = thead.getBoundingClientRect().height;
     var rowH = rows.map(function (row) { return row.getBoundingClientRect().height; });
     var totalH = tfoot ? tfoot.getBoundingClientRect().height : 0;
-    var tableTop = table.getBoundingClientRect().top - sheet.getBoundingClientRect().top - padTop;
+    var tableTop = table.getBoundingClientRect().top - sheet.getBoundingClientRect().top - (padTop * zoomFactor);
     if (tableTop < 0) tableTop = 0;
 
     var space = contentH - tableTop;
