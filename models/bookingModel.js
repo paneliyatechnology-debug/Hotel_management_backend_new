@@ -121,6 +121,10 @@ const formatBookingListItem = (row, rooms = []) => ({
   primary_guest_name: row.primary_guest_name,
   mobile_number: row.mobile_number,
   booking_status: row.booking_status,
+  check_in_date: row.check_in_date || null,
+  check_out_date: row.check_out_date || null,
+  actual_check_in: row.actual_check_in || null,
+  actual_check_out: row.actual_check_out || null,
   rooms,
 });
 
@@ -685,7 +689,11 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
     'bookings.booking_number',
     'bookings.primary_guest_name',
     'bookings.mobile_number',
-    'bookings.booking_status'
+    'bookings.booking_status',
+    'bookings.check_in_date',
+    'bookings.check_out_date',
+    'bookings.actual_check_in',
+    'bookings.actual_check_out'
   );
   applyFilters(dataQuery);
 

@@ -547,7 +547,7 @@ Jobs run inside the API process. If you run several instances, they will each ru
 3. Set `FRONTEND_URL` (and `RESET_PASSWORD_URL` if it differs) to the live frontend.
 4. Run `npm run migrate` on every release. Run `npm run seed` once for the first Super Admin, then change its password.
 5. Start with `npm start`. The server handles `SIGTERM` for graceful shutdown.
-6. Puppeteer downloads Chromium on install. Linux containers need the usual Chromium system libraries for PDF generation.
+6. Generated folios, bills, and GST files are saved under `uploads/pdfs` and removed by the cleanup job.
 
 ---
 
@@ -577,4 +577,4 @@ Code style: 2-space indentation, single quotes, semicolons, `const` over `let`, 
 | Redis connection warnings | Redis is optional. The in-memory queue is used when it is offline |
 | WhatsApp confirmation is not delivered | Set `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`, and approve a template whose seven body variables match `.env.example`. A 10-digit mobile is prefixed with `WHATSAPP_DEFAULT_COUNTRY_CODE`. The booking is still created when the send fails. |
 | Image upload fails | The file must be an image up to 10 MB. It is saved under `uploads/` and returned as `/uploads/...` |
-| PDF generation fails on a server | Install Chromium system libraries required by Puppeteer |
+| Folio / bill PDF fails with `libnspr4.so` or Chrome Code 127 | The Linux host is missing Chromium system libraries for Puppeteer. Install the packages listed in the Puppeteer troubleshooting guide for your OS, then restart the API. Generated files still go to `uploads/pdfs`. |

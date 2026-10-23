@@ -1443,6 +1443,10 @@ Bookings for the logged-in hotel. Soft-deleted rows are omitted. Newest first.
 | \`primary_guest_name\` | string | Main guest. |
 | \`mobile_number\` | string | Guest mobile. |
 | \`booking_status\` | string | Stay status: PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, or NO_SHOW. |
+| \`check_in_date\` | string | Scheduled check-in datetime. |
+| \`check_out_date\` | string | Scheduled check-out datetime. |
+| \`actual_check_in\` | string or null | Real check-in datetime. Null until the guest is checked in. |
+| \`actual_check_out\` | string or null | Real check-out datetime. Null until checkout. |
 | \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`room_type_name\`. |`,
     }),
     item({
