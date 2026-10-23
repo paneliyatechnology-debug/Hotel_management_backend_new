@@ -681,6 +681,7 @@ const renderPdfFile = async (html, fileName, errorLabel, { printBackground = tru
   let reuse = true;
   try {
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.emulateMediaType('print');
     // System fonts are already available. The bill measures itself once fonts have settled.
     const scale = await page.evaluate(async () => {
       if (document.fonts && document.fonts.ready) await document.fonts.ready;

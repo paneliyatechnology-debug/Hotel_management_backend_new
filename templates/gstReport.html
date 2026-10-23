@@ -8,8 +8,12 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     @page { size: A4 landscape; margin: 0; }
-    .sheet { padding: 10mm 8mm 14mm 8mm; }
-    html, body { background: #ffffff; }
+    .sheet {
+      padding: 8mm 8mm 16mm 8mm;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+    html, body { width: 297mm; background: #ffffff; }
     body {
       font-family: "Segoe UI", Arial, "Helvetica Neue", sans-serif;
       font-size: 8px;
@@ -24,11 +28,13 @@
     .head .right { text-align: right; }
     .title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 4px 0; }
 
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #000; padding: 2px 3px; vertical-align: top; }
-    th { font-weight: 700; text-align: left; background: #ffffff; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; border-top: 1px solid #000; border-left: 1px solid #000; }
+    th, td { border-right: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 3px; vertical-align: top; background: #ffffff; }
+    th { font-weight: 700; text-align: left; }
     td.num, th.num { text-align: right; white-space: nowrap; }
     thead { display: table-header-group; }
+    tfoot { display: table-row-group; }
+    tr, th, td { break-inside: avoid; page-break-inside: avoid; }
     tr.total td { font-weight: 700; }
     .cancelled td { text-decoration: line-through; }
     .foot {
@@ -42,6 +48,7 @@
       border-top: 1px solid #000;
       padding-top: 3px;
     }
+    .page-break { break-before: page; page-break-before: always; height: 0; }
   </style>
 </head>
 <body>
@@ -64,5 +71,80 @@
   {{ROWS_TABLE}}
 </div>
 <div class="foot">&copy; {{YEAR}} <strong>{{HOTEL_NAME}}</strong>. Powered by MYOWNPMS.</div>
+<script>
+  /* Each page gets its own finished table. A page never opens with only the total row. */
+  window.pdfScale = 1;
+  window.fitToPage = function () {
+    var sheet = document.querySelector('.sheet');
+    var table = sheet && sheet.querySelector('table');
+    if (!sheet || !table || table.getAttribute('data-paged') === '1') return;
+
+    var thead = table.querySelector('thead');
+    var tbody = table.querySelector('tbody');
+    var tfoot = table.querySelector('tfoot');
+    if (!thead || !tbody) return;
+
+    var mm = 96 / 25.4;
+    var padTop = parseFloat(window.getComputedStyle(sheet).paddingTop) || (8 * mm);
+    var padBottom = parseFloat(window.getComputedStyle(sheet).paddingBottom) || (16 * mm);
+    var contentH = (210 * mm) - padTop - padBottom;
+    var rows = Array.prototype.slice.call(tbody.rows);
+    if (!rows.length) return;
+
+    var theadH = thead.getBoundingClientRect().height;
+    var rowH = rows.map(function (row) { return row.getBoundingClientRect().height; });
+    var totalH = tfoot ? tfoot.getBoundingClientRect().height : 0;
+    var tableTop = table.getBoundingClientRect().top - sheet.getBoundingClientRect().top - padTop;
+    if (tableTop < 0) tableTop = 0;
+
+    var space = contentH - tableTop;
+    var pages = [];
+    var index = 0;
+    while (index < rows.length) {
+      var count = 0;
+      var used = theadH;
+      while (index + count < rows.length) {
+        var last = index + count === rows.length - 1;
+        var nextUsed = used + rowH[index + count] + (last ? totalH : 0);
+        if (count > 0 && nextUsed > space + 0.5) break;
+        used += rowH[index + count];
+        count += 1;
+      }
+      if (count < 1) count = 1;
+      pages.push([index, index + count]);
+      index += count;
+      space = contentH;
+    }
+
+    if (pages.length < 2) return;
+
+    var previous = pages[pages.length - 2];
+    var lastPage = pages[pages.length - 1];
+    var lastCount = lastPage[1] - lastPage[0];
+    while (lastCount < 4 && previous[1] - previous[0] > 1) {
+      previous[1] -= 1;
+      lastPage[0] -= 1;
+      lastCount += 1;
+    }
+
+    var parent = table.parentNode;
+    var marker = table.nextSibling;
+    table.setAttribute('data-paged', '1');
+    for (var pageIndex = 1; pageIndex < pages.length; pageIndex += 1) {
+      var slice = pages[pageIndex];
+      var breaker = document.createElement('div');
+      breaker.className = 'page-break';
+      var nextTable = document.createElement('table');
+      nextTable.setAttribute('data-paged', '1');
+      nextTable.appendChild(thead.cloneNode(true));
+      var nextBody = document.createElement('tbody');
+      rows.slice(slice[0], slice[1]).forEach(function (row) { nextBody.appendChild(row); });
+      nextTable.appendChild(nextBody);
+      if (pageIndex === pages.length - 1 && tfoot) nextTable.appendChild(tfoot);
+      parent.insertBefore(breaker, marker);
+      parent.insertBefore(nextTable, marker);
+    }
+  };
+</script>
 </body>
 </html>

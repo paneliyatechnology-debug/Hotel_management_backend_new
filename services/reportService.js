@@ -456,9 +456,9 @@ const htmlTable = (headers, rows, numericColumns, { rowClasses = [], totalRow = 
     })
     .join('');
   const total = totalRow
-    ? `<tr class="total">${totalRow.map((value, index) => cell('td', value, index)).join('')}</tr>`
+    ? `<tfoot><tr class="total">${totalRow.map((value, index) => cell('td', value, index)).join('')}</tr></tfoot>`
     : '';
-  return `<table>${head}<tbody>${body}${total}</tbody></table>`;
+  return `<table>${head}<tbody>${body}</tbody>${total}</table>`;
 };
 
 const getReportTemplate = () => {
