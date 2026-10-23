@@ -22,14 +22,17 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .head { border: 1px solid #000; padding: 6px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; }
+    .head { border: 0.5px solid #000; padding: 6px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; }
     .head h1 { font-size: 14px; font-weight: 700; }
     .head .muted { font-size: 8px; color: #333; margin-top: 2px; }
+    .head .tax { font-size: 8px; color: #000; margin-top: 3px; font-weight: 500; }
+    .head .tax .sep { margin: 0 8px; color: #555; }
     .head .right { text-align: right; }
     .title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 4px 0; }
 
-    table { width: 100%; border-collapse: separate; border-spacing: 0; border-top: 1px solid #000; border-left: 1px solid #000; }
-    th, td { border-right: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 3px; vertical-align: top; background: #ffffff; }
+    /* Thin hairline grid — avoid separate borders that look heavy in the PDF. */
+    table { width: 100%; border-collapse: collapse; border: 0.5px solid #000; }
+    th, td { border: 0.5px solid #000; padding: 2px 3px; vertical-align: top; background: #ffffff; }
     th { font-weight: 700; text-align: left; }
     td.num, th.num { text-align: right; white-space: nowrap; }
     thead { display: table-header-group; }
@@ -45,7 +48,7 @@
       background: #ffffff;
       font-size: 8px;
       text-align: center;
-      border-top: 1px solid #000;
+      border-top: 0.5px solid #000;
       padding-top: 3px;
     }
     .page-break { break-before: page; page-break-before: always; height: 0; }
@@ -57,7 +60,7 @@
     <div>
       <h1>{{HOTEL_NAME}}</h1>
       <div class="muted">{{HOTEL_ADDRESS}}</div>
-      <div class="muted">{{HOTEL_TAX_LINE}}</div>
+      <div class="tax">{{HOTEL_TAX_LINE}}</div>
     </div>
     <div class="right">
       <h1>GST Report</h1>

@@ -493,16 +493,16 @@ const buildReportHtml = (report) => {
     }
   );
 
-  const taxLine = [
-    hotel.gstin ? `GSTIN: ${hotel.gstin}` : '',
-    hotel.pan ? `PAN: ${hotel.pan}` : '',
-  ].filter(Boolean).join('  |  ');
+  // Always show GSTIN and PAN in the PDF header (use — when the hotel has not set them).
+  const gstin = escapeHtml(String(hotel.gstin || '').trim() || '—');
+  const pan = escapeHtml(String(hotel.pan || '').trim() || '—');
+  const taxLine = `GSTIN: ${gstin}<span class="sep">|</span>PAN: ${pan}`;
 
   return fillTemplate(getReportTemplate(), {
     FONT_FACE: '',
     HOTEL_NAME: escapeHtml(hotel.name),
     HOTEL_ADDRESS: escapeHtml([hotel.address, hotel.city, hotel.state, hotel.pincode].filter(Boolean).join(', ')),
-    HOTEL_TAX_LINE: escapeHtml(taxLine),
+    HOTEL_TAX_LINE: taxLine,
     PERIOD: escapeHtml(periodLabel(filters)),
     FILTERS: escapeHtml(describeFilters(filters)),
     GENERATED_AT: escapeHtml(formatGeneratedAt()),
