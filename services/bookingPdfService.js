@@ -632,39 +632,74 @@ const PDF_BROWSER_ARGS = [
   '--disable-dev-shm-usage',
   '--disable-gpu',
   '--disable-extensions',
+  '--font-render-hinting=none',
   '--no-first-run',
   '--mute-audio',
 ];
 
 /**
- * Turn a Chromium launch failure into a short API message.
+ * Ensure uploads/pdfs exists and is writable before writing a PDF.
+ * @returns {void}
+ */
+const ensurePdfDirWritable = () => {
+  try {
+    fs.mkdirSync(PDF_DIR, { recursive: true });
+    fs.accessSync(PDF_DIR, fs.constants.W_OK);
+  } catch (err) {
+    throw new AppError(
+      'PDF storage folder is missing or not writable. Ensure uploads/pdfs exists and the process can write to it.',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+/**
+ * Turn a Chromium launch failure into a short API message (no internal paths or secrets).
  * @param {Error} err
  * @returns {AppError}
  */
 const toPdfLaunchError = (err) => {
   const detail = String(err && err.message ? err.message : err);
-  if (/libnspr4\.so|libnss3\.so|shared libraries/i.test(detail)) {
+  if (/libnspr4\.so|libnss3\.so|libgbm\.so|shared libraries|error while loading shared libraries/i.test(detail)) {
     return new AppError(
-      'PDF generation needs Chromium libraries on this Linux server. Run: apt-get update && apt-get install -y libnspr4 libnss3, then restart the API. Files are still saved under uploads/pdfs when generation succeeds.',
+      'PDF generation failed: Chromium system libraries are missing on this Linux host. Redeploy with the project Dockerfile (or install libnspr4, libnss3, and related Chromium deps at image build time).',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
+  if (/Could not find Chromium|Executable doesn't exist|Failed to launch the browser process|No usable sandbox/i.test(detail)) {
+    return new AppError(
+      'PDF generation failed: Chromium browser binary is missing or could not start. Check @sparticuz/chromium on Linux, or Puppeteer Chrome on Windows/macOS.',
       HTTP_STATUS.INTERNAL_SERVER_ERROR
     );
   }
   return new AppError(
-    `Failed to start the PDF browser: ${detail.split('\n')[0]}`,
+    `Failed to start the PDF browser: ${detail.split('\n')[0].slice(0, 240)}`,
     HTTP_STATUS.INTERNAL_SERVER_ERROR
   );
 };
 
 /**
- * Windows/macOS use the full Puppeteer Chrome download.
- * Linux uses @sparticuz/chromium so production does not depend on a system Chrome package.
+ * Unique launch args (sparticuz already includes several production flags).
+ * @param {string[]} primary
+ * @param {string[]} extra
+ * @returns {string[]}
+ */
+const mergeBrowserArgs = (primary = [], extra = []) => [...new Set([...primary, ...extra])];
+
+/**
+ * Windows/macOS: full Puppeteer (downloads Chrome locally).
+ * Linux (Railway): puppeteer-core + @sparticuz/chromium 148 (aligned with Puppeteer 24.43).
+ * Optional override: PUPPETEER_EXECUTABLE_PATH or CHROME_PATH.
  * @returns {Promise<import('puppeteer').Browser>}
  */
 const launchPdfBrowser = async () => {
+  const executablePathOverride = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_PATH || '';
+
   if (process.platform !== 'linux') {
     return puppeteer.launch({
       headless: true,
       args: PDF_BROWSER_ARGS,
+      ...(executablePathOverride ? { executablePath: executablePathOverride } : {}),
     });
   }
 
@@ -672,15 +707,24 @@ const launchPdfBrowser = async () => {
   const chromium = chromiumModule.default || chromiumModule;
   const puppeteerCore = require('puppeteer-core');
 
-  if (typeof chromium.setGraphicsMode === 'boolean' || 'setGraphicsMode' in chromium) {
+  if ('setGraphicsMode' in chromium) {
     chromium.setGraphicsMode = false;
   }
 
+  const executablePath = executablePathOverride || (await chromium.executablePath());
+  if (!executablePath) {
+    throw new AppError(
+      'PDF Chromium binary was not found. Ensure @sparticuz/chromium is installed for Linux production.',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
+
   return puppeteerCore.launch({
-    args: [...(chromium.args || []), ...PDF_BROWSER_ARGS],
+    args: mergeBrowserArgs(chromium.args || [], PDF_BROWSER_ARGS),
     defaultViewport: chromium.defaultViewport || { width: 1280, height: 720 },
-    executablePath: await chromium.executablePath(),
-    headless: chromium.headless ?? true,
+    executablePath,
+    // Prefer shell headless when provided by sparticuz; fall back to true.
+    headless: chromium.headless ?? 'shell',
     ignoreHTTPSErrors: true,
   });
 };
@@ -691,6 +735,7 @@ const getBrowser = async () => {
   try {
     browser = await launchPdfBrowser();
   } catch (err) {
+    if (err instanceof AppError) throw err;
     throw toPdfLaunchError(err);
   }
   browser.on('disconnected', () => {
@@ -717,13 +762,20 @@ const releasePage = (page) => {
 };
 
 const closePdfBrowser = async () => {
+  const pages = pagePool.splice(0, pagePool.length);
+  await Promise.all(pages.map((page) => page.close().catch(() => {})));
   if (!browser) return;
-  await browser.close();
+  try {
+    await browser.close();
+  } catch (_) {
+    // Already closed or crashed; clear the handle below.
+  }
   browser = null;
 };
 
 /**
  * Render HTML to a PDF file under uploads/pdfs.
+ * Templates and page.pdf options are unchanged so bill/folio UI stays the same.
  * @param {string} html
  * @param {string} fileName
  * @param {string} errorLabel
@@ -732,7 +784,7 @@ const closePdfBrowser = async () => {
  * @returns {Promise<string>} Absolute file path
  */
 const renderPdfFile = async (html, fileName, errorLabel, { printBackground = true } = {}) => {
-  fs.mkdirSync(PDF_DIR, { recursive: true });
+  ensurePdfDirWritable();
   const filePath = path.join(PDF_DIR, fileName);
   let page;
   let reuse = true;
@@ -756,12 +808,20 @@ const renderPdfFile = async (html, fileName, errorLabel, { printBackground = tru
     });
   } catch (err) {
     reuse = false;
+    // Drop a bad browser so the next request gets a clean launch.
+    if (/Failed to launch the browser|libnspr4|shared libraries|Target closed|Session closed/i.test(String(err && err.message ? err.message : err))) {
+      pagePool.length = 0;
+      if (browser) {
+        browser.close().catch(() => {});
+        browser = null;
+      }
+    }
     if (err instanceof AppError) throw err;
-    if (/Failed to launch the browser|libnspr4|shared libraries/i.test(String(err.message || ''))) {
+    if (/Failed to launch the browser|libnspr4|shared libraries|Executable doesn't exist|Could not find Chromium/i.test(String(err.message || ''))) {
       throw toPdfLaunchError(err);
     }
     throw new AppError(
-      `Failed to generate the ${errorLabel}: ${err.message}`,
+      `Failed to generate the ${errorLabel}. Please try again.`,
       HTTP_STATUS.INTERNAL_SERVER_ERROR
     );
   } finally {

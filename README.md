@@ -11,7 +11,7 @@ live room status updates.
 - **Storage:** Uploaded images are saved under `uploads/` and served at `/uploads/...`
 - **Email:** Brevo transactional API, BullMQ queue with in-memory fallback
 - **WhatsApp:** Cloud API booking confirmation, separate BullMQ queue with in-memory retry
-- **PDF:** Puppeteer renders the booking folio
+- **PDF:** Puppeteer renders booking folios, bills, and GST PDFs (Linux production uses `@sparticuz/chromium` + the project Dockerfile)
 
 ---
 
@@ -546,8 +546,27 @@ Jobs run inside the API process. If you run several instances, they will each ru
 2. Use strong, unique `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` values.
 3. Set `FRONTEND_URL` (and `RESET_PASSWORD_URL` if it differs) to the live frontend.
 4. Run `npm run migrate` on every release. Run `npm run seed` once for the first Super Admin, then change its password.
-5. Start with `npm start`. The server handles `SIGTERM` for graceful shutdown.
+5. Start with `npm start`. The server handles `SIGTERM` for graceful shutdown (including closing the PDF browser).
 6. Generated folios, bills, and GST files are saved under `uploads/pdfs` and removed by the cleanup job.
+
+### Railway (PDF / Puppeteer)
+
+Railway’s default Node image does not ship Chromium shared libraries (`libnspr4`, `libnss3`, …). This repo includes a `Dockerfile` and `railway.toml` so those libraries are installed at **image build** time. Linux runtime uses `puppeteer-core` + `@sparticuz/chromium@148` (matched to Puppeteer 24.43 / Chrome 148). Windows/macOS local `npm run dev` still uses the full `puppeteer` Chrome download. HTML bill/folio templates are unchanged.
+
+**Deploy steps**
+
+1. Push this branch to the GitHub repo linked to your Railway service.
+2. In Railway → service → **Settings → Build**, confirm the builder uses the **Dockerfile** (`railway.toml` sets `builder = "DOCKERFILE"`).
+3. Set production variables from `.env.example` (`NODE_ENV=production`, `DB_*`, JWT secrets, `FRONTEND_URL`, etc.). Do not set `PUPPETEER_EXECUTABLE_PATH` unless you intentionally use a custom browser binary.
+4. Deploy. After the health check passes, call `GET /api/v1/bookings/:id/bill` (or `/pdf`) and open the returned `url` under `/uploads/pdfs/...`.
+5. On each release, run migrations (`npm run migrate`) via a one-off Railway command or your release pipeline.
+
+**Local Docker smoke check (optional)**
+
+```bash
+docker build -t hotel-api .
+docker run --rm -p 5001:5001 --env-file .env hotel-api
+```
 
 ---
 
@@ -577,4 +596,5 @@ Code style: 2-space indentation, single quotes, semicolons, `const` over `let`, 
 | Redis connection warnings | Redis is optional. The in-memory queue is used when it is offline |
 | WhatsApp confirmation is not delivered | Set `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`, and approve a template whose seven body variables match `.env.example`. A 10-digit mobile is prefixed with `WHATSAPP_DEFAULT_COUNTRY_CODE`. The booking is still created when the send fails. |
 | Image upload fails | The file must be an image up to 10 MB. It is saved under `uploads/` and returned as `/uploads/...` |
-| Folio / bill PDF fails with `libnspr4.so` or Chrome Code 127 | On the Linux API server run `apt-get update && apt-get install -y libnspr4 libnss3`, then restart the API. Generated files are saved under `uploads/pdfs`. |
+| Folio / bill PDF fails with `libnspr4.so` / `libnss3.so` or Chrome Code 127 | The Linux host is missing Chromium system libraries. Redeploy with this repo’s `Dockerfile` (do not run `apt-get` inside a running Railway Nixpacks container). Generated files are saved under `uploads/pdfs` when generation succeeds. |
+| PDF fails with “folder is missing or not writable” | Ensure `uploads/pdfs` exists and the process user can write to it (the Dockerfile creates it). Ephemeral disks lose files on restart; the cleanup job also deletes PDFs every 3 hours. |
