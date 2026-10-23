@@ -3,7 +3,7 @@
  */
 const db = require('../database/knex');
 const { publishRoomStatus, publishRoomStatusBreakdown, publishRoomCategoryCounts } = require('../sockets/roomSocket');
-const { getAccessibleUrl, deleteFile } = require('../services/s3Service');
+const { getAccessibleUrl, deleteFile } = require('../services/uploadService');
 const { parseJson } = require('../utils/json');
 
 /**
@@ -488,7 +488,7 @@ const updateRoom = async (id, updates, newImageRecords = [], trx) => {
         .where({ room_id: id })
         .select('*');
 
-      // 2. Delete old images from S3
+      // 2. Delete the replaced image files
       for (const old of oldImages) {
         const key = old.s3_key || old.image_name || old.image_url;
         if (key) await deleteFile(key);

@@ -2,7 +2,7 @@
  * Room Type (Category) database operations using Knex.
  */
 const db = require('../database/knex');
-const { getAccessibleUrl, deleteFile } = require('../services/s3Service');
+const { getAccessibleUrl, deleteFile } = require('../services/uploadService');
 const { ROOM_STATUSES } = require('../constants');
 
 /**
@@ -362,7 +362,7 @@ const updateRoomType = async (id, updates, newImageRecords = [], trx) => {
         .where({ room_type_id: id })
         .select('*');
 
-      // 2. Delete old images from S3
+      // 2. Delete the replaced image files
       for (const old of oldImages) {
         const key = old.s3_key || old.image_name || old.image_url;
         if (key) await deleteFile(key);

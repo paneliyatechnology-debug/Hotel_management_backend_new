@@ -1,9 +1,9 @@
 /**
- * Short image links. The browser asks for /media/<folder>/<file>
- * and this route reads the private bucket object.
+ * Older image links used /media/<folder>/<file>.
+ * Those files now live under uploads, and this route serves them from there.
  */
 const express = require('express');
-const { openStoredObject } = require('../services/s3Service');
+const { resolveLocalPath } = require('../services/uploadService');
 
 const router = express.Router();
 
@@ -16,26 +16,24 @@ const decodeKey = (pathname) => {
   }
 };
 
-router.get('/*', async (req, res, next) => {
-  try {
-    const object = await openStoredObject(decodeKey(req.path));
-    if (!object || !object.Body) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found',
-      });
-    }
-
-    res.setHeader('Content-Type', object.ContentType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', 'inline');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    if (object.ContentLength != null) {
-      res.setHeader('Content-Length', String(object.ContentLength));
-    }
-    object.Body.pipe(res);
-  } catch (err) {
-    next(err);
+router.get('/*', (req, res) => {
+  const filePath = resolveLocalPath(decodeKey(req.path));
+  if (!filePath) {
+    return res.status(404).json({
+      success: false,
+      message: 'File not found',
+    });
   }
+
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  return res.sendFile(filePath, (err) => {
+    if (!err || res.headersSent) return;
+    res.status(404).json({
+      success: false,
+      message: 'File not found',
+    });
+  });
 });
 
 module.exports = router;

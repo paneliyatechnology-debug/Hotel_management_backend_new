@@ -9,7 +9,7 @@ const hotelModel = require('../models/hotelModel');
 const userModel = require('../models/userModel');
 const tokenModel = require('../models/tokenModel');
 const subscriptionPlanModel = require('../models/subscriptionPlanModel');
-const s3Service = require('./s3Service');
+const uploadService = require('./uploadService');
 const auditService = require('./auditService');
 const paymentMethodModel = require('../models/paymentMethodModel');
 const { checkEmailExistsGlobally } = require('../utils/emailValidator');
@@ -188,11 +188,11 @@ const uploadHotelLogo = async (files) => {
   if (!logoFile || !logoFile.buffer) return null;
 
   try {
-    const uploadResult = await s3Service.uploadFile(logoFile, 'hotels/logos');
+    const uploadResult = await uploadService.uploadFile(logoFile, 'hotels/logos');
     return uploadResult?.imageUrl || null;
   } catch (s3Error) {
     throw new AppError(
-      `Failed to upload hotel logo to S3: ${s3Error.message}`,
+      `Failed to upload hotel logo: ${s3Error.message}`,
       HTTP_STATUS.INTERNAL_SERVER_ERROR
     );
   }

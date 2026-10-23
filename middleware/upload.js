@@ -1,6 +1,6 @@
 /**
  * Multer file upload middleware.
- * Uses memory storage to process multipart/form-data images for S3 streaming.
+ * Uses memory storage so the upload service can write the file under uploads/.
  */
 const multer = require('multer');
 const { AppError } = require('../utils/response');

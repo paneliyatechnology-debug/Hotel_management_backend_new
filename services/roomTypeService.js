@@ -1,10 +1,10 @@
 /**
  * Room Type (Category) Service.
- * Implements business logic for managing room categories, image storage in S3,
+ * Implements business logic for managing room categories, image storage under uploads,
  * uniqueness constraints, and physical room assignment deletion checks.
  */
 const roomTypeModel = require('../models/roomTypeModel');
-const s3Service = require('./s3Service');
+const uploadService = require('./uploadService');
 const auditService = require('./auditService');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
@@ -69,7 +69,7 @@ const getRoomTypeById = async (id, reqUser = null) => {
 };
 
 /**
- * Create a new room category with S3 image upload and uniqueness check.
+ * Create a new room category with image upload and uniqueness check.
  * hotel_id comes from the authenticated user token. Body hotel_id is ignored.
  * @param {Object} body - { name, description }
  * @param {Array<Object>} [files=[]] - Uploaded image files
@@ -101,15 +101,15 @@ const createRoomType = async (body, files = [], reqUser = null) => {
     );
   }
 
-  // 3. Process image uploads to S3
+  // 3. Save uploaded images under uploads/room-types
   const imageFiles = extractImageFiles(files);
   let imageRecords = [];
   if (imageFiles.length > 0) {
     try {
-      imageRecords = await s3Service.uploadFiles(imageFiles, 'room-types');
+      imageRecords = await uploadService.uploadFiles(imageFiles, 'room-types');
     } catch (s3Error) {
       throw new AppError(
-        `Failed to upload category images to S3: ${s3Error.message}`,
+        `Failed to upload category images: ${s3Error.message}`,
         HTTP_STATUS.INTERNAL_SERVER_ERROR
       );
     }
@@ -138,7 +138,7 @@ const createRoomType = async (body, files = [], reqUser = null) => {
 };
 
 /**
- * Update an existing room category with validation and optional new S3 images
+ * Update an existing room category with validation and optional new images
  * @param {number|string} id
  * @param {Object} body
  * @param {Array<Object>} [files=[]]
@@ -186,15 +186,15 @@ const updateRoomType = async (id, body, files = [], reqUser = null) => {
     updates.description = String(body.description).trim();
   }
 
-  // Process new image uploads to S3 if provided
+  // Save any new images under uploads/room-types
   const imageFiles = extractImageFiles(files);
   let newImageRecords = [];
   if (imageFiles.length > 0) {
     try {
-      newImageRecords = await s3Service.uploadFiles(imageFiles, 'room-types');
+      newImageRecords = await uploadService.uploadFiles(imageFiles, 'room-types');
     } catch (s3Error) {
       throw new AppError(
-        `Failed to upload category images to S3: ${s3Error.message}`,
+        `Failed to upload category images: ${s3Error.message}`,
         HTTP_STATUS.INTERNAL_SERVER_ERROR
       );
     }

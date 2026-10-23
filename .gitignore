@@ -1,6 +1,10 @@
 node_modules/
 uploads/pdfs/*.pdf
 uploads/pdfs/*.xlsx
+uploads/rooms/
+uploads/room-types/
+uploads/hotels/
+uploads/bookings/
 .env
 *.log
 Hotel_backend_link

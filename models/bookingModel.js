@@ -2,7 +2,7 @@
  * Booking database operations using Knex.
  */
 const db = require('../database/knex');
-const { getAccessibleUrl, deleteFile } = require('../services/s3Service');
+const { getAccessibleUrl, deleteFile } = require('../services/uploadService');
 const { HTTP_STATUS, NON_BLOCKING_BOOKING_STATUSES } = require('../constants');
 const { AppError } = require('../utils/response');
 /**
@@ -834,7 +834,7 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
         .where({ booking_id: id, is_signature: 1 })
         .select('*');
 
-      // 2. Delete old signatures from S3
+      // 2. Delete the replaced signature files
       for (const old of oldSigRows) {
         const key = old.s3_key || old.image_name || old.image_url;
         if (key) await deleteFile(key);
@@ -850,7 +850,7 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
         .where({ booking_id: id, is_signature: 0 })
         .select('*');
 
-      // 2. Delete old photos from S3
+      // 2. Delete the replaced photo files
       for (const old of oldImageRows) {
         const key = old.s3_key || old.image_name || old.image_url;
         if (key) await deleteFile(key);

@@ -1,11 +1,11 @@
 /**
  * Physical Room Service.
  * Implements business operations, verification of hotel and room types,
- * composite uniqueness per hotel and floor, S3 image uploads, and soft deletion.
+ * composite uniqueness per hotel and floor, local image uploads, and soft deletion.
  */
 const roomModel = require('../models/roomModel');
 const hotelModel = require('../models/hotelModel');
-const s3Service = require('./s3Service');
+const uploadService = require('./uploadService');
 const auditService = require('./auditService');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
@@ -94,15 +94,15 @@ const createRoom = async (body, files = [], reqUser = null) => {
     );
   }
 
-  // 4. Process image uploads to S3
+  // 4. Save uploaded images under uploads/rooms
   const imageFiles = extractImageFiles(files);
   let imageRecords = [];
   if (imageFiles.length > 0) {
     try {
-      imageRecords = await s3Service.uploadFiles(imageFiles, 'rooms');
+      imageRecords = await uploadService.uploadFiles(imageFiles, 'rooms');
     } catch (s3Error) {
       throw new AppError(
-        `Failed to upload room images to S3: ${s3Error.message}`,
+        `Failed to upload room images: ${s3Error.message}`,
         HTTP_STATUS.INTERNAL_SERVER_ERROR
       );
     }
@@ -289,15 +289,15 @@ const updateRoom = async (id, body, files = [], reqUser = null) => {
     );
   }
 
-  // 3. Process new S3 image uploads if provided
+  // 3. Save any new images under uploads/rooms
   const imageFiles = extractImageFiles(files);
   let newImageRecords = [];
   if (imageFiles.length > 0) {
     try {
-      newImageRecords = await s3Service.uploadFiles(imageFiles, 'rooms');
+      newImageRecords = await uploadService.uploadFiles(imageFiles, 'rooms');
     } catch (s3Error) {
       throw new AppError(
-        `Failed to upload room images to S3: ${s3Error.message}`,
+        `Failed to upload room images: ${s3Error.message}`,
         HTTP_STATUS.INTERNAL_SERVER_ERROR
       );
     }

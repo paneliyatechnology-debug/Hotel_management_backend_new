@@ -9,7 +9,7 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
  * POST /api/v1/rooms
- * Create a physical room with validation and optional S3 image uploads
+ * Create a physical room with validation and optional image uploads
  */
 const createRoom = async (req, res, next) => {
   try {

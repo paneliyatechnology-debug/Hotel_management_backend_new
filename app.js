@@ -129,7 +129,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   },
 }));
 
-// Short image addresses. The file stays in the private bucket.
+// Older image links. New files are served from /uploads.
 app.use('/media', mediaRouter);
 
 // ==========================================

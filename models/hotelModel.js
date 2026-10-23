@@ -2,7 +2,7 @@
  * Hotel database operations using Knex.
  */
 const db = require('../database/knex');
-const { getAccessibleUrl, deleteFile } = require('../services/s3Service');
+const { getAccessibleUrl, deleteFile } = require('../services/uploadService');
 const { parseJson } = require('../utils/json');
 const { joinCurrentPurchase } = require('./subscriptionPlanModel');
 
@@ -450,7 +450,7 @@ const softDeleteHotel = async (id, client = db) => {
 };
 
 /**
- * Update a hotel record and remove old logo from S3 if replaced
+ * Update a hotel record and remove the old logo file if it was replaced
  * @param {number|string} id
  * @param {Object} updates
  * @param {import('knex').Knex} [client=db]

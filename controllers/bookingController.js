@@ -12,7 +12,7 @@ const { HTTP_STATUS, MESSAGES } = require('../constants');
 
 /**
  * POST /api/v1/bookings
- * Create a new booking with room allocations, accompanying guests, and S3 media
+ * Create a new booking with room allocations, accompanying guests, and uploaded media
  */
 const createBooking = async (req, res, next) => {
   try {

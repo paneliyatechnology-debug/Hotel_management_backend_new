@@ -1,14 +1,14 @@
 /**
  * Booking Service.
  * Implements business operations, room validation, date overlap prevention,
- * financial & GST tax calculation, S3 media uploads, and soft deletion.
+ * financial & GST tax calculation, local image uploads, and soft deletion.
  */
 const bookingModel = require('../models/bookingModel');
 const bookingPaymentModel = require('../models/bookingPaymentModel');
 const paymentMethodModel = require('../models/paymentMethodModel');
 const roomModel = require('../models/roomModel');
 const { publishBookingDetail, scheduleHotelDashboard } = require('../sockets/roomSocket');
-const s3Service = require('./s3Service');
+const uploadService = require('./uploadService');
 const auditService = require('./auditService');
 const db = require('../database/knex');
 const { AppError } = require('../utils/response');
@@ -739,8 +739,8 @@ const createBooking = async (body, files = [], reqUser = null) => {
   const { imageFiles, signatureFiles } = categorizeUploadedFiles(files);
   const now = new Date();
   const [uploadedImages, uploadedSignatures] = await Promise.all([
-    s3Service.uploadFiles(imageFiles, 'bookings/images'),
-    s3Service.uploadFiles(signatureFiles, 'bookings/signatures'),
+    uploadService.uploadFiles(imageFiles, 'bookings/images'),
+    uploadService.uploadFiles(signatureFiles, 'bookings/signatures'),
   ]);
 
   const bookingData = {
@@ -975,8 +975,8 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
   // Guest photos and signatures arrive only as form-data files.
   const { imageFiles, signatureFiles } = categorizeUploadedFiles(files);
   const [uploadedImages, uploadedSignatures] = await Promise.all([
-    s3Service.uploadFiles(imageFiles, 'bookings/images'),
-    s3Service.uploadFiles(signatureFiles, 'bookings/signatures'),
+    uploadService.uploadFiles(imageFiles, 'bookings/images'),
+    uploadService.uploadFiles(signatureFiles, 'bookings/signatures'),
   ]);
 
   await bookingModel.updateBooking(existing.id, updatePayload, {

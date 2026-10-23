@@ -8,7 +8,7 @@ live room status updates.
 - **Database:** MySQL 8+ through Knex (migrations and seeds)
 - **Auth:** JWT access and refresh tokens (Bearer header or HTTP-only cookies), role-based access control
 - **Real time:** Socket.IO (`room:status`, `room:status_breakdown`, and `room:category_counts` events)
-- **Storage:** S3-compatible object storage for images (AWS S3, Cloudflare R2, MinIO)
+- **Storage:** Uploaded images are saved under `uploads/` and served at `/uploads/...`
 - **Email:** Brevo transactional API, BullMQ queue with in-memory fallback
 - **WhatsApp:** Cloud API booking confirmation, separate BullMQ queue with in-memory retry
 - **PDF:** Puppeteer renders the booking folio
@@ -97,7 +97,7 @@ All variables are documented inline in [`.env.example`](.env.example). Summary:
 | `WHATSAPP_GRAPH_API_VERSION` | No | `v22.0` | Graph API version used for `/{phone-number-id}/messages`. |
 | `REPLY_TO_EMAIL` | No | `SUPPORT_EMAIL` | Reply-To address on every email |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | No | `127.0.0.1`, `6379` | BullMQ email queue |
-| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` | For uploads | - | Image storage |
+| `API_PUBLIC_URL` | No | current request host | Host used in image links, for example `https://your-api.example.com` |
 
 Notes:
 
@@ -576,5 +576,5 @@ Code style: 2-space indentation, single quotes, semicolons, `const` over `let`, 
 | Emails go to spam or arrive late | Do not use a gmail/yahoo/outlook address as `BREVO_SENDER_EMAIL`. Use an address on your own domain and add the SPF, DKIM and DMARC records Brevo shows under Senders, Domains & Dedicated IPs. The server logs a warning at the first send when the sender is a free-mail address |
 | Redis connection warnings | Redis is optional. The in-memory queue is used when it is offline |
 | WhatsApp confirmation is not delivered | Set `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`, and approve a template whose seven body variables match `.env.example`. A 10-digit mobile is prefixed with `WHATSAPP_DEFAULT_COUNTRY_CODE`. The booking is still created when the send fails. |
-| Image upload fails | Check the `S3_*` variables and bucket permissions. Files must be images up to 10 MB each |
+| Image upload fails | The file must be an image up to 10 MB. It is saved under `uploads/` and returned as `/uploads/...` |
 | PDF generation fails on a server | Install Chromium system libraries required by Puppeteer |
