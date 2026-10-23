@@ -621,21 +621,73 @@ const buildBillHtml = async (booking, hotel, payments) => {
   });
 };
 
+const PDF_BROWSER_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-gpu',
+  '--disable-extensions',
+  '--no-first-run',
+  '--mute-audio',
+];
+
+/**
+ * Turn a Chromium launch failure into a short API message.
+ * @param {Error} err
+ * @returns {AppError}
+ */
+const toPdfLaunchError = (err) => {
+  const detail = String(err && err.message ? err.message : err);
+  if (/libnspr4\.so|libnss3\.so|shared libraries/i.test(detail)) {
+    return new AppError(
+      'PDF generation needs Chromium libraries on this Linux server. Run: apt-get update && apt-get install -y libnspr4 libnss3, then restart the API. Files are still saved under uploads/pdfs when generation succeeds.',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
+  return new AppError(
+    `Failed to start the PDF browser: ${detail.split('\n')[0]}`,
+    HTTP_STATUS.INTERNAL_SERVER_ERROR
+  );
+};
+
+/**
+ * Windows/macOS use the full Puppeteer Chrome download.
+ * Linux uses @sparticuz/chromium so production does not depend on a system Chrome package.
+ * @returns {Promise<import('puppeteer').Browser>}
+ */
+const launchPdfBrowser = async () => {
+  if (process.platform !== 'linux') {
+    return puppeteer.launch({
+      headless: true,
+      args: PDF_BROWSER_ARGS,
+    });
+  }
+
+  const chromiumModule = await import('@sparticuz/chromium');
+  const chromium = chromiumModule.default || chromiumModule;
+  const puppeteerCore = require('puppeteer-core');
+
+  if (typeof chromium.setGraphicsMode === 'boolean' || 'setGraphicsMode' in chromium) {
+    chromium.setGraphicsMode = false;
+  }
+
+  return puppeteerCore.launch({
+    args: [...(chromium.args || []), ...PDF_BROWSER_ARGS],
+    defaultViewport: chromium.defaultViewport || { width: 1280, height: 720 },
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless ?? true,
+    ignoreHTTPSErrors: true,
+  });
+};
+
 const getBrowser = async () => {
   if (browser && browser.connected) return browser;
   pagePool.length = 0;
-  browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-extensions',
-      '--no-first-run',
-      '--mute-audio',
-    ],
-  });
+  try {
+    browser = await launchPdfBrowser();
+  } catch (err) {
+    throw toPdfLaunchError(err);
+  }
   browser.on('disconnected', () => {
     browser = null;
     pagePool.length = 0;
@@ -677,9 +729,10 @@ const closePdfBrowser = async () => {
 const renderPdfFile = async (html, fileName, errorLabel, { printBackground = true } = {}) => {
   fs.mkdirSync(PDF_DIR, { recursive: true });
   const filePath = path.join(PDF_DIR, fileName);
-  const page = await takePage();
+  let page;
   let reuse = true;
   try {
+    page = await takePage();
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
     await page.emulateMediaType('print');
     // System fonts are already available. The bill measures itself once fonts have settled.
@@ -698,13 +751,22 @@ const renderPdfFile = async (html, fileName, errorLabel, { printBackground = tru
     });
   } catch (err) {
     reuse = false;
+    if (err instanceof AppError) throw err;
+    if (/Failed to launch the browser|libnspr4|shared libraries/i.test(String(err.message || ''))) {
+      throw toPdfLaunchError(err);
+    }
     throw new AppError(
       `Failed to generate the ${errorLabel}: ${err.message}`,
       HTTP_STATUS.INTERNAL_SERVER_ERROR
     );
   } finally {
-    if (reuse) releasePage(page);
-    else page.close().catch(() => {});
+    if (!page) {
+      // Launch failed before a page was created.
+    } else if (reuse) {
+      releasePage(page);
+    } else {
+      page.close().catch(() => {});
+    }
   }
   return filePath;
 };
