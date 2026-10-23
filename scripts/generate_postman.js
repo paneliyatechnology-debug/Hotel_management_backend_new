@@ -1447,6 +1447,10 @@ Bookings for the logged-in hotel. Soft-deleted rows are omitted. Newest first.
 | \`check_out_date\` | string | Scheduled check-out datetime. |
 | \`actual_check_in\` | string or null | Real check-in datetime. Null until the guest is checked in. |
 | \`actual_check_out\` | string or null | Real check-out datetime. Null until checkout. |
+| \`total_amount\` | number | Bill total after tax. |
+| \`paid_amount\` | number | Amount collected so far. |
+| \`due_amount\` | number | Balance still due. |
+| \`payment_status\` | string | \`PENDING\`, \`PARTIALLY_PAID\`, or \`PAID\`. |
 | \`rooms\` | object array | One object per room: \`id\`, \`room_number\`, \`floor\`, \`room_type_name\`. |`,
     }),
     item({

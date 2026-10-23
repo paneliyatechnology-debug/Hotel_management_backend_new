@@ -125,6 +125,10 @@ const formatBookingListItem = (row, rooms = []) => ({
   check_out_date: row.check_out_date || null,
   actual_check_in: row.actual_check_in || null,
   actual_check_out: row.actual_check_out || null,
+  total_amount: Number(row.total_amount) || 0,
+  paid_amount: Number(row.paid_amount) || 0,
+  due_amount: Number(row.due_amount) || 0,
+  payment_status: row.payment_status || 'PENDING',
   rooms,
 });
 
@@ -693,7 +697,11 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
     'bookings.check_in_date',
     'bookings.check_out_date',
     'bookings.actual_check_in',
-    'bookings.actual_check_out'
+    'bookings.actual_check_out',
+    'bookings.total_amount',
+    'bookings.paid_amount',
+    'bookings.due_amount',
+    'bookings.payment_status'
   );
   applyFilters(dataQuery);
 

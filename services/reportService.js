@@ -14,9 +14,7 @@ const reportModel = require('../models/reportModel');
 const { resolveScopedHotelId } = require('../utils/hotelScope');
 const { AppError } = require('../utils/response');
 const {
-  renderPdfFile,
-  fillTemplate,
-  escapeHtml,
+  renderGstReportPdf,
   PDF_DIR,
 } = require('./bookingPdfService');
 const {
@@ -26,10 +24,7 @@ const {
 
 const DEFAULT_PAGE_LIMIT = 50;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const TEMPLATE_PATH = path.join(__dirname, '../templates/gstReport.html');
 const MONEY_FORMAT = '#,##0.00';
-
-let reportTemplate = null;
 
 /**
  * @param {string} value - YYYY-MM-DD
@@ -431,86 +426,6 @@ const writeGstWorkbook = async (report, filePath) => {
   await workbook.commit();
 };
 
-const formatMoney = (value) => Number(value || 0).toLocaleString('en-IN', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-/**
- * @param {string[]} headers
- * @param {Array<Array<string|number>>} rows
- * @param {number[]} numericColumns
- * @param {Object} [options]
- * @param {string[]} [options.rowClasses]
- * @param {Array<string|number>} [options.totalRow]
- * @returns {string}
- */
-const htmlTable = (headers, rows, numericColumns, { rowClasses = [], totalRow = null } = {}) => {
-  const cell = (tag, value, index) =>
-    `<${tag}${numericColumns.includes(index) ? ' class="num"' : ''}>${escapeHtml(value)}</${tag}>`;
-  const head = `<thead><tr>${headers.map((header, index) => cell('th', header, index)).join('')}</tr></thead>`;
-  const body = rows
-    .map((row, rowIndex) => {
-      const cls = rowClasses[rowIndex] ? ` class="${rowClasses[rowIndex]}"` : '';
-      return `<tr${cls}>${row.map((value, index) => cell('td', value, index)).join('')}</tr>`;
-    })
-    .join('');
-  const total = totalRow
-    ? `<tfoot><tr class="total">${totalRow.map((value, index) => cell('td', value, index)).join('')}</tr></tfoot>`
-    : '';
-  return `<table>${head}<tbody>${body}</tbody>${total}</table>`;
-};
-
-const getReportTemplate = () => {
-  if (!reportTemplate) reportTemplate = fs.readFileSync(TEMPLATE_PATH, 'utf8');
-  return reportTemplate;
-};
-
-/**
- * @param {Object} report
- * @returns {string}
- */
-const buildReportHtml = (report) => {
-  const { filters, hotel, rows, grand_totals: totals } = report;
-  const footer = totalByHeader(totals);
-  const numericColumns = DETAIL_COLUMNS.map((column, index) => (column.money || column.integer ? index : -1))
-    .filter((index) => index >= 0);
-  const detailRows = rows.map((row) => DETAIL_COLUMNS.map((column) => (
-    column.money ? formatMoney(column.get(row)) : column.get(row)
-  )));
-  const detailTable = htmlTable(
-    DETAIL_COLUMNS.map((column) => column.header),
-    detailRows,
-    numericColumns,
-    {
-      rowClasses: rows.map((row) => (row.invoice_status === 'CANCELLED' ? 'cancelled' : '')),
-      totalRow: DETAIL_COLUMNS.map((column, index) => {
-        if (index === 0) return 'Total';
-        const value = footer[column.header];
-        if (value === undefined || value === null) return '';
-        return column.money ? formatMoney(value) : value;
-      }),
-    }
-  );
-
-  const taxLine = [
-    hotel.gstin ? `GSTIN: ${hotel.gstin}` : '',
-    hotel.pan ? `PAN: ${hotel.pan}` : '',
-  ].filter(Boolean).join('  |  ');
-
-  return fillTemplate(getReportTemplate(), {
-    FONT_FACE: '',
-    HOTEL_NAME: escapeHtml(hotel.name),
-    HOTEL_ADDRESS: escapeHtml([hotel.address, hotel.city, hotel.state, hotel.pincode].filter(Boolean).join(', ')),
-    HOTEL_TAX_LINE: escapeHtml(taxLine),
-    PERIOD: escapeHtml(periodLabel(filters)),
-    FILTERS: escapeHtml(describeFilters(filters)),
-    GENERATED_AT: escapeHtml(formatGeneratedAt()),
-    ROWS_TABLE: detailTable,
-    YEAR: String(new Date().getFullYear()),
-  });
-};
-
 /**
  * Build the report file for the caller's hotel and return where to download it.
  * @param {Object} query - Report filters plus format (xlsx or pdf)
@@ -527,7 +442,7 @@ const exportGstReport = async (query, reqUser, baseUrl) => {
   fs.mkdirSync(PDF_DIR, { recursive: true });
 
   if (format === 'pdf') {
-    await renderPdfFile(buildReportHtml(report), fileName, 'GST report', { printBackground: false });
+    await renderGstReportPdf(report, fileName);
   } else {
     await writeGstWorkbook(report, path.join(PDF_DIR, fileName));
   }
@@ -548,5 +463,4 @@ module.exports = {
   resolveFilters,
   formatRow,
   writeGstWorkbook,
-  buildReportHtml,
 };

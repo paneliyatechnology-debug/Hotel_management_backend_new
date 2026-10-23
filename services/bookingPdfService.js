@@ -1,40 +1,20 @@
 ﻿/**
- * Builds booking PDFs (full folio and guest tax-invoice bill) from booking and hotel records.
+ * Builds booking PDFs (full folio and guest tax-invoice bill) with PDFKit.
+ * No Chromium or system browser libraries are required.
  * Files are written under uploads/pdfs and removed by the cleanup job.
  */
 const fs = require('fs');
 const path = require('path');
-const puppeteer = require('puppeteer');
+const PDFDocument = require('pdfkit');
 const bookingService = require('./bookingService');
 const hotelModel = require('../models/hotelModel');
 const roomModel = require('../models/roomModel');
 const bookingPaymentModel = require('../models/bookingPaymentModel');
+const { resolveLocalPath } = require('./uploadService');
 const { AppError } = require('../utils/response');
-const { HTTP_STATUS } = require('../constants');
+const { HTTP_STATUS, GST_SERVICE_TYPES } = require('../constants');
 
 const PDF_DIR = path.join(process.cwd(), 'uploads', 'pdfs');
-const FOLIO_TEMPLATE_PATH = path.join(__dirname, '../templates/bookingFolio.html');
-const BILL_TEMPLATE_PATH = path.join(__dirname, '../templates/bookingBill.html');
-
-const templateCache = new Map();
-
-const readTemplate = (filePath) => {
-  const cached = templateCache.get(filePath);
-  if (cached) return cached;
-  const html = fs.readFileSync(filePath, 'utf8');
-  templateCache.set(filePath, html);
-  return html;
-};
-
-let browser = null;
-const pagePool = [];
-const MAX_POOLED_PAGES = 2;
-
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;');
 
 const money = (value) => Number(value || 0).toLocaleString('en-IN', {
   minimumFractionDigits: 2,
@@ -56,19 +36,6 @@ const formatDateTime = (value) => {
   });
 };
 
-const formatDatePart = (value) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'Asia/Kolkata',
-  });
-};
-
-/** Invoice date in DD/MM/YYYY (same style as the sales bill reference). */
 const formatInvoiceDate = (value) => {
   if (!value) return '—';
   const date = new Date(value);
@@ -81,21 +48,8 @@ const formatInvoiceDate = (value) => {
   });
 };
 
-const formatTimePart = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'Asia/Kolkata',
-  });
-};
-
 const joinParts = (parts) => parts.map((part) => String(part || '').trim()).filter(Boolean).join(', ');
 
-// CHECKED_IN becomes "Checked in" on the page.
 const humanize = (value) => {
   const text = String(value || '').replace(/_/g, ' ').trim().toLowerCase();
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : '—';
@@ -123,18 +77,11 @@ const threeDigits = (n) => {
   return twoDigits(rest);
 };
 
-/**
- * Indian-style amount in words for the tax invoice (e.g. "Rupees One Thousand Only").
- * @param {number|string} value
- * @returns {string}
- */
 const amountInWords = (value) => {
   const amount = Math.round((Number(value) || 0) * 100) / 100;
   if (amount === 0) return 'Rupees Zero Only';
-
   const rupees = Math.floor(amount);
   const paise = Math.round((amount - rupees) * 100);
-
   const convert = (num) => {
     if (num === 0) return '';
     const crore = Math.floor(num / 10000000);
@@ -148,32 +95,9 @@ const amountInWords = (value) => {
     if (hundredRest) parts.push(threeDigits(hundredRest));
     return parts.join(' ');
   };
-
   let words = `Rupees ${convert(rupees)}`;
   if (paise > 0) words += ` and ${twoDigits(paise)} Paise`;
   return `${words} Only`;
-};
-
-const STAY_TONES = {
-  PENDING: 'badge-warn',
-  CONFIRMED: 'badge-info',
-  CHECKED_IN: 'badge-info',
-  CHECKED_OUT: 'badge-muted',
-  CANCELLED: 'badge-bad',
-  NO_SHOW: 'badge-bad',
-};
-
-const PAYMENT_TONES = {
-  PENDING: 'badge-warn',
-  PARTIALLY_PAID: 'badge-warn',
-  PAID: 'badge-ok',
-};
-
-const PAYMENT_ROW_TONES = {
-  PAID: 'badge-ok',
-  PARTIALLY_PAID: 'badge-warn',
-  REFUNDED: 'badge-info',
-  FAILED: 'badge-bad',
 };
 
 const METHOD_LABELS = {
@@ -190,60 +114,22 @@ const SOURCE_LABELS = {
   CHECKOUT: 'At checkout',
 };
 
-/**
- * PDFs use the fonts already installed with Chrome. Embedding Roboto made every file carry several
- * hundred kilobytes of font data and wait for those fonts to decode.
- * @returns {string}
- */
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
+const fillTemplate = (template, values) => {
+  let html = template;
+  for (const [key, value] of Object.entries(values)) {
+    html = html.split(`/*{{${key}}}*/`).join(value ?? '').split(`{{${key}}}`).join(value ?? '');
+  }
+  return html;
+};
+
 const getFontFaceCss = () => '';
 
-/**
- * Payment rows for the folio, oldest first (the model returns newest first).
- * Refunds carry a negative amount and are shown with a minus sign.
- * @param {Array<Object>} payments
- * @returns {string}
- */
-const buildPaymentRows = (payments) => {
-  if (!payments.length) return '<tr><td class="empty" colspan="5">No payments recorded.</td></tr>';
-  return [...payments].reverse().map((payment) => {
-    const amount = Number(payment.amount || 0);
-    const amountText = amount < 0 ? `−${money(Math.abs(amount))}` : money(amount);
-    const method = METHOD_LABELS[payment.payment_method] || humanize(payment.payment_method);
-    const source = SOURCE_LABELS[payment.source] || '';
-    return `
-      <tr>
-        <td>${escapeHtml(formatDateTime(payment.received_at))}${source ? `<div class="cell-sub">${escapeHtml(source)}</div>` : ''}</td>
-        <td class="strong">${escapeHtml(method)}</td>
-        <td><span class="badge ${PAYMENT_ROW_TONES[payment.status] || 'badge-muted'}">${escapeHtml(humanize(payment.status))}</span></td>
-        <td>${escapeHtml(payment.received_by?.name || '—')}</td>
-        <td class="num strong${amount < 0 ? ' refund' : ''}">${amountText}</td>
-      </tr>
-    `;
-  }).join('');
-};
-
-/**
- * Methods the guest actually paid with, for example "via Cash, UPI".
- * Refunds and failed payments are not counted. Returns an empty string when nothing was paid.
- * @param {Array<Object>} payments
- * @returns {string}
- */
-const buildPaidMethods = (payments) => {
-  const methods = [...new Set(
-    [...payments]
-      .reverse()
-      .filter((payment) => Number(payment.amount) > 0 && payment.status !== 'FAILED')
-      .map((payment) => METHOD_LABELS[payment.payment_method] || humanize(payment.payment_method))
-  )];
-  return methods.length ? `<div class="tile-sub">via ${escapeHtml(methods.join(', '))}</div>` : '';
-};
-
-/**
- * Bank details the hotel has filled in, as [label, value] pairs.
- * Empty when the hotel has not added any, so the PDFs can leave the section out.
- * @param {Object} hotel
- * @returns {Array<[string, string]>}
- */
 const getBankDetailRows = (hotel) => [
   ['Bank', hotel?.bank_name],
   ['A/c holder', hotel?.bank_account_holder],
@@ -253,189 +139,145 @@ const getBankDetailRows = (hotel) => [
 ].map(([label, value]) => [label, String(value || '').trim()]).filter(([, value]) => value);
 
 /**
- * Folio card listing the hotel's bank details. Empty when none are set.
- * @param {Object} hotel
- * @returns {string}
+ * @param {string} urlOrKey
+ * @returns {Promise<Buffer|null>}
  */
-const buildFolioBankSection = (hotel) => {
-  const rows = getBankDetailRows(hotel);
-  if (!rows.length) return '';
-  const body = rows
-    .map(([label, value]) => `<tr><td class="k">${label}</td><td class="v">${escapeHtml(value)}</td></tr>`)
-    .join('');
-  return `
-    <section class="card">
-      <div class="card-head"><div class="card-title">Bank details</div></div>
-      <div class="card-body"><table class="rows">${body}</table></div>
-    </section>`;
+const loadImageBuffer = async (urlOrKey) => {
+  if (!urlOrKey) return null;
+  const local = resolveLocalPath(urlOrKey);
+  if (local && fs.existsSync(local)) {
+    try {
+      return fs.readFileSync(local);
+    } catch (_) {
+      return null;
+    }
+  }
+  if (!/^https?:\/\//i.test(String(urlOrKey))) return null;
+  try {
+    const response = await fetch(urlOrKey, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return null;
+    return Buffer.from(await response.arrayBuffer());
+  } catch (_) {
+    return null;
+  }
 };
 
 /**
- * Bill block listing the hotel's bank details. Empty when none are set.
- * @param {Object} hotel
- * @returns {string}
- */
-const buildBillBankBlock = (hotel) => {
-  const rows = getBankDetailRows(hotel);
-  if (!rows.length) return '';
-  const body = rows
-    .map(([label, value]) => `
-          <tr><td class="k">${label}</td><td class="s">:</td><td>${escapeHtml(value)}</td></tr>`)
-    .join('');
-  return `
-        <div class="block bank">
-          <div class="block-title">Bank details</div>
-          <table class="kv">${body}
-          </table>
-        </div>`;
-};
-
-/**
- * Embed a remote file so the PDF does not depend on the browser loading it later.
- * @param {string} url
+ * @param {string} filePath
+ * @param {{ size?: string, layout?: string, margin?: number }} [options]
+ * @param {(doc: PDFKit.PDFDocument) => void|Promise<void>} build
  * @returns {Promise<string>}
  */
-const toDataUri = async (url) => {
-  if (!url) return '';
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!response.ok) return '';
-    const mime = (response.headers.get('content-type') || 'image/jpeg').split(';')[0];
-    const buffer = Buffer.from(await response.arrayBuffer());
-    return `data:${mime};base64,${buffer.toString('base64')}`;
-  } catch (_) {
-    return '';
-  }
-};
-
-/**
- * Replace {{KEY}} placeholders. Inside a <style> block a key is written as a CSS comment,
- * like /*{{KEY}}*\/, so the template stays valid CSS for editors. The whole comment is replaced.
- * @param {string} template
- * @param {Object<string, string>} values
- * @returns {string}
- */
-const fillTemplate = (template, values) => {
-  let html = template;
-  for (const [key, value] of Object.entries(values)) {
-    html = html.split(`/*{{${key}}}*/`).join(value ?? '').split(`{{${key}}}`).join(value ?? '');
-  }
-  return html;
-};
-
-const buildHtml = async (booking, hotel, payments) => {
-  const template = readTemplate(FOLIO_TEMPLATE_PATH);
-  const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
-  const roomRows = rooms.length
-    ? rooms.map((room) => `
-      <tr>
-        <td class="strong">${escapeHtml(room.room_number || room.id)}</td>
-        <td>${escapeHtml(room.floor ?? '—')}</td>
-        <td>${escapeHtml(room.room_type_name || '—')}</td>
-      </tr>
-    `).join('')
-    : '<tr><td class="empty" colspan="3">No room recorded.</td></tr>';
-
-  const imageUrls = (Array.isArray(booking.images) ? booking.images : []).filter(Boolean);
-  const signatureUrls = (Array.isArray(booking.signatures) ? booking.signatures : []).filter(Boolean);
-  const [imageSources, signatureSources] = await Promise.all([
-    Promise.all(imageUrls.map(toDataUri)),
-    Promise.all(signatureUrls.map(toDataUri)),
-  ]);
-
-  const proofFigure = (src, label) => `
-    <figure class="proof">
-      <img src="${src}" alt="${escapeHtml(label)}" />
-      <figcaption>${escapeHtml(label)}</figcaption>
-    </figure>
-  `;
-  const loadedProofs = imageSources.filter(Boolean);
-  const idProofs = loadedProofs.length
-    ? loadedProofs.map((src, index) => proofFigure(src, `ID proof ${index + 1}`)).join('')
-    : '<p class="note">No ID proof uploaded.</p>';
-
-  const loadedSignatures = signatureSources.filter(Boolean);
-  const signatures = loadedSignatures.length
-    ? loadedSignatures.map((src, index) => proofFigure(src, `Signature ${index + 1}`)).join('')
-    : '<p class="note">No signature uploaded.</p>';
-
-  const address = joinParts([hotel?.address, hotel?.city, hotel?.state, hotel?.pincode, hotel?.country]);
-  const hotelMeta = [
-    ['GSTIN', hotel?.gst_number],
-    ['PAN', hotel?.pan_number],
-    ['Phone', hotel?.owner?.phone],
-  ].filter(([, value]) => value)
-    .map(([label, value]) => `<span class="tag"><b>${label}</b>${escapeHtml(value)}</span>`)
-    .join('');
-  const guestTotal = (Number(booking.adults) || 0) + (Number(booking.children) || 0);
-  const roomCount = rooms.length || (Array.isArray(booking.room_id) ? booking.room_id.length : 0);
-
-  return fillTemplate(template, {
-    HOTEL_NAME: escapeHtml(hotel?.name || 'Hotel'),
-    HOTEL_TYPE: escapeHtml(hotel?.hotel_type || 'Hotel'),
-    HOTEL_ADDRESS: escapeHtml(address || '—'),
-    HOTEL_META: hotelMeta,
-    FONT_FACE: getFontFaceCss(),
-    BOOKING_NUMBER: escapeHtml(booking.booking_number),
-    PRINTED_AT: escapeHtml(formatDateTime(new Date())),
-    CREATED_AT: escapeHtml(formatDateTime(booking.created_at)),
-    ROOM_COUNT: escapeHtml(roomCount || '—'),
-    GUEST_NAME: escapeHtml(booking.primary_guest_name),
-    SECONDARY_GUEST: escapeHtml(booking.secondary_guest_name || '—'),
-    GUEST_MOBILE: escapeHtml(booking.mobile_number),
-    GUEST_EMAIL: escapeHtml(booking.email || '—'),
-    GUEST_ADDRESS: escapeHtml(booking.address || '—'),
-    BOOKING_STATUS: escapeHtml(humanize(booking.booking_status)),
-    STATUS_TONE: STAY_TONES[booking.booking_status] || 'badge-muted',
-    CHECK_IN: escapeHtml(formatDateTime(booking.check_in_date)),
-    CHECK_OUT: escapeHtml(formatDateTime(booking.check_out_date)),
-    CHECK_IN_DATE: escapeHtml(formatDatePart(booking.check_in_date)),
-    CHECK_IN_TIME: escapeHtml(formatTimePart(booking.check_in_date)),
-    CHECK_OUT_DATE: escapeHtml(formatDatePart(booking.check_out_date)),
-    CHECK_OUT_TIME: escapeHtml(formatTimePart(booking.check_out_date)),
-    GUEST_TOTAL: escapeHtml(guestTotal),
-    PAYMENT_ROWS: buildPaymentRows(payments),
-    ACTUAL_CHECK_IN: escapeHtml(formatDateTime(booking.actual_check_in)),
-    ACTUAL_CHECK_OUT: escapeHtml(formatDateTime(booking.actual_check_out)),
-    NIGHTS: escapeHtml(booking.number_of_nights),
-    HOUSE_CHECK_IN: escapeHtml(hotel?.settings?.check_in_time || '14:00'),
-    HOUSE_CHECK_OUT: escapeHtml(hotel?.settings?.check_out_time || '12:00'),
-    ADULTS: escapeHtml(booking.adults),
-    CHILDREN: escapeHtml(booking.children),
-    ROOM_ROWS: roomRows,
-    BASE_AMOUNT: money(booking.base_amount),
-    DISCOUNT_AMOUNT: money(booking.discount_amount),
-    EXTRA_CHARGES: money(booking.extra_charges_total),
-    LATE_FEE: money(booking.late_checkout_charge),
-    LATE_HOURS: escapeHtml(booking.late_checkout_hours || 0),
-    TAXABLE_AMOUNT: money(booking.taxable_amount),
-    GST_RATE: escapeHtml(booking.gst_rate),
-    TAX_AMOUNT: money(booking.gst_amount || booking.tax_amount),
-    CGST_RATE: escapeHtml(booking.cgst_rate),
-    SGST_RATE: escapeHtml(booking.sgst_rate),
-    CGST_AMOUNT: money(booking.cgst_amount),
-    SGST_AMOUNT: money(booking.sgst_amount),
-    TOTAL_AMOUNT: money(booking.total_amount),
-    PAID_AMOUNT: money(booking.paid_amount),
-    PAID_METHODS: buildPaidMethods(payments),
-    BANK_SECTION: buildFolioBankSection(hotel),
-    DUE_AMOUNT: money(booking.due_amount),
-    DUE_CLASS: Number(booking.due_amount) > 0 ? 'open' : 'clear',
-    PAYMENT_STATUS: escapeHtml(humanize(booking.payment_status)),
-    PAYMENT_TONE: PAYMENT_TONES[booking.payment_status] || 'badge-muted',
-    YEAR: String(new Date().getFullYear()),
-    NOTES: escapeHtml(booking.notes || '—'),
-    PREPARED_BY: escapeHtml(booking.creator?.name || 'Front desk'),
-    SIGNATURES: signatures,
-    ID_PROOFS: idProofs,
+const writePdfDocument = async (filePath, options, build) => {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: options.size || 'A4',
+      layout: options.layout || 'portrait',
+      margin: options.margin ?? 40,
+      autoFirstPage: true,
+      bufferPages: true,
+    });
+    const stream = fs.createWriteStream(filePath);
+    let settled = false;
+    const fail = (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    };
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    stream.on('finish', done);
+    stream.on('error', fail);
+    doc.on('error', fail);
+    doc.pipe(stream);
+    Promise.resolve(build(doc))
+      .then(() => doc.end())
+      .catch(fail);
   });
+  return filePath;
+};
+
+const ensureSpace = (doc, needed = 60) => {
+  if (doc.y + needed > doc.page.height - doc.page.margins.bottom) {
+    doc.addPage();
+  }
+};
+
+const sectionTitle = (doc, title) => {
+  ensureSpace(doc, 28);
+  doc.moveDown(0.6);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text(title);
+  doc.moveDown(0.25);
+  doc.font('Helvetica').fontSize(9);
+};
+
+const kvLine = (doc, label, value, options = {}) => {
+  const labelWidth = options.labelWidth || 120;
+  const startX = doc.page.margins.left;
+  const valueX = startX + labelWidth;
+  const width = doc.page.width - doc.page.margins.right - valueX;
+  ensureSpace(doc, 14);
+  const y = doc.y;
+  doc.font('Helvetica').fontSize(9).fillColor('#444').text(`${label}`, startX, y, { width: labelWidth - 6 });
+  doc.font(options.bold ? 'Helvetica-Bold' : 'Helvetica').fillColor('#000')
+    .text(String(value ?? '—'), valueX, y, { width });
+  doc.x = startX;
+};
+
+const drawTable = (doc, columns, rows, options = {}) => {
+  const startX = doc.page.margins.left;
+  const usable = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const totalWeight = columns.reduce((sum, col) => sum + (col.width || 1), 0);
+  const widths = columns.map((col) => ((col.width || 1) / totalWeight) * usable);
+  const rowHeight = options.rowHeight || 16;
+  const fontSize = options.fontSize || 8;
+
+  const drawHeader = () => {
+    ensureSpace(doc, rowHeight + 4);
+    let x = startX;
+    const y = doc.y;
+    doc.rect(startX, y, usable, rowHeight).stroke('#000');
+    columns.forEach((col, index) => {
+      doc.font('Helvetica-Bold').fontSize(fontSize).fillColor('#000')
+        .text(col.label, x + 3, y + 4, {
+          width: widths[index] - 6,
+          align: col.align || 'left',
+          lineBreak: false,
+        });
+      x += widths[index];
+    });
+    doc.y = y + rowHeight;
+  };
+
+  drawHeader();
+  rows.forEach((row) => {
+    if (doc.y + rowHeight > doc.page.height - doc.page.margins.bottom) {
+      doc.addPage();
+      drawHeader();
+    }
+    let x = startX;
+    const y = doc.y;
+    doc.rect(startX, y, usable, rowHeight).stroke('#000');
+    columns.forEach((col, index) => {
+      doc.font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize).fillColor('#000')
+        .text(String(row.cells[index] ?? ''), x + 3, y + 4, {
+          width: widths[index] - 6,
+          align: col.align || 'left',
+          lineBreak: false,
+        });
+      x += widths[index];
+    });
+    doc.y = y + rowHeight;
+  });
+  doc.x = startX;
+  doc.moveDown(0.4);
 };
 
 /**
- * Split the stay across rooms: one row per room with its nightly price and line amount.
- * Uses each room's custom_price_per_night. If the booking base_amount was set manually
- * and differs, the amount is shared by those prices (or equally when no price is set),
- * so the room rows always add up to the booking's base_amount.
  * @param {Object} booking
  * @param {Array<Object>} rooms
  * @returns {Promise<Array<{ room: string, category: string, floor: string|number, nights: number, rate: number, amount: number }>>}
@@ -479,306 +321,361 @@ const buildRoomBillRows = async (booking, rooms) => {
   }));
 };
 
-/**
- * Table body: Sr No, Room, Category, Floor, Nights, Room Price (per night), Amount.
- * @param {Array<Object>} rows - From buildRoomBillRows
- * @returns {string}
- */
-const buildBillLineItems = (rows) => rows.map((row, index) => `
-      <tr>
-        <td class="c">${index + 1}</td>
-        <td class="c desc">${escapeHtml(row.room)}</td>
-        <td class="l">${escapeHtml(row.category)}</td>
-        <td class="c">${escapeHtml(row.floor)}</td>
-        <td class="c">${escapeHtml(row.nights)}</td>
-        <td class="r">${money(row.rate)}</td>
-        <td class="r">${money(row.amount)}</td>
-      </tr>
-    `).join('');
-
-/**
- * "Payment Received" block: one line per payment method with the net amount paid by it,
- * then the total paid and the balance due. Refunds reduce their method; failed payments are ignored.
- * @param {Array<Object>} payments
- * @param {Object} booking
- * @returns {string}
- */
-const buildBillPaymentMethodRows = (payments, booking) => {
+const paymentMethodSummary = (payments, booking) => {
   const byMethod = new Map();
   for (const payment of payments) {
     if (payment.status === 'FAILED') continue;
     const label = METHOD_LABELS[payment.payment_method] || humanize(payment.payment_method);
     byMethod.set(label, (byMethod.get(label) || 0) + (Number(payment.amount) || 0));
   }
-
   const lines = [...byMethod.entries()]
     .filter(([, amount]) => Math.abs(amount) > 0.004)
-    .map(([label, amount]) => `
-      <tr>
-        <td class="m">${escapeHtml(label)}</td><td class="s">:</td>
-        <td class="a">${amount < 0 ? '−' : ''}${money(Math.abs(amount))}</td>
-      </tr>`);
-
-  if (!lines.length) {
-    lines.push('<tr><td class="none" colspan="3">No payment received.</td></tr>');
-  }
-
-  lines.push(`
-      <tr class="total">
-        <td class="m">Total Paid</td><td class="s">:</td>
-        <td class="a">${money(booking.paid_amount)}</td>
-      </tr>`);
-  lines.push(`
-      <tr class="due">
-        <td class="m">Balance Due</td><td class="s">:</td>
-        <td class="a">${money(booking.due_amount)}</td>
-      </tr>`);
-  return lines.join('');
+    .map(([label, amount]) => ({
+      label,
+      amount: `${amount < 0 ? '−' : ''}${money(Math.abs(amount))}`,
+    }));
+  if (!lines.length) lines.push({ label: 'No payment received', amount: '' });
+  lines.push({ label: 'Total Paid', amount: money(booking.paid_amount), bold: true });
+  lines.push({ label: 'Balance Due', amount: money(booking.due_amount), bold: true });
+  return lines;
 };
 
 /**
- * Totals box: Sub Total, extra charges, late checkout, Discount, Taxable Amount, CGST, SGST, Grand Total.
- * @param {Object} booking
- * @returns {string}
- */
-const buildBillSummaryRows = (booking) => {
-  const row = (label, value, cls = '') => `
-      <tr class="${cls}">
-        <td>${label}</td>
-        <td class="v">${value}</td>
-      </tr>`;
-  const cgstRate = Number(booking.cgst_rate || 0).toFixed(2);
-  const sgstRate = Number(booking.sgst_rate || 0).toFixed(2);
-  const lateHours = Number(booking.late_checkout_hours) || 0;
-  const discount = Number(booking.discount_amount) || 0;
-
-  return [
-    row('Sub Total', money(booking.base_amount), 'head'),
-    row('Extra Charges', money(booking.extra_charges_total)),
-    row(`Late Checkout Charges${lateHours > 0 ? ` (${lateHours} h)` : ''}`, money(booking.late_checkout_charge)),
-    row('Discount', `${discount > 0 ? '−' : ''}${money(discount)}`, 'minus'),
-    row('Taxable Amount', money(booking.taxable_amount), 'strong'),
-    row(`Central Tax (${cgstRate}%)`, money(booking.cgst_amount)),
-    row(`State/UT Tax (${sgstRate}%)`, money(booking.sgst_amount)),
-    row('Grand Total', money(booking.total_amount), 'grand'),
-  ].join('');
-};
-/**
- * Clean bill invoice (rooms, charges, payment history) for a booking.
+ * @param {PDFKit.PDFDocument} doc
  * @param {Object} booking
  * @param {Object} hotel
  * @param {Array<Object>} payments
- * @returns {Promise<string>}
+ * @param {Array<Object>} roomRows
  */
-const buildBillHtml = async (booking, hotel, payments) => {
-  const template = readTemplate(BILL_TEMPLATE_PATH);
-  const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
+const drawBillDocument = (doc, booking, hotel, payments, roomRows) => {
   const address = joinParts([hotel?.address, hotel?.city, hotel?.state, hotel?.pincode, hotel?.country]);
   const contact = joinParts([
     hotel?.owner?.phone ? `Ph: ${hotel.owner.phone}` : '',
     hotel?.owner?.email ? `Email: ${hotel.owner.email}` : '',
   ]);
+  const taxBits = [
+    hotel?.gst_number ? `GSTIN: ${hotel.gst_number}` : '',
+    hotel?.pan_number ? `PAN: ${hotel.pan_number}` : '',
+  ].filter(Boolean).join('  |  ');
 
-  const gstin = String(hotel?.gst_number || '').trim();
-  const pan = String(hotel?.pan_number || '').trim();
-  // GSTIN and PAN sit under the hotel address in the header, only when the hotel has them.
-  const hotelTaxLine = [
-    gstin ? `GSTIN: ${escapeHtml(gstin)}` : '',
-    pan ? `PAN: ${escapeHtml(pan)}` : '',
-  ].filter(Boolean).join('<span class="sep">|</span>');
+  doc.font('Helvetica-Bold').fontSize(16).text(String(hotel?.name || 'Hotel'), { align: 'center' });
+  doc.font('Helvetica').fontSize(9).text(address || '—', { align: 'center' });
+  if (contact) doc.text(contact, { align: 'center' });
+  if (taxBits) doc.text(taxBits, { align: 'center' });
+  doc.moveDown(0.5);
+  doc.font('Helvetica-Bold').fontSize(12).text('Bill Invoice', { align: 'center' });
+  doc.moveDown(0.6);
 
-  const notes = String(booking.notes || '').trim();
-  const invoiceNo = String(booking.booking_number || booking.id);
-  const roomRows = await buildRoomBillRows(booking, rooms);
+  sectionTitle(doc, 'Billed to');
+  kvLine(doc, 'Guest', booking.primary_guest_name || '—', { bold: true });
+  kvLine(doc, 'Address', booking.address || '—');
+  kvLine(doc, 'Mobile', booking.mobile_number || '—');
+  kvLine(doc, 'Email', booking.email || '—');
+  kvLine(doc, 'Guests', `${booking.adults ?? 0} adult(s), ${booking.children ?? 0} child(ren)`);
 
-  return fillTemplate(template, {
-    FONT_FACE: getFontFaceCss(),
-    HOTEL_NAME: escapeHtml(hotel?.name || 'Hotel'),
-    HOTEL_ADDRESS: escapeHtml(address || '—'),
-    HOTEL_CONTACT: escapeHtml(contact || ''),
-    HOTEL_TAX_LINE: hotelTaxLine,
-    INVOICE_NO: escapeHtml(invoiceNo),
-    INVOICE_DATE: escapeHtml(formatInvoiceDate(
-      booking.actual_check_out || booking.check_out_date || booking.created_at || new Date()
-    )),
-    PAYMENT_STATUS: escapeHtml(humanize(booking.payment_status)),
-    GUEST_NAME: escapeHtml(booking.primary_guest_name || '—'),
-    GUEST_ADDRESS: escapeHtml(booking.address || '—'),
-    GUEST_MOBILE: escapeHtml(booking.mobile_number || '—'),
-    GUEST_EMAIL: escapeHtml(booking.email || '—'),
-    ADULTS: escapeHtml(booking.adults ?? 0),
-    CHILDREN: escapeHtml(booking.children ?? 0),
-    CHECK_IN: escapeHtml(formatDateTime(booking.actual_check_in || booking.check_in_date)),
-    CHECK_OUT: escapeHtml(formatDateTime(booking.actual_check_out || booking.check_out_date)),
-    NIGHTS: escapeHtml(booking.number_of_nights ?? '—'),
-    LINE_ITEMS: buildBillLineItems(roomRows),
-    SUMMARY_ROWS: buildBillSummaryRows(booking),
-    PAYMENT_METHOD_ROWS: buildBillPaymentMethodRows(payments, booking),
-    BANK_BLOCK: buildBillBankBlock(hotel),
-    AMOUNT_IN_WORDS: escapeHtml(amountInWords(booking.total_amount)),
-    NOTES: escapeHtml(notes || '—'),
-    YEAR: String(new Date().getFullYear()),
+  sectionTitle(doc, 'Invoice');
+  kvLine(doc, 'Invoice No.', booking.booking_number || booking.id);
+  kvLine(doc, 'Date', formatInvoiceDate(
+    booking.actual_check_out || booking.check_out_date || booking.created_at || new Date()
+  ));
+  kvLine(doc, 'Check-in', formatDateTime(booking.actual_check_in || booking.check_in_date));
+  kvLine(doc, 'Check-out', formatDateTime(booking.actual_check_out || booking.check_out_date));
+  kvLine(doc, 'Nights', booking.number_of_nights ?? '—');
+  kvLine(doc, 'Payment', humanize(booking.payment_status));
+
+  sectionTitle(doc, 'Rooms');
+  drawTable(doc, [
+    { label: 'Sr', width: 0.6, align: 'center' },
+    { label: 'Room', width: 1, align: 'center' },
+    { label: 'Category', width: 2.2 },
+    { label: 'Floor', width: 0.8, align: 'center' },
+    { label: 'Nights', width: 0.8, align: 'center' },
+    { label: 'Price', width: 1.2, align: 'right' },
+    { label: 'Amount', width: 1.2, align: 'right' },
+  ], roomRows.map((row, index) => ({
+    cells: [index + 1, row.room, row.category, row.floor, row.nights, money(row.rate), money(row.amount)],
+  })));
+
+  sectionTitle(doc, 'Payment received');
+  paymentMethodSummary(payments, booking).forEach((line) => {
+    kvLine(doc, line.label, line.amount || '—', { bold: line.bold, labelWidth: 140 });
   });
-};
 
-const PDF_BROWSER_ARGS = [
-  '--no-sandbox',
-  '--disable-setuid-sandbox',
-  '--disable-dev-shm-usage',
-  '--disable-gpu',
-  '--disable-extensions',
-  '--no-first-run',
-  '--mute-audio',
-];
-
-/**
- * Turn a Chromium launch failure into a short API message.
- * @param {Error} err
- * @returns {AppError}
- */
-const toPdfLaunchError = (err) => {
-  const detail = String(err && err.message ? err.message : err);
-  if (/libnspr4\.so|libnss3\.so|shared libraries/i.test(detail)) {
-    return new AppError(
-      'PDF generation needs Chromium libraries on this Linux server. Run: apt-get update && apt-get install -y libnspr4 libnss3, then restart the API. Files are still saved under uploads/pdfs when generation succeeds.',
-      HTTP_STATUS.INTERNAL_SERVER_ERROR
-    );
-  }
-  return new AppError(
-    `Failed to start the PDF browser: ${detail.split('\n')[0]}`,
-    HTTP_STATUS.INTERNAL_SERVER_ERROR
-  );
-};
-
-/**
- * Windows/macOS use the full Puppeteer Chrome download.
- * Linux uses @sparticuz/chromium so production does not depend on a system Chrome package.
- * @returns {Promise<import('puppeteer').Browser>}
- */
-const launchPdfBrowser = async () => {
-  if (process.platform !== 'linux') {
-    return puppeteer.launch({
-      headless: true,
-      args: PDF_BROWSER_ARGS,
-    });
+  const bankRows = getBankDetailRows(hotel);
+  if (bankRows.length) {
+    sectionTitle(doc, 'Bank details');
+    bankRows.forEach(([label, value]) => kvLine(doc, label, value));
   }
 
-  const chromiumModule = await import('@sparticuz/chromium');
-  const chromium = chromiumModule.default || chromiumModule;
-  const puppeteerCore = require('puppeteer-core');
-
-  if (typeof chromium.setGraphicsMode === 'boolean' || 'setGraphicsMode' in chromium) {
-    chromium.setGraphicsMode = false;
-  }
-
-  return puppeteerCore.launch({
-    args: [...(chromium.args || []), ...PDF_BROWSER_ARGS],
-    defaultViewport: chromium.defaultViewport || { width: 1280, height: 720 },
-    executablePath: await chromium.executablePath(),
-    headless: chromium.headless ?? true,
-    ignoreHTTPSErrors: true,
+  sectionTitle(doc, 'Summary');
+  const lateHours = Number(booking.late_checkout_hours) || 0;
+  const discount = Number(booking.discount_amount) || 0;
+  [
+    ['Sub Total', money(booking.base_amount)],
+    ['Extra Charges', money(booking.extra_charges_total)],
+    [`Late Checkout${lateHours > 0 ? ` (${lateHours} h)` : ''}`, money(booking.late_checkout_charge)],
+    ['Discount', `${discount > 0 ? '−' : ''}${money(discount)}`],
+    ['Taxable Amount', money(booking.taxable_amount)],
+    [`Central Tax (${Number(booking.cgst_rate || 0).toFixed(2)}%)`, money(booking.cgst_amount)],
+    [`State/UT Tax (${Number(booking.sgst_rate || 0).toFixed(2)}%)`, money(booking.sgst_amount)],
+    ['Grand Total', money(booking.total_amount)],
+  ].forEach(([label, value], index, list) => {
+    kvLine(doc, label, value, { bold: index === list.length - 1 || label === 'Taxable Amount' });
   });
-};
 
-const getBrowser = async () => {
-  if (browser && browser.connected) return browser;
-  pagePool.length = 0;
-  try {
-    browser = await launchPdfBrowser();
-  } catch (err) {
-    throw toPdfLaunchError(err);
-  }
-  browser.on('disconnected', () => {
-    browser = null;
-    pagePool.length = 0;
-  });
-  return browser;
-};
+  doc.moveDown(0.5);
+  kvLine(doc, 'Bill amount', amountInWords(booking.total_amount), { labelWidth: 90 });
+  kvLine(doc, 'Note', booking.notes || '—', { labelWidth: 90 });
 
-const takePage = async () => {
-  const pooled = pagePool.pop();
-  if (pooled && !pooled.isClosed()) return pooled;
-  const chrome = await getBrowser();
-  return chrome.newPage();
-};
-
-const releasePage = (page) => {
-  if (!page || page.isClosed()) return;
-  if (pagePool.length >= MAX_POOLED_PAGES) {
-    page.close().catch(() => {});
-    return;
-  }
-  pagePool.push(page);
-};
-
-const closePdfBrowser = async () => {
-  if (!browser) return;
-  await browser.close();
-  browser = null;
+  doc.moveDown(1);
+  ensureSpace(doc, 70);
+  doc.font('Helvetica').fontSize(9).text('Terms & conditions');
+  doc.text('1. This is a computer-generated invoice.');
+  doc.text('2. E. & O.E. Subject to local jurisdiction only.');
+  doc.moveDown(1.2);
+  doc.text(`For, ${hotel?.name || 'Hotel'}`, { align: 'right' });
+  doc.moveDown(1.5);
+  doc.text('Authorised Signatory', { align: 'right' });
+  doc.moveDown(1);
+  doc.fontSize(8).fillColor('#555')
+    .text(`© ${new Date().getFullYear()} ${hotel?.name || 'Hotel'}. Powered by MYOWNPMS.`, { align: 'center' });
 };
 
 /**
- * Render HTML to a PDF file under uploads/pdfs.
- * @param {string} html
- * @param {string} fileName
- * @param {string} errorLabel
- * @param {Object} [options]
- * @param {boolean} [options.printBackground=true] - Leave false for a black-and-white report with no filled areas.
- * @returns {Promise<string>} Absolute file path
+ * @param {PDFKit.PDFDocument} doc
+ * @param {Object} booking
+ * @param {Object} hotel
+ * @param {Array<Object>} payments
+ * @param {Array<Buffer>} imageBuffers
+ * @param {Array<Buffer>} signatureBuffers
  */
-const renderPdfFile = async (html, fileName, errorLabel, { printBackground = true } = {}) => {
-  fs.mkdirSync(PDF_DIR, { recursive: true });
-  const filePath = path.join(PDF_DIR, fileName);
-  let page;
-  let reuse = true;
-  try {
-    page = await takePage();
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await page.emulateMediaType('print');
-    // System fonts are already available. The bill measures itself once fonts have settled.
-    const scale = await page.evaluate(async () => {
-      if (document.fonts && document.fonts.ready) await document.fonts.ready;
-      if (typeof window.fitToPage === 'function') window.fitToPage();
-      return typeof window.pdfScale === 'number' ? window.pdfScale : 1;
-    });
-    await page.pdf({
-      path: filePath,
-      format: 'A4',
-      printBackground,
-      preferCSSPageSize: true,
-      scale,
-      margin: { top: 0, bottom: 0, left: 0, right: 0 },
-    });
-  } catch (err) {
-    reuse = false;
-    if (err instanceof AppError) throw err;
-    if (/Failed to launch the browser|libnspr4|shared libraries/i.test(String(err.message || ''))) {
-      throw toPdfLaunchError(err);
+const drawFolioDocument = (doc, booking, hotel, payments, imageBuffers, signatureBuffers) => {
+  const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
+  const address = joinParts([hotel?.address, hotel?.city, hotel?.state, hotel?.pincode, hotel?.country]);
+
+  doc.font('Helvetica-Bold').fontSize(16).text(String(hotel?.name || 'Hotel'));
+  doc.font('Helvetica').fontSize(9).fillColor('#444').text(hotel?.hotel_type || 'Hotel');
+  doc.fillColor('#000').text(address || '—');
+  const meta = [
+    hotel?.gst_number ? `GSTIN ${hotel.gst_number}` : '',
+    hotel?.pan_number ? `PAN ${hotel.pan_number}` : '',
+    hotel?.owner?.phone ? `Phone ${hotel.owner.phone}` : '',
+  ].filter(Boolean).join('   ');
+  if (meta) doc.text(meta);
+  doc.moveDown(0.4);
+  doc.font('Helvetica-Bold').fontSize(12).text(`Booking folio  ${booking.booking_number || booking.id}`);
+  doc.font('Helvetica').fontSize(9).text(`Printed ${formatDateTime(new Date())}`);
+
+  sectionTitle(doc, 'Guest');
+  kvLine(doc, 'Primary guest', booking.primary_guest_name);
+  kvLine(doc, 'Secondary guest', booking.secondary_guest_name || '—');
+  kvLine(doc, 'Mobile', booking.mobile_number);
+  kvLine(doc, 'Email', booking.email || '—');
+  kvLine(doc, 'Address', booking.address || '—');
+  kvLine(doc, 'Status', humanize(booking.booking_status));
+
+  sectionTitle(doc, 'Stay');
+  kvLine(doc, 'Check-in', formatDateTime(booking.check_in_date));
+  kvLine(doc, 'Check-out', formatDateTime(booking.check_out_date));
+  kvLine(doc, 'Actual check-in', formatDateTime(booking.actual_check_in));
+  kvLine(doc, 'Actual check-out', formatDateTime(booking.actual_check_out));
+  kvLine(doc, 'Nights', booking.number_of_nights);
+  kvLine(doc, 'Adults / children', `${booking.adults ?? 0} / ${booking.children ?? 0}`);
+
+  sectionTitle(doc, 'Rooms');
+  if (!rooms.length) {
+    doc.text('No room recorded.');
+  } else {
+    drawTable(doc, [
+      { label: 'Room', width: 1.2 },
+      { label: 'Floor', width: 1 },
+      { label: 'Category', width: 2.5 },
+    ], rooms.map((room) => ({
+      cells: [room.room_number || room.id, room.floor ?? '—', room.room_type_name || '—'],
+    })));
+  }
+
+  sectionTitle(doc, 'Charges');
+  [
+    ['Base amount', money(booking.base_amount)],
+    ['Discount', money(booking.discount_amount)],
+    ['Extra charges', money(booking.extra_charges_total)],
+    ['Late checkout', money(booking.late_checkout_charge)],
+    ['Taxable amount', money(booking.taxable_amount)],
+    [`GST (${booking.gst_rate || 0}%)`, money(booking.gst_amount || booking.tax_amount)],
+    ['CGST', money(booking.cgst_amount)],
+    ['SGST', money(booking.sgst_amount)],
+    ['Total', money(booking.total_amount)],
+    ['Paid', money(booking.paid_amount)],
+    ['Due', money(booking.due_amount)],
+    ['Payment status', humanize(booking.payment_status)],
+  ].forEach(([label, value]) => kvLine(doc, label, value));
+
+  sectionTitle(doc, 'Payment history');
+  if (!payments.length) {
+    doc.text('No payments recorded.');
+  } else {
+    drawTable(doc, [
+      { label: 'When', width: 2.2 },
+      { label: 'Method', width: 1.2 },
+      { label: 'Status', width: 1.2 },
+      { label: 'By', width: 1.4 },
+      { label: 'Amount', width: 1.2, align: 'right' },
+    ], [...payments].reverse().map((payment) => {
+      const amount = Number(payment.amount || 0);
+      const source = SOURCE_LABELS[payment.source] || '';
+      return {
+        cells: [
+          `${formatDateTime(payment.received_at)}${source ? ` (${source})` : ''}`,
+          METHOD_LABELS[payment.payment_method] || humanize(payment.payment_method),
+          humanize(payment.status),
+          payment.received_by?.name || '—',
+          amount < 0 ? `−${money(Math.abs(amount))}` : money(amount),
+        ],
+      };
+    }));
+  }
+
+  const bankRows = getBankDetailRows(hotel);
+  if (bankRows.length) {
+    sectionTitle(doc, 'Bank details');
+    bankRows.forEach(([label, value]) => kvLine(doc, label, value));
+  }
+
+  const drawImageGrid = (title, buffers, emptyText) => {
+    sectionTitle(doc, title);
+    if (!buffers.length) {
+      doc.text(emptyText);
+      return;
     }
-    throw new AppError(
-      `Failed to generate the ${errorLabel}: ${err.message}`,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR
-    );
-  } finally {
-    if (!page) {
-      // Launch failed before a page was created.
-    } else if (reuse) {
-      releasePage(page);
-    } else {
-      page.close().catch(() => {});
-    }
-  }
-  return filePath;
+    const box = 150;
+    const gap = 12;
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    let x = left;
+    let y = doc.y;
+    buffers.forEach((buffer, index) => {
+      if (x + box > right) {
+        x = left;
+        y += box + 24;
+      }
+      if (y + box + 20 > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+        x = left;
+        y = doc.page.margins.top;
+      }
+      try {
+        doc.image(buffer, x, y, { fit: [box, box], align: 'center', valign: 'center' });
+      } catch (_) {
+        doc.rect(x, y, box, box).stroke('#999');
+        doc.fontSize(8).text('Image unavailable', x + 8, y + box / 2);
+      }
+      doc.fontSize(8).text(`${title.replace(/s$/, '')} ${index + 1}`, x, y + box + 4, { width: box, align: 'center' });
+      x += box + gap;
+      doc.y = Math.max(doc.y, y + box + 22);
+    });
+    doc.x = left;
+    doc.moveDown(0.4);
+  };
+
+  drawImageGrid('ID proofs', imageBuffers, 'No ID proof uploaded.');
+  drawImageGrid('Signatures', signatureBuffers, 'No signature uploaded.');
+
+  doc.moveDown(0.5);
+  kvLine(doc, 'Notes', booking.notes || '—');
+  kvLine(doc, 'Prepared by', booking.creator?.name || 'Front desk');
+  doc.moveDown(1);
+  doc.fontSize(8).fillColor('#555')
+    .text(`© ${new Date().getFullYear()} ${hotel?.name || 'Hotel'}. Powered by MYOWNPMS.`, { align: 'center' });
 };
 
 /**
- * Booking, the hotel fields printed on a document, and its payments.
- * The bill does not show ID photos, so it skips that read.
- * @param {number|string} bookingId
- * @param {Object} reqUser
- * @param {boolean} includeMedia
- * @returns {Promise<{ booking: Object, hotel: Object|null, payments: Array<Object> }>}
+ * @param {Object} report
+ * @param {string} filePath
+ * @returns {Promise<string>}
  */
+const writeGstReportPdf = async (report, filePath) => {
+  const { filters, hotel, rows, grand_totals: totals } = report;
+  const period = `${filters.start_date} to ${filters.end_date}`;
+  return writePdfDocument(filePath, { size: 'A4', layout: 'landscape', margin: 28 }, (doc) => {
+    doc.font('Helvetica-Bold').fontSize(14).text(String(hotel.name || 'Hotel'));
+    doc.font('Helvetica').fontSize(8)
+      .text([hotel.address, hotel.city, hotel.state, hotel.pincode].filter(Boolean).join(', ') || '—');
+    const taxLine = [
+      hotel.gstin ? `GSTIN: ${hotel.gstin}` : '',
+      hotel.pan ? `PAN: ${hotel.pan}` : '',
+    ].filter(Boolean).join('  |  ');
+    if (taxLine) doc.text(taxLine);
+    doc.moveDown(0.3);
+    doc.font('Helvetica-Bold').fontSize(11).text('GST Report');
+    doc.font('Helvetica').fontSize(8).text(`Period: ${period}`);
+    doc.moveDown(0.4);
+
+    const columns = [
+      { label: 'Invoice date', width: 1.2 },
+      { label: 'Invoice no.', width: 1.6 },
+      { label: 'Guest', width: 1.4 },
+      { label: 'Service', width: 1.2 },
+      { label: 'Gross', width: 1, align: 'right' },
+      { label: 'Discount', width: 1, align: 'right' },
+      { label: 'Taxable', width: 1, align: 'right' },
+      { label: 'GST%', width: 0.7, align: 'right' },
+      { label: 'CGST', width: 0.9, align: 'right' },
+      { label: 'SGST', width: 0.9, align: 'right' },
+      { label: 'IGST', width: 0.8, align: 'right' },
+      { label: 'Total GST', width: 1, align: 'right' },
+      { label: 'Invoice total', width: 1.1, align: 'right' },
+      { label: 'Status', width: 0.9 },
+      { label: 'Refunded', width: 0.9, align: 'right' },
+      { label: 'Net taxable', width: 1, align: 'right' },
+    ];
+
+    const bodyRows = rows.map((row) => ({
+      cells: [
+        row.invoice_date,
+        row.invoice_number,
+        row.guest_name,
+        (GST_SERVICE_TYPES[row.service_type]?.label || row.service_type || '—'),
+        money(row.gross_amount),
+        money(row.discount_amount),
+        money(row.taxable_amount),
+        money(row.gst_rate),
+        money(row.cgst_amount),
+        money(row.sgst_amount),
+        money(row.igst_amount),
+        money(row.gst_total),
+        money(row.invoice_total),
+        row.invoice_status,
+        money(row.refunded_amount),
+        money(row.net_taxable_value),
+      ],
+    }));
+
+    bodyRows.push({
+      bold: true,
+      cells: [
+        'Total', '', '', '',
+        money(totals.gross_amount),
+        money(totals.discount_amount),
+        money(totals.total_taxable_value),
+        '',
+        money(totals.total_cgst),
+        money(totals.total_sgst),
+        money(totals.total_igst),
+        money(totals.total_gst),
+        money(totals.total_stored_invoice),
+        '',
+        money(totals.refunded_amount),
+        money(totals.net_taxable_value),
+      ],
+    });
+
+    drawTable(doc, columns, bodyRows, { fontSize: 7, rowHeight: 14 });
+    doc.fontSize(8).fillColor('#555')
+      .text(`© ${new Date().getFullYear()} ${hotel.name || 'Hotel'}. Powered by MYOWNPMS.`, { align: 'center' });
+  });
+};
+
 const loadDocumentSources = async (bookingId, reqUser, includeMedia) => {
   const booking = await bookingService.getBookingById(bookingId, reqUser, { includeMedia });
   const [hotel, payments] = await Promise.all([
@@ -800,9 +697,29 @@ const safeBookingFileToken = (booking) =>
  */
 const generateBookingPdf = async (bookingId, reqUser, baseUrl) => {
   const { booking, hotel, payments } = await loadDocumentSources(bookingId, reqUser, true);
-  const html = await buildHtml(booking, hotel, payments);
   const fileName = `booking_${safeBookingFileToken(booking)}_${Date.now()}.pdf`;
-  await renderPdfFile(html, fileName, 'booking PDF');
+  const filePath = path.join(PDF_DIR, fileName);
+  try {
+    const [imageBuffers, signatureBuffers] = await Promise.all([
+      Promise.all((booking.images || []).map(loadImageBuffer)),
+      Promise.all((booking.signatures || []).map(loadImageBuffer)),
+    ]);
+    await writePdfDocument(filePath, { margin: 40 }, (doc) => {
+      drawFolioDocument(
+        doc,
+        booking,
+        hotel,
+        payments,
+        imageBuffers.filter(Boolean),
+        signatureBuffers.filter(Boolean)
+      );
+    });
+  } catch (err) {
+    throw new AppError(
+      `Failed to generate the booking PDF: ${err.message}`,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
   return {
     url: `${baseUrl}/uploads/pdfs/${fileName}`,
     file_name: fileName,
@@ -810,7 +727,7 @@ const generateBookingPdf = async (bookingId, reqUser, baseUrl) => {
 };
 
 /**
- * Guest tax-invoice bill slip for a booking (professional bill only).
+ * Guest tax-invoice bill slip for a booking.
  * @param {number|string} bookingId
  * @param {Object} reqUser
  * @param {string} baseUrl
@@ -818,13 +735,41 @@ const generateBookingPdf = async (bookingId, reqUser, baseUrl) => {
  */
 const generateBookingBillPdf = async (bookingId, reqUser, baseUrl) => {
   const { booking, hotel, payments } = await loadDocumentSources(bookingId, reqUser, false);
-  const html = await buildBillHtml(booking, hotel, payments);
   const fileName = `bill_${safeBookingFileToken(booking)}_${Date.now()}.pdf`;
-  await renderPdfFile(html, fileName, 'booking bill');
+  const filePath = path.join(PDF_DIR, fileName);
+  try {
+    const roomRows = await buildRoomBillRows(booking, Array.isArray(booking.rooms) ? booking.rooms : []);
+    await writePdfDocument(filePath, { margin: 36 }, (doc) => {
+      drawBillDocument(doc, booking, hotel, payments, roomRows);
+    });
+  } catch (err) {
+    throw new AppError(
+      `Failed to generate the booking bill: ${err.message}`,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
   return {
     url: `${baseUrl}/uploads/pdfs/${fileName}`,
     file_name: fileName,
   };
+};
+
+/**
+ * @param {Object} report
+ * @param {string} fileName
+ * @returns {Promise<string>} Absolute path
+ */
+const renderGstReportPdf = async (report, fileName) => {
+  const filePath = path.join(PDF_DIR, fileName);
+  try {
+    await writeGstReportPdf(report, filePath);
+  } catch (err) {
+    throw new AppError(
+      `Failed to generate the GST report: ${err.message}`,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
+  return filePath;
 };
 
 /**
@@ -840,12 +785,14 @@ const clearGeneratedPdfs = () => {
   return files.length;
 };
 
+const closePdfBrowser = async () => {};
+
 module.exports = {
   generateBookingPdf,
   generateBookingBillPdf,
   clearGeneratedPdfs,
   closePdfBrowser,
-  renderPdfFile,
+  renderGstReportPdf,
   fillTemplate,
   getFontFaceCss,
   escapeHtml,
