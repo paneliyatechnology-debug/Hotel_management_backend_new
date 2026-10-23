@@ -32,5 +32,8 @@
     "puppeteer": "^24.43.1",
     "puppeteer-core": "^24.43.1",
     "socket.io": "^4.8.4"
+  },
+  "allowScripts": {
+    "puppeteer@24.43.1": true
   }
 }
