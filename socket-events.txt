@@ -23,12 +23,14 @@ Sent for one room.
   "room_number": "101",
   "floor": 1,
   "status": "OCCUPIED",
+  "current_booking_id": 182,
   "is_active": true,
   "deleted_at": null,
   "updated_at": "2026-10-21T08:15:00.000Z"
 }
 
 status is one of: AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, BLOCKED.
+current_booking_id is the open stay holding this room (CHECKED_IN preferred over CONFIRMED), or null when none.
 After a delete, deleted_at is set and is_active is false.
 
 Triggered by:

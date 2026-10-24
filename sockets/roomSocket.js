@@ -200,12 +200,19 @@ const publishRoomCategoryCounts = async (hotelId) => {
 const publishRoomStatus = (room, { includeBreakdown = true } = {}) => {
   if (!io || !room || !room.hotel_id || !room.id) return;
 
+  const currentBookingId = room.current_booking_id !== null && room.current_booking_id !== undefined
+    ? Number(room.current_booking_id)
+    : null;
+
   io.to(hotelChannel(room.hotel_id)).emit(ROOM_STATUS_EVENT, {
     id: room.id,
     hotel_id: room.hotel_id,
     room_number: room.room_number,
     floor: room.floor,
     status: room.status,
+    current_booking_id: Number.isInteger(currentBookingId) && currentBookingId > 0
+      ? currentBookingId
+      : null,
     is_active: Boolean(room.is_active),
     deleted_at: room.deleted_at || null,
     updated_at: room.updated_at,

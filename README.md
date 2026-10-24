@@ -465,7 +465,7 @@ const socket = io('http://127.0.0.1:5001', {
 });
 
 socket.on('room:status', (room) => {
-  // { id, hotel_id, room_number, floor, status, is_active, deleted_at, updated_at }
+  // { id, hotel_id, room_number, floor, status, current_booking_id, is_active, deleted_at, updated_at }
 });
 
 socket.on('room:status_breakdown', (payload) => {

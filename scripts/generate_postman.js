@@ -1059,7 +1059,7 @@ io(baseUrl, { auth: { token: accessToken }, withCredentials: true })
 
 Any logged-in hotel role can connect: hotel admin, receptionist, manager, housekeeping, and accountant. Each user is joined only to their own hotel. A super admin has no hotel on the token, so also send \`auth.hotel_id\`. A disabled or inactive account is rejected.
 
-Listen for \`room:status\`. The payload is \`id\`, \`hotel_id\`, \`room_number\`, \`floor\`, \`status\`, \`is_active\`, \`deleted_at\`, \`updated_at\`. It is sent when a room is created, when its status or active flag changes, and when a booking moves the room (occupied, reserved, cleaning, available).
+Listen for \`room:status\`. The payload is \`id\`, \`hotel_id\`, \`room_number\`, \`floor\`, \`status\`, \`current_booking_id\`, \`is_active\`, \`deleted_at\`, \`updated_at\`. \`current_booking_id\` is the open stay on that room (or null). It is sent when a room is created, when its status or active flag changes, and when a booking moves the room (occupied, reserved, cleaning, available).
 
 Every \`room:status\` is followed by \`room:status_breakdown\` and \`room:category_counts\` for the same hotel.
 
@@ -1219,6 +1219,7 @@ Another hotel's room returns 403.
 | \`room_type_name\` | string or null | Category name. |
 | \`floor\` | number | Floor. |
 | \`status\` | string | One of the six room statuses. Create sets this to AVAILABLE. Update does not change it. |
+| \`current_booking_id\` | number or null | Open booking holding this room (\`CHECKED_IN\` preferred over \`CONFIRMED\`). Null when the room has no open stay. Same key on list rooms and on \`room:status\` socket events. |
 | \`beds\` | object array | Each item is \`id\`, \`bed_type\`, and \`bed_count\`. Empty when the room has no beds. |
 | \`custom_price_per_night\` | number or null | Custom nightly rate. |
 | \`notes\` | string | Internal note. |

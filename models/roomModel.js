@@ -5,6 +5,7 @@ const db = require('../database/knex');
 const { publishRoomStatus, publishRoomStatusBreakdown, publishRoomCategoryCounts } = require('../sockets/roomSocket');
 const { getAccessibleUrl, deleteFile } = require('../services/uploadService');
 const { parseJson } = require('../utils/json');
+const { findCurrentBookingIdsByRoomIds } = require('./bookingModel');
 
 /**
  * Format raw database row to structured Room object.
@@ -16,6 +17,10 @@ const { parseJson } = require('../utils/json');
 const formatRoom = (row, images = [], beds = []) => {
   if (!row) return null;
 
+  const currentBookingId = row.current_booking_id !== null && row.current_booking_id !== undefined
+    ? Number(row.current_booking_id)
+    : null;
+
   return {
     id: row.id,
     hotel_id: row.hotel_id,
@@ -25,6 +30,10 @@ const formatRoom = (row, images = [], beds = []) => {
     room_type_name: row.room_type_name || null,
     floor: Number(row.floor),
     status: row.status || 'AVAILABLE',
+    // Open stay holding this room (CHECKED_IN preferred); null when free / no open booking.
+    current_booking_id: Number.isInteger(currentBookingId) && currentBookingId > 0
+      ? currentBookingId
+      : null,
     beds: Array.isArray(beds) ? beds : [],
     custom_price_per_night:
       row.custom_price_per_night !== null && row.custom_price_per_night !== undefined
@@ -260,11 +269,16 @@ const findRoomById = async (id, { includeDeleted = false } = {}, client = db) =>
   const row = await query.first();
   if (!row) return null;
 
-  const [images, bedsMap] = await Promise.all([
+  const [images, bedsMap, bookingIds] = await Promise.all([
     getImagesByRoomId(row.id, client),
     getBedsByRoomIds([row.id], client),
+    findCurrentBookingIdsByRoomIds([row.id], client),
   ]);
-  return formatRoom(row, images, bedsMap[row.id] || []);
+  return formatRoom(
+    { ...row, current_booking_id: bookingIds[row.id] ?? null },
+    images,
+    bedsMap[row.id] || []
+  );
 };
 
 /**
@@ -358,14 +372,19 @@ const findRooms = async (filters = {}, pagination = {}, sorting = {}, client = d
   ]);
   const total = Number(countRes?.count || 0);
   const roomIds = rows.map((row) => row.id);
-  const [imagesMap, bedsMap] = roomIds.length
+  const [imagesMap, bedsMap, bookingIds] = roomIds.length
     ? await Promise.all([
       getImagesByRoomIds(roomIds, client),
       getBedsByRoomIds(roomIds, client),
+      findCurrentBookingIdsByRoomIds(roomIds, client),
     ])
-    : [{}, {}];
+    : [{}, {}, {}];
 
-  const rooms = rows.map((row) => formatRoom(row, imagesMap[row.id] || [], bedsMap[row.id] || []));
+  const rooms = rows.map((row) => formatRoom(
+    { ...row, current_booking_id: bookingIds[row.id] ?? null },
+    imagesMap[row.id] || [],
+    bedsMap[row.id] || []
+  ));
   const totalPages = Math.ceil(total / limit) || (total === 0 ? 0 : 1);
 
   return {
@@ -552,9 +571,12 @@ const setRoomsState = async (ids, updates) => {
 
   await db('rooms').whereIn('id', roomIds).update(fields);
 
-  const rows = await db('rooms')
-    .whereIn('id', roomIds)
-    .select('id', 'hotel_id', 'room_number', 'floor', 'status', 'is_active', 'deleted_at', 'updated_at');
+  const [rows, bookingIds] = await Promise.all([
+    db('rooms')
+      .whereIn('id', roomIds)
+      .select('id', 'hotel_id', 'room_number', 'floor', 'status', 'is_active', 'deleted_at', 'updated_at'),
+    findCurrentBookingIdsByRoomIds(roomIds),
+  ]);
   const byId = new Map(rows.map((row) => [Number(row.id), row]));
   const hotelIds = new Set();
   const published = [];
@@ -568,6 +590,7 @@ const setRoomsState = async (ids, updates) => {
       room_number: room.room_number,
       floor: Number(room.floor),
       status: room.status,
+      current_booking_id: bookingIds[id] ?? null,
       is_active: Boolean(room.is_active),
       deleted_at: room.deleted_at || null,
       updated_at: room.updated_at,

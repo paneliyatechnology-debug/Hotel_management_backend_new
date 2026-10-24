@@ -404,6 +404,70 @@ const OVERLAP_COLUMNS = [
 ];
 
 /**
+ * Open stay currently holding each room (via primary room_id or booking_rooms).
+ * Prefers CHECKED_IN over CONFIRMED over other open statuses; ties use the latest booking id.
+ * Soft-deleted, checked-out, cancelled, and no-show stays are ignored.
+ * @param {Array<number|string>} roomIds
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Record<number, number|null>>} roomId → bookingId (or null)
+ */
+const findCurrentBookingIdsByRoomIds = async (roomIds, client = db) => {
+  const ids = [...new Set((roomIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  const result = {};
+  ids.forEach((id) => {
+    result[id] = null;
+  });
+  if (!ids.length) return result;
+
+  const whereOpenStay = (query) => query
+    .whereNull('bookings.deleted_at')
+    .whereNull('bookings.actual_check_out')
+    .whereNotIn('bookings.booking_status', NON_BLOCKING_BOOKING_STATUSES);
+
+  const primary = whereOpenStay(client('bookings'))
+    .whereIn('bookings.room_id', ids)
+    .select(
+      'bookings.id as booking_id',
+      'bookings.booking_status',
+      client.raw('bookings.room_id as room_id')
+    );
+
+  const linked = whereOpenStay(
+    client('bookings').innerJoin('booking_rooms', 'booking_rooms.booking_id', 'bookings.id')
+  )
+    .whereIn('booking_rooms.room_id', ids)
+    .select(
+      'bookings.id as booking_id',
+      'bookings.booking_status',
+      'booking_rooms.room_id as room_id'
+    );
+
+  const rows = await primary.union(linked);
+  const statusRank = (status) => {
+    if (status === 'CHECKED_IN') return 0;
+    if (status === 'CONFIRMED') return 1;
+    return 2;
+  };
+
+  const bestByRoom = new Map();
+  rows.forEach((row) => {
+    const roomId = Number(row.room_id);
+    const bookingId = Number(row.booking_id);
+    if (!roomId || !bookingId) return;
+    const rank = statusRank(row.booking_status);
+    const prev = bestByRoom.get(roomId);
+    if (!prev || rank < prev.rank || (rank === prev.rank && bookingId > prev.booking_id)) {
+      bestByRoom.set(roomId, { booking_id: bookingId, rank });
+    }
+  });
+
+  bestByRoom.forEach((value, roomId) => {
+    result[roomId] = value.booking_id;
+  });
+  return result;
+};
+
+/**
  * One row per blocking stay and room. conflict_room_id is the room that overlaps.
  * Primary-room stays and booking_rooms stays are read together, once for the whole list.
  * @param {Array<number|string>} roomIds
@@ -968,6 +1032,7 @@ module.exports = {
   generateBookingNumber,
   checkRoomOverlaps,
   checkRoomsOverlaps,
+  findCurrentBookingIdsByRoomIds,
   findBookingById,
   findBookingForWrite,
   findBookings,

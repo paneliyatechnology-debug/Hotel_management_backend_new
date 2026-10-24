@@ -14,6 +14,11 @@
       --line-dark: #000000;
       --bw: 0.5px;
       --panel: #ffffff;
+      --row-pad-y: 7px;
+      --row-pad-x: 10px;
+      --head-pad-y: 7px;
+      --section-pad-y: 10px;
+      --mast-pad-y: 14px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,18 +30,25 @@
     body {
       font-family: "Segoe UI", Arial, "Helvetica Neue", sans-serif;
       font-size: 9px;
-      line-height: 1.5;
+      line-height: 1.45;
       color: var(--text);
       font-variant-numeric: tabular-nums;
       -webkit-font-smoothing: antialiased;
     }
 
+    /* Outer frame always fills the printable A4 area. */
     .sheet {
       border: var(--bw) solid #000;
       height: 275mm;
       overflow: hidden;
+      position: relative;
+    }
+    .sheet-inner {
+      width: 100%;
+      height: 100%;
       display: flex;
       flex-direction: column;
+      transform-origin: top left;
     }
     /* Keep header, guest block, totals, and footer at their natural size.
        Only the room table grows or gives way when rooms are many. */
@@ -48,12 +60,25 @@
     .footer {
       flex-shrink: 0;
     }
+    /* Many rooms: table uses natural height; leftover page space is filled by blank rules when possible. */
+    .sheet.is-compact .items-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .sheet.is-compact table.items {
+      height: auto;
+      flex: 0 0 auto;
+    }
+    .sheet.is-compact table.items tbody {
+      height: auto;
+    }
 
     /* Hotel name + address */
     .masthead {
       border-bottom: var(--bw) solid #000;
       text-align: center;
-      padding: 16px 24px 13px;
+      padding: var(--mast-pad-y) 22px calc(var(--mast-pad-y) - 2px);
     }
     .hotel-name {
       font-size: 17px;
@@ -63,7 +88,7 @@
       color: var(--ink);
       line-height: 1.25;
     }
-    .hotel-address { margin-top: 6px; font-size: 9px; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text); }
+    .hotel-address { margin-top: 5px; font-size: 9px; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text); }
     .hotel-contact { margin-top: 2px; font-size: 9px; color: var(--muted); }
     .hotel-tax { margin-top: 3px; font-size: 9px; font-weight: 500; color: var(--ink); letter-spacing: 0.3px; }
     .hotel-tax:empty { display: none; }
@@ -77,7 +102,7 @@
       letter-spacing: 2.5px;
       text-transform: uppercase;
       color: var(--ink);
-      padding: 8px 10px;
+      padding: 7px 10px;
       border-bottom: var(--bw) solid #000;
     }
 
@@ -87,18 +112,18 @@
       grid-template-columns: 1.7fr 1fr;
       border-bottom: var(--bw) solid #000;
     }
-    .party-left { padding: 12px 16px 12px; border-right: var(--bw) solid #000; }
-    .party-label { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
-    .guest-name { font-size: 11.5px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
-    .guest-address { font-size: 9px; margin-bottom: 6px; }
+    .party-left { padding: var(--section-pad-y) 16px; border-right: var(--bw) solid #000; }
+    .party-label { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+    .guest-name { font-size: 11.5px; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
+    .guest-address { font-size: 9px; margin-bottom: 7px; line-height: 1.4; }
     table.kv { border-collapse: collapse; }
-    table.kv td { padding: 1.5px 0; font-size: 9px; vertical-align: top; }
+    table.kv td { padding: 2px 0; font-size: 9px; vertical-align: top; }
     table.kv .k { width: 54px; font-weight: 500; color: var(--muted); }
     table.kv .s { width: 12px; color: var(--muted); }
     table.kv .v { color: var(--ink); }
 
     .party-right table { width: 100%; border-collapse: collapse; }
-    .party-right td { padding: 6px 12px; font-size: 9px; vertical-align: top; border-bottom: var(--bw) solid #000; }
+    .party-right td { padding: 7px 12px; font-size: 9px; vertical-align: middle; border-bottom: var(--bw) solid #000; }
     .party-right tr:last-child td { border-bottom: none; }
     .party-right .lbl { width: 40%; font-weight: 500; color: var(--muted); border-right: var(--bw) solid #000; }
     .party-right .val { font-weight: 500; color: var(--ink); }
@@ -109,6 +134,7 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
+      overflow: hidden;
     }
     table.items {
       width: 100%;
@@ -124,17 +150,17 @@
       letter-spacing: 0.6px;
       text-transform: uppercase;
       color: var(--ink);
-      padding: 7px 8px;
+      padding: var(--head-pad-y) 8px;
       border-bottom: var(--bw) solid #000;
       border-right: var(--bw) solid #000;
       text-align: center;
     }
     table.items th:last-child { border-right: none; }
     table.items td {
-      padding: 8px 10px;
+      padding: var(--row-pad-y) var(--row-pad-x);
       font-size: 9px;
       border-right: var(--bw) solid #000;
-      vertical-align: top;
+      vertical-align: middle;
       color: var(--ink);
     }
     table.items td:last-child { border-right: none; }
@@ -142,35 +168,39 @@
     /* Empty bottom of the room table: column lines + horizontal bill rules. */
     table.items tr.fill td {
       height: 100%;
-      min-height: 48px;
+      min-height: 36px;
       padding: 0;
-      border-bottom: none;
+      /* Single edge above payment/totals (summary has no border-top). */
+      border-bottom: var(--bw) solid #000;
       border-right: var(--bw) solid #000;
       vertical-align: top;
       background-image: repeating-linear-gradient(
         to bottom,
         transparent 0,
-        transparent 21px,
-        #000 21px,
-        #000 calc(21px + var(--bw))
+        transparent 20px,
+        #000 20px,
+        #000 calc(20px + var(--bw))
       );
-      background-size: 100% calc(21px + var(--bw));
+      background-size: 100% calc(20px + var(--bw));
       background-repeat: repeat-y;
+      /* Keep the last gradient rule from stacking on border-bottom. */
+      background-clip: content-box;
     }
     table.items tr.fill td:last-child { border-right: none; }
     table.items tr.fill[hidden] { display: none; }
+    /* When fill is hidden, last room row bottom border is the only divider before summary. */
     table.items .c { text-align: center; }
     table.items .r { text-align: right; }
     table.items .l { text-align: left; }
 
-    /* Summary */
+    /* Summary — no border-top so it does not double the last room-table line. */
     .summary {
       display: grid;
       grid-template-columns: 1.55fr 1fr;
-      border-top: var(--bw) solid #000;
+      border-top: none;
     }
     .summary-left { border-right: var(--bw) solid #000; display: flex; flex-direction: column; }
-    .block { padding: 10px 16px; }
+    .block { padding: var(--section-pad-y) 16px; }
     .block-title {
       font-size: 8px;
       font-weight: 700;
@@ -189,9 +219,9 @@
     table.paid tr.total td { border-top: var(--bw) solid #000; font-weight: 700; padding-top: 4px; }
     table.paid tr.due td { font-weight: 700; }
     table.paid .none { color: var(--muted); }
-    .words-row { padding: 9px 16px; border-top: var(--bw) solid #000; font-size: 9px; color: var(--ink); }
+    .words-row { padding: var(--section-pad-y) 16px; border-top: var(--bw) solid #000; font-size: 9px; color: var(--ink); }
     .words-row b { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
-    .note-row { padding: 9px 16px; border-top: var(--bw) solid #000; font-size: 9px; min-height: 34px; margin-top: auto; color: var(--ink); }
+    .note-row { padding: var(--section-pad-y) 16px; border-top: var(--bw) solid #000; font-size: 9px; min-height: 34px; margin-top: auto; color: var(--ink); }
     .note-row b { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
 
     table.totals { width: 100%; border-collapse: collapse; }
@@ -216,16 +246,16 @@
       grid-template-columns: 1.55fr 1fr;
       border-top: var(--bw) solid #000;
     }
-    .terms { padding: 9px 16px 10px; border-right: var(--bw) solid #000; font-size: 8px; line-height: 1.65; color: var(--muted); }
+    .terms { padding: var(--section-pad-y) 16px; border-right: var(--bw) solid #000; font-size: 8px; line-height: 1.65; color: var(--muted); }
     .terms .title { font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 3px; color: var(--text); }
     .terms ol { margin-left: 13px; }
     .sign {
-      padding: 9px 16px 8px;
+      padding: var(--section-pad-y) 16px;
       text-align: right;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      min-height: 88px;
+      min-height: 80px;
     }
     .sign .for { font-size: 9px; font-weight: 500; color: var(--ink); }
     .sign .cap { font-size: 8px; color: var(--muted); border-top: var(--bw) solid #000; padding-top: 4px; margin-top: 4px; }
@@ -242,114 +272,127 @@
 </head>
 <body>
   <div class="sheet">
-    <div class="masthead">
-      <div class="hotel-name">{{HOTEL_NAME}}</div>
-      <div class="hotel-address">{{HOTEL_ADDRESS}}</div>
-      <div class="hotel-contact">{{HOTEL_CONTACT}}</div>
-      <div class="hotel-tax">{{HOTEL_TAX_LINE}}</div>
-    </div>
-
-    <div class="doc-title">Bill Invoice</div>
-
-    <div class="party">
-      <div class="party-left">
-        <div class="party-label">Billed to</div>
-        <div class="guest-name">{{GUEST_NAME}}</div>
-        <div class="guest-address">{{GUEST_ADDRESS}}</div>
-        <table class="kv">
-          <tr><td class="k">Mobile</td><td class="s">:</td><td class="v">{{GUEST_MOBILE}}</td></tr>
-          <tr><td class="k">Email</td><td class="s">:</td><td class="v">{{GUEST_EMAIL}}</td></tr>
-          <tr><td class="k">Guests</td><td class="s">:</td><td class="v">{{ADULTS}} adult(s), {{CHILDREN}} child(ren)</td></tr>
-        </table>
+    <div class="sheet-inner">
+      <div class="masthead">
+        <div class="hotel-name">{{HOTEL_NAME}}</div>
+        <div class="hotel-address">{{HOTEL_ADDRESS}}</div>
+        <div class="hotel-contact">{{HOTEL_CONTACT}}</div>
+        <div class="hotel-tax">{{HOTEL_TAX_LINE}}</div>
       </div>
-      <div class="party-right">
-        <table>
-          <tr><td class="lbl">Invoice No.</td><td class="val">{{INVOICE_NO}}</td></tr>
-          <tr><td class="lbl">Date</td><td class="val">{{INVOICE_DATE}}</td></tr>
-          <tr><td class="lbl">Check-in</td><td class="val">{{CHECK_IN}}</td></tr>
-          <tr><td class="lbl">Check-out</td><td class="val">{{CHECK_OUT}}</td></tr>
-          <tr><td class="lbl">Nights</td><td class="val">{{NIGHTS}}</td></tr>
-        </table>
-      </div>
-    </div>
 
-    <div class="items-wrap">
-      <table class="items">
-        <thead>
-          <tr>
-            <th style="width:48px;">Sr No.</th>
-            <th style="width:72px;">Room</th>
-            <th>Room Category</th>
-            <th style="width:52px;">Floor</th>
-            <th style="width:58px;">Nights</th>
-            <th style="width:100px;">Room Price</th>
-            <th style="width:112px;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{LINE_ITEMS}}
-          <tr class="fill"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-        </tbody>
-      </table>
-    </div>
+      <div class="doc-title">Bill Invoice</div>
 
-    <div class="summary">
-      <div class="summary-left">
-        <div class="block">
-          <div class="block-title">Payment received</div>
-          <table class="paid">
-            {{PAYMENT_METHOD_ROWS}}
+      <div class="party">
+        <div class="party-left">
+          <div class="party-label">Billed to</div>
+          <div class="guest-name">{{GUEST_NAME}}</div>
+          <div class="guest-address">{{GUEST_ADDRESS}}</div>
+          <table class="kv">
+            <tr><td class="k">Mobile</td><td class="s">:</td><td class="v">{{GUEST_MOBILE}}</td></tr>
+            <tr><td class="k">Email</td><td class="s">:</td><td class="v">{{GUEST_EMAIL}}</td></tr>
+            <tr><td class="k">Guests</td><td class="s">:</td><td class="v">{{ADULTS}} adult(s), {{CHILDREN}} child(ren)</td></tr>
           </table>
         </div>
-        {{BANK_BLOCK}}
-        <div class="words-row"><b>Bill amount</b>{{AMOUNT_IN_WORDS}}</div>
-        <div class="note-row"><b>Note</b>{{NOTES}}</div>
+        <div class="party-right">
+          <table>
+            <tr><td class="lbl">Invoice No.</td><td class="val">{{INVOICE_NO}}</td></tr>
+            <tr><td class="lbl">Date</td><td class="val">{{INVOICE_DATE}}</td></tr>
+            <tr><td class="lbl">Check-in</td><td class="val">{{CHECK_IN}}</td></tr>
+            <tr><td class="lbl">Check-out</td><td class="val">{{CHECK_OUT}}</td></tr>
+            <tr><td class="lbl">Nights</td><td class="val">{{NIGHTS}}</td></tr>
+          </table>
+        </div>
       </div>
-      <table class="totals">
-        {{SUMMARY_ROWS}}
-      </table>
-    </div>
 
-    <div class="closing">
-      <div class="terms">
-        <div class="title">Terms &amp; conditions</div>
-        <ol>
-          <li>This is a computer-generated invoice.</li>
-          <li>E. &amp; O.E. Subject to local jurisdiction only.</li>
-        </ol>
+      <div class="items-wrap">
+        <table class="items">
+          <thead>
+            <tr>
+              <th style="width:48px;">Sr No.</th>
+              <th style="width:72px;">Room</th>
+              <th>Room Category</th>
+              <th style="width:52px;">Floor</th>
+              <th style="width:58px;">Nights</th>
+              <th style="width:100px;">Room Price</th>
+              <th style="width:112px;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{LINE_ITEMS}}
+            <tr class="fill"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          </tbody>
+        </table>
       </div>
-      <div class="sign">
-        <div class="for">For, {{HOTEL_NAME}}</div>
-        <div class="cap">Authorised Signatory</div>
-      </div>
-    </div>
 
-    <div class="footer">
-      &copy; {{YEAR}} <strong>{{HOTEL_NAME}}</strong>. Powered by MYOWNPMS.
+      <div class="summary">
+        <div class="summary-left">
+          <div class="block">
+            <div class="block-title">Payment received</div>
+            <table class="paid">
+              {{PAYMENT_METHOD_ROWS}}
+            </table>
+          </div>
+          {{BANK_BLOCK}}
+          <div class="words-row"><b>Bill amount</b>{{AMOUNT_IN_WORDS}}</div>
+          <div class="note-row"><b>Note</b>{{NOTES}}</div>
+        </div>
+        <table class="totals">
+          {{SUMMARY_ROWS}}
+        </table>
+      </div>
+
+      <div class="closing">
+        <div class="terms">
+          <div class="title">Terms &amp; conditions</div>
+          <ol>
+            <li>This is a computer-generated invoice.</li>
+            <li>E. &amp; O.E. Subject to local jurisdiction only.</li>
+          </ol>
+        </div>
+        <div class="sign">
+          <div class="for">For, {{HOTEL_NAME}}</div>
+          <div class="cap">Authorised Signatory</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        &copy; {{YEAR}} <strong>{{HOTEL_NAME}}</strong>. Powered by MYOWNPMS.
+      </div>
     </div>
   </div>
 
   <script>
-    /* Chrome never draws a border thinner than 1 layout pixel. To get hairline borders the PDF is
-       printed at PDF_SCALE (the PDF service reads window.pdfScale) while the page is laid out at
-       1 / PDF_SCALE zoom, so a 1px border ends up PDF_SCALE px thick on paper.
+    /* Chrome never draws a border thinner than 1 layout pixel. Layout at 1/PDF_SCALE zoom
+       and print at PDF_SCALE so borders stay hairline.
 
-       Few rooms: blank ruled rows under the room lines stretch so the bill fills A4.
-       Many rooms: those blank rows stay hidden and the whole sheet scales down together. */
+       Outer .sheet always stays full A4 height so the invoice border covers the page.
+       Few rooms: blank ruled rows stretch the room table to fill leftover space.
+       Many rooms: tighten row spacing first; if still too tall, scale .sheet-inner
+       inside the full-page frame (no overlap, no half-page border). */
     var PDF_SCALE = 0.5;
+    var TARGET_MM = 275;
+    var WIDTH_MM = 194;
+    var MIN_SCALE = 0.72;
+    var PAD_STEPS = [
+      { row: '7px', head: '7px', section: '10px', mast: '14px' },
+      { row: '5px', head: '6px', section: '8px', mast: '11px' },
+      { row: '3px', head: '4px', section: '6px', mast: '8px' }
+    ];
     window.pdfScale = PDF_SCALE;
+
     window.fitToPage = function () {
       var sheet = document.querySelector('.sheet');
+      var inner = document.querySelector('.sheet-inner');
       var fill = document.querySelector('tr.fill');
-      if (!sheet) return;
+      var root = document.documentElement;
+      if (!sheet || !inner) return;
       var body = document.body;
-      var z = 1;
 
-      var apply = function () {
-        body.style.zoom = z / PDF_SCALE;
-        body.style.setProperty('--bw', (PDF_SCALE / z) + 'px');
-        body.style.width = (194 / z) + 'mm';
-        sheet.style.height = (275 / z) + 'mm';
+      var applyChrome = function () {
+        body.style.zoom = 1 / PDF_SCALE;
+        body.style.setProperty('--bw', PDF_SCALE + 'px');
+        body.style.width = WIDTH_MM + 'mm';
+        sheet.style.height = TARGET_MM + 'mm';
       };
 
       var showFill = function (on) {
@@ -358,28 +401,60 @@
         else fill.setAttribute('hidden', '');
       };
 
-      // Measure with blank rows off so we know the true content height.
-      showFill(false);
-      apply();
-      var contentHeight = sheet.scrollHeight;
-      var available = sheet.clientHeight;
+      var setPad = function (step) {
+        root.style.setProperty('--row-pad-y', step.row);
+        root.style.setProperty('--head-pad-y', step.head);
+        root.style.setProperty('--section-pad-y', step.section);
+        root.style.setProperty('--mast-pad-y', step.mast);
+      };
 
-      if (contentHeight > available + 1) {
-        // Too many rooms: hide blank rows and shrink everything so the UI stays on one page.
-        z = Math.max(0.35, available / contentHeight);
-        apply();
-        contentHeight = sheet.scrollHeight;
-        available = sheet.clientHeight;
-        if (contentHeight > available + 1) {
-          z = Math.max(0.35, z * (available / contentHeight));
-          apply();
-        }
+      var resetInnerScale = function () {
+        inner.style.transform = 'none';
+        inner.style.width = '100%';
+        inner.style.height = '100%';
+      };
+
+      var measureNeed = function () {
+        return Math.ceil(inner.scrollHeight || inner.getBoundingClientRect().height);
+      };
+
+      applyChrome();
+      resetInnerScale();
+      setPad(PAD_STEPS[0]);
+      showFill(false);
+      sheet.classList.add('is-compact');
+      inner.style.height = 'auto';
+
+      var available = Math.floor(sheet.clientHeight);
+      var need = measureNeed();
+      var padIndex = 0;
+
+      // Tighten spacing step-by-step before scaling, so the bill stays readable and full-page.
+      while (need > available + 1 && padIndex < PAD_STEPS.length - 1) {
+        padIndex += 1;
+        setPad(PAD_STEPS[padIndex]);
+        need = measureNeed();
+      }
+
+      if (need > available + 1) {
+        // Still too tall: scale content inside the full-page border (border still covers A4).
+        var s = Math.max(MIN_SCALE, available / need);
+        // Nudge slightly under 1 so rounding never clips the last section.
+        if (s < 1) s = Math.max(MIN_SCALE, s * 0.995);
+        inner.style.transformOrigin = 'top left';
+        inner.style.transform = 'scale(' + s + ')';
+        inner.style.width = (100 / s) + '%';
+        inner.style.height = 'auto';
+        showFill(false);
+        sheet.classList.add('is-compact');
         return;
       }
 
-      // Enough space: show blank ruled rows under rooms so the table covers the page.
+      // Fits at current spacing: stretch blank room rules so the invoice covers the full page.
+      sheet.classList.remove('is-compact');
       showFill(true);
-      apply();
+      resetInnerScale();
+      inner.style.height = '100%';
     };
     window.fitToPage();
   </script>
