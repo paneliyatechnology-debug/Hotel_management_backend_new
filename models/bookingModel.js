@@ -28,7 +28,8 @@ const formatBooking = async (row, relations = {}) => {
     hotel_id: row.hotel_id,
     booking_number: row.booking_number,
     primary_guest_name: row.primary_guest_name,
-    secondary_guest_name: row.secondary_guest_name || null,
+    // Filled below from booking_guests. Falls back to primary_guest_name.
+    guests: [],
     mobile_number: row.mobile_number,
     email: row.email || null,
     address: row.address || '',
@@ -96,6 +97,15 @@ const formatBooking = async (row, relations = {}) => {
   booking.room_id = rooms.map((room) => room.id);
   booking.rooms = rooms;
 
+  const linkedGuests = Array.isArray(relations.guests)
+    ? relations.guests.filter((guest) => guest && guest.name)
+    : [];
+  if (linkedGuests.length) {
+    booking.guests = linkedGuests;
+  } else if (row.primary_guest_name) {
+    booking.guests = [{ id: null, name: row.primary_guest_name, display_order: 1 }];
+  }
+
   if (row.created_by_name) {
     booking.creator = {
       id: row.created_by,
@@ -114,23 +124,31 @@ const formatBooking = async (row, relations = {}) => {
  * @param {Array<Object>} rooms
  * @returns {Object}
  */
-const formatBookingListItem = (row, rooms = []) => ({
-  id: row.id,
-  hotel_id: row.hotel_id,
-  booking_number: row.booking_number,
-  primary_guest_name: row.primary_guest_name,
-  mobile_number: row.mobile_number,
-  booking_status: row.booking_status,
-  check_in_date: row.check_in_date || null,
-  check_out_date: row.check_out_date || null,
-  actual_check_in: row.actual_check_in || null,
-  actual_check_out: row.actual_check_out || null,
-  total_amount: Number(row.total_amount) || 0,
-  paid_amount: Number(row.paid_amount) || 0,
-  due_amount: Number(row.due_amount) || 0,
-  payment_status: row.payment_status || 'PENDING',
-  rooms,
-});
+const formatBookingListItem = (row, rooms = [], guests = []) => {
+  const linkedGuests = Array.isArray(guests) ? guests.filter((guest) => guest && guest.name) : [];
+  const guestNames = linkedGuests.length
+    ? linkedGuests.map((guest) => guest.name)
+    : [row.primary_guest_name].filter(Boolean);
+
+  return {
+    id: row.id,
+    hotel_id: row.hotel_id,
+    booking_number: row.booking_number,
+    primary_guest_name: row.primary_guest_name,
+    guest_names: guestNames,
+    mobile_number: row.mobile_number,
+    booking_status: row.booking_status,
+    check_in_date: row.check_in_date || null,
+    check_out_date: row.check_out_date || null,
+    actual_check_in: row.actual_check_in || null,
+    actual_check_out: row.actual_check_out || null,
+    total_amount: Number(row.total_amount) || 0,
+    paid_amount: Number(row.paid_amount) || 0,
+    due_amount: Number(row.due_amount) || 0,
+    payment_status: row.payment_status || 'PENDING',
+    rooms,
+  };
+};
 
 /**
  * Initials of the hotel name. "BLUE OCEAN" becomes "BO".
@@ -361,6 +379,58 @@ const replaceBookingRooms = async (bookingId, roomIds, client) => {
 };
 
 /**
+ * Guest names for many bookings. Order follows display_order then id.
+ * @param {number[]} bookingIds
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<Record<number, Array<{ id: number, name: string, display_order: number }>>>}
+ */
+const loadGuestsByBookingIds = async (bookingIds, client = db) => {
+  if (!Array.isArray(bookingIds) || bookingIds.length === 0) return {};
+
+  const rows = await client('booking_guests')
+    .whereIn('booking_id', bookingIds)
+    .orderBy('display_order', 'asc')
+    .orderBy('id', 'asc')
+    .select('id', 'booking_id', 'name', 'display_order');
+
+  const map = {};
+  rows.forEach((row) => {
+    if (!map[row.booking_id]) map[row.booking_id] = [];
+    map[row.booking_id].push({
+      id: row.id,
+      name: row.name,
+      display_order: Number(row.display_order) || 1,
+    });
+  });
+  return map;
+};
+
+/**
+ * Replace every guest name on a booking.
+ * @param {number|string} bookingId
+ * @param {string[]} guestNames
+ * @param {import('knex').Knex} client
+ */
+const replaceBookingGuests = async (bookingId, guestNames, client) => {
+  await client('booking_guests').where({ booking_id: bookingId }).delete();
+  const names = (guestNames || [])
+    .map((name) => String(name || '').trim())
+    .filter(Boolean);
+  if (!names.length) return;
+
+  const now = new Date();
+  await client('booking_guests').insert(
+    names.map((name, index) => ({
+      booking_id: bookingId,
+      name,
+      display_order: index + 1,
+      created_at: now,
+      updated_at: now,
+    }))
+  );
+};
+
+/**
  * A stay blocks a room when that room is the primary room or one of booking_rooms.
  * @param {import('knex').QueryBuilder} qb
  * @param {number} roomId
@@ -584,11 +654,12 @@ const findBookingById = async (id, { includeDeleted = false, includeMedia = true
   const row = await query.first();
   if (!row) return null;
 
-  const [media, roomsMap] = await Promise.all([
+  const [media, roomsMap, guestsMap] = await Promise.all([
     includeMedia
       ? loadBookingMedia([row.id], client)
       : Promise.resolve({ imagesMap: {}, signaturesMap: {} }),
     loadRoomsByBookingIds([row.id], client),
+    loadGuestsByBookingIds([row.id], client),
   ]);
   const { imagesMap, signaturesMap } = media;
 
@@ -596,6 +667,7 @@ const findBookingById = async (id, { includeDeleted = false, includeMedia = true
     images: imagesMap[row.id] || [],
     signatures: signaturesMap[row.id] || [],
     rooms: roomsMap[row.id] || [],
+    guests: guestsMap[row.id] || [],
   });
 };
 
@@ -608,9 +680,10 @@ const findBookingById = async (id, { includeDeleted = false, includeMedia = true
  */
 const findBookingForWrite = async (id, client = db) => {
   const numericId = Number(id);
-  const [row, roomRows] = await Promise.all([
+  const [row, roomRows, guestsMap] = await Promise.all([
     client('bookings').where('id', numericId).whereNull('deleted_at').first(),
     client('booking_rooms').where({ booking_id: numericId }).orderBy('id', 'asc').select('room_id'),
+    loadGuestsByBookingIds([numericId], client),
   ]);
   if (!row) return null;
 
@@ -618,11 +691,13 @@ const findBookingForWrite = async (id, client = db) => {
     .map((room) => Number(room.room_id))
     .filter((roomId) => Number.isInteger(roomId) && roomId > 0);
   const money = (value) => Number(value) || 0;
+  const guests = guestsMap[numericId] || [];
 
   // Same number and text shape as the full booking read, so checkout audit diffs stay accurate.
   return {
     ...row,
     room_id: linked.length ? linked : (row.room_id ? [Number(row.room_id)] : []),
+    guests,
     number_of_nights: Number(row.number_of_nights) || 1,
     adults: Number(row.adults) || 1,
     children: Number(row.children) || 0,
@@ -707,7 +782,12 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
       const gName = String(filters.guest_name).trim();
       qb.where(function () {
         this.where('bookings.primary_guest_name', 'like', `%${gName}%`)
-          .orWhere('bookings.secondary_guest_name', 'like', `%${gName}%`);
+          .orWhereExists(function () {
+            this.select(db.raw('1'))
+              .from('booking_guests')
+              .whereRaw('booking_guests.booking_id = bookings.id')
+              .where('booking_guests.name', 'like', `%${gName}%`);
+          });
       });
     }
 
@@ -741,8 +821,13 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
       qb.where(function () {
         this.where('bookings.booking_number', 'like', s)
           .orWhere('bookings.primary_guest_name', 'like', s)
-          .orWhere('bookings.secondary_guest_name', 'like', s)
-          .orWhere('bookings.mobile_number', 'like', s);
+          .orWhere('bookings.mobile_number', 'like', s)
+          .orWhereExists(function () {
+            this.select(db.raw('1'))
+              .from('booking_guests')
+              .whereRaw('booking_guests.booking_id = bookings.id')
+              .where('booking_guests.name', 'like', s);
+          });
       });
     }
   };
@@ -774,11 +859,19 @@ const findBookings = async (filters = {}, pagination = {}, client = db) => {
     dataQuery.orderBy('bookings.created_at', 'desc').offset(offset).limit(limit),
   ]);
   const total = Number(totalResult?.total || 0);
-  const roomsMap = rows.length
-    ? await loadRoomsByBookingIds(rows.map((row) => row.id), client)
-    : {};
+  const bookingIds = rows.map((row) => row.id);
+  const [roomsMap, guestsMap] = bookingIds.length
+    ? await Promise.all([
+      loadRoomsByBookingIds(bookingIds, client),
+      loadGuestsByBookingIds(bookingIds, client),
+    ])
+    : [{}, {}];
 
-  const bookings = rows.map((row) => formatBookingListItem(row, roomsMap[row.id] || []));
+  const bookings = rows.map((row) => formatBookingListItem(
+    row,
+    roomsMap[row.id] || [],
+    guestsMap[row.id] || []
+  ));
 
   return {
     bookings,
@@ -805,8 +898,11 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
 
   return client.transaction(async (trx) => {
     const roomIds = Array.isArray(bookingData.room_ids) ? bookingData.room_ids : [];
+    const guestNames = Array.isArray(bookingData.guest_names) ? bookingData.guest_names : null;
     const {
       room_ids: _roomIds,
+      guest_names: _guestNames,
+      secondary_guest_name: _secondaryGuestName,
       images: _clientImages,
       signatures: _clientSignatures,
       booking_number: _clientBookingNumber,
@@ -828,6 +924,13 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
 
     if (roomIds.length > 0) {
       await replaceBookingRooms(bookingId, roomIds, trx);
+    }
+
+    const namesToStore = guestNames && guestNames.length
+      ? guestNames
+      : [insertPayload.primary_guest_name].filter(Boolean);
+    if (namesToStore.length) {
+      await replaceBookingGuests(bookingId, namesToStore, trx);
     }
 
     // 3. Store images and signatures in images table
@@ -941,8 +1044,11 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
     }
 
     const roomIds = Array.isArray(updateData.room_ids) ? updateData.room_ids : null;
+    const guestNames = Array.isArray(updateData.guest_names) ? updateData.guest_names : null;
     const {
       room_ids: _roomIds,
+      guest_names: _guestNames,
+      secondary_guest_name: _secondaryGuestName,
       images: _clientImages,
       signatures: _clientSignatures,
       ...columnUpdates
@@ -961,6 +1067,10 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
 
     if (roomIds && roomIds.length > 0) {
       await replaceBookingRooms(id, roomIds, trx);
+    }
+
+    if (guestNames) {
+      await replaceBookingGuests(id, guestNames, trx);
     }
 
     // Insert new images and signatures in images table
@@ -1040,4 +1150,6 @@ module.exports = {
   updateBooking,
   saveBookingColumns,
   softDeleteBooking,
+  loadGuestsByBookingIds,
+  replaceBookingGuests,
 };

@@ -1992,16 +1992,16 @@
               "mode": "formdata",
               "formdata": [
                 {
+                  "key": "guests",
+                  "value": "[\"Ravi Shah\",\"Meera Shah\",\"Aarav Shah\"]",
+                  "type": "text",
+                  "description": "Preferred. JSON array of guest names (2 to 255 chars each). First name is the primary guest. Also accept guest_names."
+                },
+                {
                   "key": "primary_guest_name",
                   "value": "Ravi Shah",
                   "type": "text",
-                  "description": "Required. Guest on the booking. 2 to 255 characters."
-                },
-                {
-                  "key": "secondary_guest_name",
-                  "value": "Meera Shah",
-                  "type": "text",
-                  "description": "Optional. Second guest name. Max 255 characters.",
+                  "description": "Required only when guests/guest_names is omitted. 2 to 255 characters. Synced from the first guests entry when guests is sent.",
                   "disabled": true
                 },
                 {
@@ -2215,7 +2215,7 @@
                 {
                   "key": "guest_name",
                   "value": "Shah",
-                  "description": "Optional. Partial match on primary or secondary guest name.",
+                  "description": "Optional. Partial match on any guest name (legacy columns and booking_guests).",
                   "disabled": true
                 },
                 {
@@ -2227,7 +2227,7 @@
                 {
                   "key": "search",
                   "value": "Ravi",
-                  "description": "Optional. Matches guest name, mobile, or booking number.",
+                  "description": "Optional. Matches any guest name, mobile, or booking number.",
                   "disabled": true
                 },
                 {
@@ -2256,7 +2256,7 @@
                 }
               ]
             },
-            "description": "### GET /api/v1/bookings\nBookings for the logged-in hotel. Soft-deleted rows are omitted. Newest first.\n\n`booking_status` filters the stay. `payment_status` filters the bill. They can be used together.\n\n**Query keys** are on the Params tab. Only page and limit are sent until you enable the others.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `bookings` | array | Short booking objects. Use **Get booking** for the full details. |\n| `total` | number | Matching bookings. |\n| `page` | number | Current page. |\n| `limit` | number | Page size. |\n| `totalPages` | number | Page count. |\n\n**Each item in `bookings`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Booking id. |\n| `hotel_id` | number | Hotel id. |\n| `booking_number` | string | Server-generated, format `HOTEL_CODE/YYYY-YY/SEQUENCE`. |\n| `primary_guest_name` | string | Main guest. |\n| `mobile_number` | string | Guest mobile. |\n| `booking_status` | string | Stay status: PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, or NO_SHOW. |\n| `check_in_date` | string | Scheduled check-in datetime. |\n| `check_out_date` | string | Scheduled check-out datetime. |\n| `actual_check_in` | string or null | Real check-in datetime. Null until the guest is checked in. |\n| `actual_check_out` | string or null | Real check-out datetime. Null until checkout. |\n| `total_amount` | number | Bill total after tax. |\n| `paid_amount` | number | Amount collected so far. |\n| `due_amount` | number | Balance still due. |\n| `payment_status` | string | `PENDING`, `PARTIALLY_PAID`, or `PAID`. |\n| `rooms` | object array | One object per room: `id`, `room_number`, `floor`, `room_type_name`. |"
+            "description": "### GET /api/v1/bookings\nBookings for the logged-in hotel. Soft-deleted rows are omitted. Newest first.\n\n`booking_status` filters the stay. `payment_status` filters the bill. They can be used together.\n\n**Query keys** are on the Params tab. Only page and limit are sent until you enable the others.\n\n**Response `data`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `bookings` | array | Short booking objects. Use **Get booking** for the full details. |\n| `total` | number | Matching bookings. |\n| `page` | number | Current page. |\n| `limit` | number | Page size. |\n| `totalPages` | number | Page count. |\n\n**Each item in `bookings`**\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Booking id. |\n| `hotel_id` | number | Hotel id. |\n| `booking_number` | string | Server-generated, format `HOTEL_CODE/YYYY-YY/SEQUENCE`. |\n| `primary_guest_name` | string | Main guest (first name in `guest_names`). |\n| `guest_names` | string array | Every guest name on this stay, in order. |\n| `mobile_number` | string | Guest mobile. |\n| `booking_status` | string | Stay status: PENDING, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, or NO_SHOW. |\n| `check_in_date` | string | Scheduled check-in datetime. |\n| `check_out_date` | string | Scheduled check-out datetime. |\n| `actual_check_in` | string or null | Real check-in datetime. Null until the guest is checked in. |\n| `actual_check_out` | string or null | Real check-out datetime. Null until checkout. |\n| `total_amount` | number | Bill total after tax. |\n| `paid_amount` | number | Amount collected so far. |\n| `due_amount` | number | Balance still due. |\n| `payment_status` | string | `PENDING`, `PARTIALLY_PAID`, or `PAID`. |\n| `rooms` | object array | One object per room: `id`, `room_number`, `floor`, `room_type_name`. |"
           }
         },
         {
@@ -2289,7 +2289,7 @@
                 }
               ]
             },
-            "description": "### GET /api/v1/bookings/:id\nAnother hotel's booking returns 403.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`:** one booking, plus `payment_history`.\n\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Booking id. |\n| `hotel_id` | number | Hotel from the token. |\n| `booking_number` | string | Generated by the server. Format `HOTEL_CODE/YYYY-YY/SEQUENCE`, for example `BO/2026-27/0001`. |\n| `primary_guest_name` | string | Main guest. |\n| `secondary_guest_name` | string or null | Second guest. |\n| `mobile_number` | string | Guest mobile. |\n| `email` | string or null | Guest email. Not unique and not a login email. Null when omitted. |\n| `address` | string | Guest address. |\n| `room_id` | number array | Every room on this stay. Example: `[12, 15]`. |\n| `rooms` | object array | One object per room: `id`, `room_number`, `floor`, `room_type_name`. |\n| `created_by` | number | User id from the access token. |\n| `check_in_date`, `check_out_date` | string | Scheduled stay. Not changed by checkout. |\n| `actual_check_in` | string | Server time when the booking was created. |\n| `actual_check_out` | string or null | Real check-out time. Null until checkout. |\n| `number_of_nights` | number | Calculated from the scheduled dates. Minimum handling is server-side. |\n| `adults`, `children` | number | Guest counts. |\n| `base_amount` | number | Room charge before tax. |\n| `discount_amount` | number | Discount. |\n| `extra_charges_total` | number | Extras. Included before the discount and GST. |\n| `late_checkout_charge`, `late_checkout_hours` | number | Late checkout. The charge is included before the discount and GST. |\n| `gst_rate` | number | GST percent. |\n| `cgst_rate`, `sgst_rate` | number | Each is half of `gst_rate`. |\n| `taxable_amount` | number | Amount GST is applied to: room charge plus extra charges plus the late fee, minus the discount. |\n| `gst_amount`, `cgst_amount`, `sgst_amount` | number | Tax amounts. |\n| `tax_amount` | number | Tax total. |\n| `total_amount` | number | Amount due before payments. |\n| `paid_amount` | number | Collected so far. |\n| `due_amount` | number | `total_amount - paid_amount`. |\n| `payment_status` | string | `PENDING`, `PARTIALLY_PAID`, or `PAID`. |\n| `booking_status` | string | Stay status. |\n| `images`, `signatures` | string arrays | URLs of the uploaded files. |\n| `notes` | string | Front desk note. |\n| `hotel` | object | `id`, `name`, `slug` when joined. |\n| `creator` | object | `id`, `name`, `email`, `role` of the staff user. |\n| `deleted_at` | null | Null until deleted. |\n| `created_at`, `updated_at` | string | Timestamps. |\n\n**`payment_history`** lists payments for the booking, newest first. Create adds one row when money was collected. **Update booking** replaces that history with one row when `paid_amount` or `payment_method` is sent, and leaves it unchanged when both are left out. **Check out** adds a row for the money collected then.\n\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Payment row id. |\n| `booking_id` | number | Booking id. |\n| `amount` | number | Money on this row. An update stores the full paid amount as one row. Check-out stores the money collected then, and a negative amount when money is taken back. |\n| `payment_method` | string | `CASH`, `ONLINE`, `CARD`, `UPI`, or `BANK_TRANSFER`. |\n| `status` | string | Status of this payment: `PAID` (the bill is fully paid after it), `PARTIALLY_PAID` (a balance is left), `REFUNDED` (money taken back), or `FAILED` (did not go through). The server sets `PAID`, `PARTIALLY_PAID` and `REFUNDED` itself. |\n| `source` | string | `BOOKING` (create), `UPDATE` (booking edit), or `CHECKOUT`. |\n| `received_by` | object or null | `id` and `name` of the staff user. |\n| `received_at` | string | When it was recorded. |"
+            "description": "### GET /api/v1/bookings/:id\nAnother hotel's booking returns 403.\n\n**Path keys**\n| Key | Type | Required | Meaning |\n| --- | --- | --- | --- |\n| `id` | number | Yes | Booking id. |\n\n**Response `data`:** one booking, plus `payment_history`.\n\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Booking id. |\n| `hotel_id` | number | Hotel from the token. |\n| `booking_number` | string | Generated by the server. Format `HOTEL_CODE/YYYY-YY/SEQUENCE`, for example `BO/2026-27/0001`. |\n| `primary_guest_name` | string | Main guest (first entry in `guests`). |\n| `guests` | object array | Every guest on this stay: `id`, `name`, `display_order`. |\n| `mobile_number` | string | Guest mobile. |\n| `email` | string or null | Guest email. Not unique and not a login email. Null when omitted. |\n| `address` | string | Guest address. |\n| `room_id` | number array | Every room on this stay. Example: `[12, 15]`. |\n| `rooms` | object array | One object per room: `id`, `room_number`, `floor`, `room_type_name`. |\n| `created_by` | number | User id from the access token. |\n| `check_in_date`, `check_out_date` | string | Scheduled stay. Not changed by checkout. |\n| `actual_check_in` | string | Server time when the booking was created. |\n| `actual_check_out` | string or null | Real check-out time. Null until checkout. |\n| `number_of_nights` | number | Calculated from the scheduled dates. Minimum handling is server-side. |\n| `adults`, `children` | number | Guest counts. |\n| `base_amount` | number | Room charge before tax. |\n| `discount_amount` | number | Discount. |\n| `extra_charges_total` | number | Extras. Included before the discount and GST. |\n| `late_checkout_charge`, `late_checkout_hours` | number | Late checkout. The charge is included before the discount and GST. |\n| `gst_rate` | number | GST percent. |\n| `cgst_rate`, `sgst_rate` | number | Each is half of `gst_rate`. |\n| `taxable_amount` | number | Amount GST is applied to: room charge plus extra charges plus the late fee, minus the discount. |\n| `gst_amount`, `cgst_amount`, `sgst_amount` | number | Tax amounts. |\n| `tax_amount` | number | Tax total. |\n| `total_amount` | number | Amount due before payments. |\n| `paid_amount` | number | Collected so far. |\n| `due_amount` | number | `total_amount - paid_amount`. |\n| `payment_status` | string | `PENDING`, `PARTIALLY_PAID`, or `PAID`. |\n| `booking_status` | string | Stay status. |\n| `images`, `signatures` | string arrays | URLs of the uploaded files. |\n| `notes` | string | Front desk note. |\n| `hotel` | object | `id`, `name`, `slug` when joined. |\n| `creator` | object | `id`, `name`, `email`, `role` of the staff user. |\n| `deleted_at` | null | Null until deleted. |\n| `created_at`, `updated_at` | string | Timestamps. |\n\n**`payment_history`** lists payments for the booking, newest first. Create adds one row when money was collected. **Update booking** replaces that history with one row when `paid_amount` or `payment_method` is sent, and leaves it unchanged when both are left out. **Check out** adds a row for the money collected then.\n\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `id` | number | Payment row id. |\n| `booking_id` | number | Booking id. |\n| `amount` | number | Money on this row. An update stores the full paid amount as one row. Check-out stores the money collected then, and a negative amount when money is taken back. |\n| `payment_method` | string | `CASH`, `ONLINE`, `CARD`, `UPI`, or `BANK_TRANSFER`. |\n| `status` | string | Status of this payment: `PAID` (the bill is fully paid after it), `PARTIALLY_PAID` (a balance is left), `REFUNDED` (money taken back), or `FAILED` (did not go through). The server sets `PAID`, `PARTIALLY_PAID` and `REFUNDED` itself. |\n| `source` | string | `BOOKING` (create), `UPDATE` (booking edit), or `CHECKOUT`. |\n| `received_by` | object or null | `id` and `name` of the staff user. |\n| `received_at` | string | When it was recorded. |"
           }
         },
         {
@@ -2375,17 +2375,17 @@
               "mode": "formdata",
               "formdata": [
                 {
-                  "key": "primary_guest_name",
-                  "value": "Ravi Shah",
+                  "key": "guests",
+                  "value": "[\"Ravi Shah\",\"Meera Shah\",\"Aarav Shah\"]",
                   "type": "text",
-                  "description": "Optional. 2 to 255 characters.",
+                  "description": "Optional. Replace every guest name. JSON array. First name becomes primary_guest_name. Also accept guest_names.",
                   "disabled": true
                 },
                 {
-                  "key": "secondary_guest_name",
-                  "value": "Meera Shah",
+                  "key": "primary_guest_name",
+                  "value": "Ravi Shah",
                   "type": "text",
-                  "description": "Optional. Send empty to clear.",
+                  "description": "Optional. Renames the primary guest only and keeps other guests. Prefer guests to replace the full list. 2 to 255 characters.",
                   "disabled": true
                 },
                 {

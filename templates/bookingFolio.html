@@ -177,6 +177,48 @@
     .rows tr.sub td { font-size: 11.5px; padding-top: 3px; padding-bottom: 3px; border-bottom: none; }
     .rows tr.sub td.k { padding-left: 14px; }
     .rows tr.sub td.v { font-weight: 400; color: var(--body); }
+    .rows td.v.guest-block { padding-top: 2px; padding-bottom: 2px; }
+
+    .guest-list { list-style: none; margin: 0; padding: 0; }
+    .guest-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--line-soft);
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .guest-list li:last-child { border-bottom: none; padding-bottom: 0; }
+    .guest-list li:first-child { padding-top: 0; }
+    .guest-list .idx {
+      flex: 0 0 18px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 16px;
+      text-align: center;
+    }
+    .guest-list .name { flex: 1 1 auto; min-width: 0; }
+    .guest-list .role {
+      flex: 0 0 auto;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--brand);
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 999px;
+      padding: 2px 7px;
+      line-height: 1.2;
+    }
+    .guest-list .empty { color: var(--muted); font-weight: 400; }
 
     /* Data tables */
     table.list { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -334,12 +376,14 @@
         <div class="card-head"><div class="card-title">Guest details</div></div>
         <div class="card-body">
           <table class="rows">
-            <tr><td class="k">Name</td><td class="v">{{GUEST_NAME}}</td></tr>
-            <tr><td class="k">Companion</td><td class="v">{{SECONDARY_GUEST}}</td></tr>
+            <tr>
+              <td class="k">Guests</td>
+              <td class="v guest-block">{{GUEST_LIST}}</td>
+            </tr>
             <tr><td class="k">Mobile</td><td class="v">{{GUEST_MOBILE}}</td></tr>
             <tr><td class="k">Email</td><td class="v">{{GUEST_EMAIL}}</td></tr>
             <tr><td class="k">Address</td><td class="v">{{GUEST_ADDRESS}}</td></tr>
-            <tr><td class="k">Guests</td><td class="v">{{ADULTS}} adult(s), {{CHILDREN}} child(ren)</td></tr>
+            <tr><td class="k">Occupancy</td><td class="v">{{ADULTS}} adult(s), {{CHILDREN}} child(ren)</td></tr>
           </table>
         </div>
       </div>

@@ -293,9 +293,9 @@ Room statuses: `AVAILABLE`, `RESERVED`, `OCCUPIED`, `CLEANING`, `MAINTENANCE`, `
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/bookings` | Create a booking (multipart for guest ID images) |
-| `GET` | `/bookings` | Paginated list: `id`, `hotel_id`, `booking_number`, `primary_guest_name`, `mobile_number`, `booking_status`, `rooms` |
-| `GET` | `/bookings/:id` | Full booking including `payment_history` |
+| `POST` | `/bookings` | Create a booking. Prefer `guests` (JSON name array); `primary_guest_name` alone still works for a single guest. Multipart for guest ID images. |
+| `GET` | `/bookings` | Paginated list: `id`, `hotel_id`, `booking_number`, `primary_guest_name`, `guest_names`, `mobile_number`, `booking_status`, `rooms` |
+| `GET` | `/bookings/:id` | Full booking including `guests` and `payment_history` |
 | `GET` | `/bookings/:id/pdf` | Generate the folio PDF |
 | `GET` | `/bookings/:id/bill` | Generate the guest tax-invoice bill PDF |
 | `PUT` | `/bookings/:id` | Update a booking and recalculate totals |

@@ -118,7 +118,7 @@ Main fields:
 - hotel_id
 - booking_number
 - primary_guest_name
-- secondary_guest_name
+- guests
 - mobile_number
 - email
 - address

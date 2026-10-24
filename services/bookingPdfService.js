@@ -374,6 +374,15 @@ const buildHtml = async (booking, hotel, payments) => {
     .join('');
   const guestTotal = (Number(booking.adults) || 0) + (Number(booking.children) || 0);
   const roomCount = rooms.length || (Array.isArray(booking.room_id) ? booking.room_id.length : 0);
+  const guestNameList = Array.isArray(booking.guests) && booking.guests.length
+    ? booking.guests.map((guest) => guest.name).filter(Boolean)
+    : [booking.primary_guest_name].filter(Boolean);
+  const guestListHtml = guestNameList.length
+    ? `<ul class="guest-list">${guestNameList.map((name, index) => {
+      const role = index === 0 ? '<span class="role">Primary</span>' : '';
+      return `<li><span class="idx">${index + 1}</span><span class="name">${escapeHtml(name)}</span>${role}</li>`;
+    }).join('')}</ul>`
+    : '<ul class="guest-list"><li class="empty">—</li></ul>';
 
   return fillTemplate(template, {
     HOTEL_NAME: escapeHtml(hotel?.name || 'Hotel'),
@@ -385,8 +394,8 @@ const buildHtml = async (booking, hotel, payments) => {
     PRINTED_AT: escapeHtml(formatDateTime(new Date())),
     CREATED_AT: escapeHtml(formatDateTime(booking.created_at)),
     ROOM_COUNT: escapeHtml(roomCount || '—'),
-    GUEST_NAME: escapeHtml(booking.primary_guest_name),
-    SECONDARY_GUEST: escapeHtml(booking.secondary_guest_name || '—'),
+    GUEST_NAME: escapeHtml(guestNameList[0] || booking.primary_guest_name || '—'),
+    GUEST_LIST: guestListHtml,
     GUEST_MOBILE: escapeHtml(booking.mobile_number),
     GUEST_EMAIL: escapeHtml(booking.email || '—'),
     GUEST_ADDRESS: escapeHtml(booking.address || '—'),
@@ -595,6 +604,12 @@ const buildBillHtml = async (booking, hotel, payments) => {
   const notes = String(booking.notes || '').trim();
   const invoiceNo = String(booking.booking_number || booking.id);
   const roomRows = await buildRoomBillRows(booking, rooms);
+  const guestNameList = Array.isArray(booking.guests) && booking.guests.length
+    ? booking.guests.map((guest) => guest.name).filter(Boolean)
+    : [booking.primary_guest_name].filter(Boolean);
+  const guestNameDisplay = guestNameList.length
+    ? guestNameList.join(' / ')
+    : (booking.primary_guest_name || '—');
 
   return fillTemplate(template, {
     FONT_FACE: getFontFaceCss(),
@@ -607,7 +622,7 @@ const buildBillHtml = async (booking, hotel, payments) => {
       booking.actual_check_out || booking.check_out_date || booking.created_at || new Date()
     )),
     PAYMENT_STATUS: escapeHtml(humanize(booking.payment_status)),
-    GUEST_NAME: escapeHtml(booking.primary_guest_name || '—'),
+    GUEST_NAME: escapeHtml(guestNameDisplay),
     GUEST_ADDRESS: escapeHtml(booking.address || '—'),
     GUEST_MOBILE: escapeHtml(booking.mobile_number || '—'),
     GUEST_EMAIL: escapeHtml(booking.email || '—'),
