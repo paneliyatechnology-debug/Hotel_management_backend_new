@@ -864,7 +864,7 @@ const createBooking = async (body, files = [], reqUser = null) => {
     entityType: AUDIT_ENTITIES.BOOKING,
     entityId: newBooking.id,
     hotelId,
-    description: `Booking ${newBooking.booking_number} created for ${primaryGuestName}.`,
+    description: `Booking ${newBooking.booking_number} created for ${guestInfo.primary}.`,
   });
 
   await notifyBookingUpdated(newBooking.id);
