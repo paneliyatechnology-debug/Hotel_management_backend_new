@@ -2342,7 +2342,7 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 | \`kpis.active_staff_count\` | Active staff of this hotel. \`HOTEL_ADMIN\` and \`SUPER_ADMIN\` are not counted. |
 | \`today_pulse\` | Checked in today, checked out today, and in-house guests. |
 | \`room_status_summary\` | Counts for every room status. |
-| \`revenue_by_payment_method\` | Collections in \`date_range\` by method. |
+| \`revenue_by_payment_method\` | Array of this hotel's payment methods with \`payment_method_id\`, \`name\`, \`is_system\`, \`collected_amount\` for \`date_range\`. Includes every active hotel method (0 when nothing collected). Unmatched payment names appear as \`OTHER\` only when that leftover is greater than zero. |
 | \`room_status_graph\` | HOTEL_ADMIN only. \`total_rooms\` and \`statuses[]\`, one entry per room status with \`status\`, \`count\` and \`percentage\` (share of the hotel's rooms, 2 decimals). |
 | \`weekly_revenue_graph\` | HOTEL_ADMIN only. Seven entries, Monday to Sunday of the current week, each with \`date\` (YYYY-MM-DD), \`day\` (for example \`Monday\`) and \`revenue\`. Revenue is the collected payments (\`booking_payments\` PAID / PARTIALLY_PAID) of that day. A day with no payments, or a day still to come, is \`0\`. Not affected by \`date_range\`. |
 | \`subscription_quota\` | Plan limit and rooms used, plus \`plan_start_date\`, \`plan_end_date\`, \`days_left\`, and \`is_active\` from the current purchase. \`is_active\` is false when that purchase is not paid or its end date has passed. |
@@ -2350,7 +2350,7 @@ ${authNote('SUPER_ADMIN, HOTEL_ADMIN, RECEPTIONIST, MANAGER, HOUSEKEEPING, or AC
 **Front desk \`data\`**
 | Key | Meaning |
 | --- | --- |
-| \`shift_collections_today\` | Cash / UPI / card / online totals and \`total_shift_collected\` for today. |
+| \`shift_collections_today\` | \`by_payment_method\` (same hotel-method array shape as \`revenue_by_payment_method\`) and \`total_shift_collected\` for today. |
 | \`room_status_summary\` | Counts for every room status. |`,
     }),
     item({
@@ -2375,7 +2375,7 @@ Bookings, guests, booking amount, and due use \`bookings.created_at\`. Collectio
 | --- | --- |
 | \`period_start_date\`, \`period_end_date\` | The dates that were applied, shown as \`DD-MM-YYYY\`. Send the query as \`YYYY-MM-DD\`. |
 | \`total_collected_amount\` | Money collected in the window. |
-| \`collection_by_payment_method\` | That collection split by method: \`cash_collected_amount\`, \`online_collected_amount\`, \`card_collected_amount\`, \`upi_collected_amount\`, \`bank_transfer_collected_amount\`, and \`other_collected_amount\` for a method a hotel admin added. These amounts add up to \`total_collected_amount\`. |
+| \`collection_by_payment_method\` | Array of this hotel's payment methods: each item has \`payment_method_id\`, \`name\`, \`is_system\`, \`collected_amount\`. Same shape as dashboard \`revenue_by_payment_method\`. Amounts add up to \`total_collected_amount\` (plus \`OTHER\` only when leftover unmatched payments exist). |
 | \`total_outstanding_amount\` | \`due_amount\` still on bookings created in the window. |
 | \`total_booking_count\` | Bookings created in the window. |
 | \`total_guest_count\` | \`adults + children\` on those bookings. |

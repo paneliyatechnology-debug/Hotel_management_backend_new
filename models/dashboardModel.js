@@ -5,10 +5,10 @@
 const db = require('../database/knex');
 const { joinCurrentPurchase } = require('./subscriptionPlanModel');
 const { money, toDateKey } = require('../utils/dateRange');
+const paymentMethodModel = require('./paymentMethodModel');
 const {
   ROLE_CODES,
   ROOM_STATUSES,
-  PAYMENT_METHODS,
 } = require('../constants');
 
 const COLLECTED_PAYMENT_STATUSES = ['PAID', 'PARTIALLY_PAID'];
@@ -68,14 +68,17 @@ const emptyRoomStatusSummary = () =>
   }, {});
 
 /**
- * Empty payment-method map with every known method set to 0.
- * @returns {Object}
+ * One collection row for a hotel payment method (or unmatched OTHER).
+ * @param {{ id?: number|null, name: string, is_system?: boolean }} method
+ * @param {number} amount
+ * @returns {{ payment_method_id: number|null, name: string, is_system: boolean, collected_amount: number }}
  */
-const emptyPaymentMethodSummary = () =>
-  PAYMENT_METHODS.reduce((acc, method) => {
-    acc[method] = 0;
-    return acc;
-  }, {});
+const formatMethodCollection = (method, amount) => ({
+  payment_method_id: method.id !== null && method.id !== undefined ? Number(method.id) : null,
+  name: String(method.name || '').trim(),
+  is_system: Boolean(method.is_system),
+  collected_amount: money(amount),
+});
 
 /**
  * Hotels still on the platform (not soft-deleted).
@@ -428,31 +431,49 @@ const getHotelDailyCollections = async (hotelId, from, to, client = db) => {
 };
 
 /**
- * Collections grouped by payment method for a hotel in a date window.
+ * Collections for a hotel in a date window, one entry per hotel payment method.
+ * Methods come from hotel_payment_methods (system + custom). Amounts match payment
+ * rows by name (case-insensitive). Unmatched payment names are returned as OTHER
+ * only when that leftover amount is greater than zero.
  * @param {number} hotelId
  * @param {Date} from
  * @param {Date} to
  * @param {import('knex').Knex} [client=db]
- * @returns {Promise<Object>}
+ * @returns {Promise<Array<{ payment_method_id: number|null, name: string, is_system: boolean, collected_amount: number }>>}
  */
 const getHotelRevenueByPaymentMethod = async (hotelId, from, to, client = db) => {
-  const summary = emptyPaymentMethodSummary();
-  const rows = await client('booking_payments')
-    .where({ hotel_id: hotelId })
-    .whereIn('status', COLLECTED_PAYMENT_STATUSES)
-    .modify((qb) => whereBetweenDates(qb, 'created_at', from, to))
-    .select('payment_method')
-    .sum('amount as total')
-    .groupBy('payment_method');
+  const [methods, rows] = await Promise.all([
+    paymentMethodModel.findByHotelId(hotelId, client),
+    client('booking_payments')
+      .where({ hotel_id: hotelId })
+      .whereIn('status', COLLECTED_PAYMENT_STATUSES)
+      .modify((qb) => whereBetweenDates(qb, 'created_at', from, to))
+      .select('payment_method')
+      .sum('amount as total')
+      .groupBy('payment_method'),
+  ]);
 
+  const totalsByName = new Map();
   rows.forEach((row) => {
-    const method = String(row.payment_method || '').toUpperCase();
-    if (Object.prototype.hasOwnProperty.call(summary, method)) {
-      summary[method] = money(row.total);
-    } else {
-      summary.OTHER = money((summary.OTHER || 0) + (Number(row.total) || 0));
-    }
+    const key = String(row.payment_method || '').trim().toLowerCase();
+    if (!key) return;
+    totalsByName.set(key, (totalsByName.get(key) || 0) + (Number(row.total) || 0));
   });
+
+  const matchedKeys = new Set();
+  const summary = methods.map((method) => {
+    const key = String(method.name || '').trim().toLowerCase();
+    matchedKeys.add(key);
+    return formatMethodCollection(method, totalsByName.get(key) || 0);
+  });
+
+  let otherAmount = 0;
+  totalsByName.forEach((amount, key) => {
+    if (!matchedKeys.has(key)) otherAmount += amount;
+  });
+  if (otherAmount > 0) {
+    summary.push(formatMethodCollection({ id: null, name: 'OTHER', is_system: false }, otherAmount));
+  }
 
   return summary;
 };
@@ -494,26 +515,23 @@ const getHotelTodayPulse = async (hotelId, todayFrom, todayTo, client = db) => {
 };
 
 /**
- * Shift collections for today, broken down by payment method.
+ * Shift collections for today, broken down by this hotel's payment methods.
  * @param {number} hotelId
  * @param {Date} todayFrom
  * @param {Date} todayTo
  * @param {import('knex').Knex} [client=db]
- * @returns {Promise<Object>}
+ * @returns {Promise<{ by_payment_method: Array<Object>, total_shift_collected: number }>}
  */
 const getHotelShiftCollectionsToday = async (hotelId, todayFrom, todayTo, client = db) => {
-  const byMethod = await getHotelRevenueByPaymentMethod(hotelId, todayFrom, todayTo, client);
+  const byPaymentMethod = await getHotelRevenueByPaymentMethod(hotelId, todayFrom, todayTo, client);
+  const totalShiftCollected = byPaymentMethod.reduce(
+    (sum, row) => sum + (Number(row.collected_amount) || 0),
+    0
+  );
 
   return {
-    cash_collected: byMethod.CASH,
-    upi_collected: byMethod.UPI,
-    card_collected: byMethod.CARD,
-    online_collected: byMethod.ONLINE,
-    bank_transfer_collected: byMethod.BANK_TRANSFER,
-    other_collected: byMethod.OTHER || 0,
-    total_shift_collected: money(
-      byMethod.CASH + byMethod.UPI + byMethod.CARD + byMethod.ONLINE + byMethod.BANK_TRANSFER + (byMethod.OTHER || 0)
-    ),
+    by_payment_method: byPaymentMethod,
+    total_shift_collected: money(totalShiftCollected),
   };
 };
 
@@ -553,14 +571,7 @@ const getHotelPeriodSummary = async (hotelId, from, to, client = db) => {
 
   return {
     total_collected_amount: money(collection?.total),
-    collection_by_payment_method: {
-      cash_collected_amount: byMethod.CASH,
-      online_collected_amount: byMethod.ONLINE,
-      card_collected_amount: byMethod.CARD,
-      upi_collected_amount: byMethod.UPI,
-      bank_transfer_collected_amount: byMethod.BANK_TRANSFER,
-      other_collected_amount: byMethod.OTHER || 0,
-    },
+    collection_by_payment_method: byMethod,
     total_outstanding_amount: money(bookings?.total_due_amount),
     total_booking_count: asCount(bookings?.total_bookings),
     total_guest_count: asCount(bookings?.total_guests),

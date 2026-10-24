@@ -240,7 +240,7 @@ Hotel admin data (also what a super admin receives for the hotel they joined):
 - kpis.active_staff_count
 - today_pulse: actual_checked_in_today, actual_checked_out_today, current_in_house_guests
 - room_status_summary: AVAILABLE, RESERVED, OCCUPIED, CLEANING, MAINTENANCE, BLOCKED
-- revenue_by_payment_method: CASH, ONLINE, CARD, UPI, BANK_TRANSFER for date_range
+- revenue_by_payment_method: array of this hotel's methods [{ payment_method_id, name, is_system, collected_amount }] for date_range
 - room_status_graph: hotel admin only. total_rooms and statuses[] with status, count, percentage
 - weekly_revenue_graph: hotel admin only. Monday to Sunday, date, day, revenue. Not affected by date_range
 - subscription_quota: plan_id, plan_name, max_rooms_allowed, rooms_configured, remaining_room_slots, plan_start_date, plan_end_date, days_left, is_active
@@ -249,7 +249,7 @@ A super admin on a hotel socket receives the hotel admin data without room_statu
 
 Front desk data (RECEPTIONIST, MANAGER, HOUSEKEEPING, ACCOUNTANT):
 
-- shift_collections_today: cash_collected, upi_collected, card_collected, online_collected, total_shift_collected
+- shift_collections_today: by_payment_method (same hotel-method array) and total_shift_collected
 - room_status_summary
 
 Triggered:
