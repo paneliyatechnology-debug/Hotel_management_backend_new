@@ -338,12 +338,30 @@ const applyRoomFilters = (query, filters = {}) => {
 };
 
 /**
+ * Find distinct floors for rooms in a hotel (or across all rooms if hotelId is not specified).
+ * Soft-deleted rooms are omitted.
+ * @param {number|string|null} [hotelId=null]
+ * @param {import('knex').Knex} [client=db]
+ * @returns {Promise<number[]>}
+ */
+const findDistinctFloorsByHotelId = async (hotelId = null, client = db) => {
+  const query = client('rooms').whereNull('deleted_at');
+  if (hotelId) {
+    query.where('hotel_id', Number(hotelId));
+  }
+  const rows = await query.distinct('floor').orderBy('floor', 'asc');
+  return rows
+    .map((row) => (row.floor !== null && row.floor !== undefined ? Number(row.floor) : null))
+    .filter((f) => f !== null && Number.isInteger(f));
+};
+
+/**
  * Find physical rooms with pagination and filtering
  * @param {Object} [filters={}]
  * @param {Object} [pagination={}]
  * @param {Object} [sorting={}]
  * @param {import('knex').Knex} [client=db]
- * @returns {Promise<{ rooms: Object[], total: number, page: number, limit: number, totalPages: number }>}
+ * @returns {Promise<{ rooms: Object[], floors: number[], total: number, page: number, limit: number, totalPages: number }>}
  */
 const findRooms = async (filters = {}, pagination = {}, sorting = {}, client = db) => {
   const page = Math.max(1, Number(pagination.page) || 1);
@@ -366,9 +384,10 @@ const findRooms = async (filters = {}, pagination = {}, sorting = {}, client = d
   dataQuery.orderBy('rooms.floor', floorOrder).orderBy('rooms.room_number', floorOrder);
   dataQuery.limit(limit).offset(offset);
 
-  const [countRes, rows] = await Promise.all([
+  const [countRes, rows, floors] = await Promise.all([
     countQuery.count('rooms.id as count').first(),
     dataQuery,
+    findDistinctFloorsByHotelId(filters.hotel_id, client),
   ]);
   const total = Number(countRes?.count || 0);
   const roomIds = rows.map((row) => row.id);
@@ -389,6 +408,7 @@ const findRooms = async (filters = {}, pagination = {}, sorting = {}, client = d
 
   return {
     rooms,
+    floors,
     total,
     page,
     limit,
@@ -650,6 +670,7 @@ module.exports = {
   findRoomById,
   findNightlyPricesByIds,
   findRooms,
+  findDistinctFloorsByHotelId,
   createRoom,
   updateRoom,
   setRoomsState,

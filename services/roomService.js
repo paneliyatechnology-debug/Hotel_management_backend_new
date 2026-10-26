@@ -186,6 +186,8 @@ const getRooms = async (query = {}, reqUser = null) => {
 
   if (reqUser && reqUser.hotel_id) {
     filters.hotel_id = Number(reqUser.hotel_id);
+  } else if (query.hotel_id) {
+    filters.hotel_id = Number(query.hotel_id);
   }
   if (query.floor !== undefined && query.floor !== '') filters.floor = Number(query.floor);
   if (query.room_type_id) filters.room_type_id = Number(query.room_type_id);

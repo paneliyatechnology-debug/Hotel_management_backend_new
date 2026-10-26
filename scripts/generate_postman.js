@@ -1180,6 +1180,7 @@ Default order is floor ascending, then room number ascending. Send \`sort_order=
 | Key | Type | Meaning |
 | --- | --- | --- |
 | \`rooms\` | array | Room objects. Keys are listed on Get room. |
+| \`floors\` | number array | All distinct floor numbers for this hotel in ascending order (e.g. \`[1, 2, 3]\`). |
 | \`hotel\` | object or null | GST / tax details for the logged-in hotel (same on every page). |
 | \`hotel.id\` | number | Hotel id. |
 | \`hotel.name\` | string | Hotel name. |
