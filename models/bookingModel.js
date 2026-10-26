@@ -100,11 +100,7 @@ const formatBooking = async (row, relations = {}) => {
   const linkedGuests = Array.isArray(relations.guests)
     ? relations.guests.filter((guest) => guest && guest.name)
     : [];
-  if (linkedGuests.length) {
-    booking.guests = linkedGuests;
-  } else if (row.primary_guest_name) {
-    booking.guests = [{ id: null, name: row.primary_guest_name, display_order: 1 }];
-  }
+  booking.guests = linkedGuests;
 
   if (row.created_by_name) {
     booking.creator = {
@@ -126,9 +122,7 @@ const formatBooking = async (row, relations = {}) => {
  */
 const formatBookingListItem = (row, rooms = [], guests = []) => {
   const linkedGuests = Array.isArray(guests) ? guests.filter((guest) => guest && guest.name) : [];
-  const guestNames = linkedGuests.length
-    ? linkedGuests.map((guest) => guest.name)
-    : [row.primary_guest_name].filter(Boolean);
+  const guestNames = linkedGuests.map((guest) => guest.name);
 
   return {
     id: row.id,
@@ -926,11 +920,8 @@ const createBooking = async (bookingData, relations = {}, client = db) => {
       await replaceBookingRooms(bookingId, roomIds, trx);
     }
 
-    const namesToStore = guestNames && guestNames.length
-      ? guestNames
-      : [insertPayload.primary_guest_name].filter(Boolean);
-    if (namesToStore.length) {
-      await replaceBookingGuests(bookingId, namesToStore, trx);
+    if (guestNames && guestNames.length > 0) {
+      await replaceBookingGuests(bookingId, guestNames, trx);
     }
 
     // 3. Store images and signatures in images table
@@ -1069,7 +1060,7 @@ const updateBooking = async (id, updateData, relations = {}, client = db) => {
       await replaceBookingRooms(id, roomIds, trx);
     }
 
-    if (guestNames) {
+    if (guestNames !== null && guestNames !== undefined) {
       await replaceBookingGuests(id, guestNames, trx);
     }
 

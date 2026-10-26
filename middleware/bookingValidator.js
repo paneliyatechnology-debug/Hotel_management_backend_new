@@ -95,15 +95,15 @@ const assertRoomIdList = (value, required) => {
 /**
  * guests / guest_names: JSON string, comma string, string[], or [{ name }].
  * @param {*} value
- * @returns {string[]|null} null when omitted
+ * @returns {string[]|null} null when malformed, string[] when parsed (can be empty)
  */
 const readGuestNames = (value) => {
-  if (value === undefined || value === null || value === '') return null;
+  if (value === undefined || value === null || value === '') return [];
 
   let list = value;
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed) return null;
+    if (!trimmed) return [];
     if (trimmed.startsWith('[')) {
       try {
         list = JSON.parse(trimmed);
@@ -122,44 +122,28 @@ const readGuestNames = (value) => {
     return String(item || '').trim();
   }).filter(Boolean);
 
-  if (!names.length) return null;
   if (names.some((name) => name.length < 2 || name.length > 255)) return null;
   return names;
 };
 
 /**
+ * Accompanying guests array validator.
  * @param {*} value
- * @param {boolean} required
+ * @param {boolean} [required=false]
  */
-const assertGuestNames = (value, required) => {
+const assertGuestNames = (value, required = false) => {
   if (value === undefined || value === null || value === '') {
     if (required) throw new Error('guests must include at least one name.');
     return true;
   }
-  if (!readGuestNames(value)) {
+  const parsed = readGuestNames(value);
+  if (parsed === null) {
     throw new Error('guests must be an array of names (2 to 255 characters each).');
   }
+  if (required && parsed.length === 0) {
+    throw new Error('guests must include at least one name.');
+  }
   return true;
-};
-
-/**
- * Create needs at least one name via guests, guest_names, or primary_guest_name.
- * @param {import('express').Request} req
- */
-const assertCreateHasGuestName = (req) => {
-  const fromList = readGuestNames(
-    req.body.guests !== undefined ? req.body.guests : req.body.guest_names
-  );
-  if (fromList && fromList.length) return true;
-
-  const primary = req.body.primary_guest_name
-    ? String(req.body.primary_guest_name).trim()
-    : '';
-  if (primary.length >= 2 && primary.length <= 255) return true;
-
-  throw new Error(
-    'Provide guests (array of names) or primary_guest_name (2 to 255 characters).'
-  );
 };
 
 /**
@@ -174,6 +158,13 @@ const createBookingValidator = [
       return true;
     }),
 
+  body('primary_guest_name')
+    .trim()
+    .notEmpty()
+    .withMessage('Primary guest name (primary_guest_name) is required.')
+    .isLength({ min: 2, max: 255 })
+    .withMessage('Primary guest name must be between 2 and 255 characters.'),
+
   body('guests')
     .optional({ nullable: true })
     .custom((value) => assertGuestNames(value, false)),
@@ -181,14 +172,6 @@ const createBookingValidator = [
   body('guest_names')
     .optional({ nullable: true })
     .custom((value) => assertGuestNames(value, false)),
-
-  body('primary_guest_name')
-    .optional({ nullable: true, checkFalsy: true })
-    .trim()
-    .isLength({ min: 2, max: 255 })
-    .withMessage('Primary guest name must be between 2 and 255 characters.'),
-
-  body().custom((_value, { req }) => assertCreateHasGuestName(req)),
 
   body('mobile_number')
     .trim()

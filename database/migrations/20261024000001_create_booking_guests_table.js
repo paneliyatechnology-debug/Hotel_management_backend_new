@@ -1,7 +1,7 @@
 /**
- * Guest names for a booking (booking_guests).
+ * Accompanying guest names for a booking (booking_guests).
  * primary_guest_name stays on bookings as the lead guest.
- * Existing primary/secondary name columns are copied into booking_guests on upgrade.
+ * Existing secondary_guest_name column is copied into booking_guests on upgrade.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
@@ -27,7 +27,7 @@ exports.up = async function (knex) {
   }
 
   const bookings = await knex('bookings')
-    .select('id', 'primary_guest_name', 'secondary_guest_name');
+    .select('id', 'secondary_guest_name');
 
   const now = new Date();
   for (const booking of bookings) {
@@ -36,29 +36,15 @@ exports.up = async function (knex) {
       .first();
     if (existing) continue;
 
-    const rows = [];
-    const primary = String(booking.primary_guest_name || '').trim();
     const secondary = String(booking.secondary_guest_name || '').trim();
-    if (primary) {
-      rows.push({
+    if (secondary) {
+      await knex('booking_guests').insert({
         booking_id: booking.id,
-        name: primary,
+        name: secondary,
         display_order: 1,
         created_at: now,
         updated_at: now,
       });
-    }
-    if (secondary) {
-      rows.push({
-        booking_id: booking.id,
-        name: secondary,
-        display_order: 2,
-        created_at: now,
-        updated_at: now,
-      });
-    }
-    if (rows.length) {
-      await knex('booking_guests').insert(rows);
     }
   }
 };

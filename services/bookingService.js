@@ -225,76 +225,52 @@ const parseRoomIds = (value, { required = false } = {}) => {
 };
 
 /**
- * Guest names from create/update body.
+ * Accompanying guest names from create/update body.
  * Accepts guests / guest_names as a JSON string, string array, or [{ name }].
- * Falls back to primary_guest_name when the array is omitted.
+ * Completely optional; does not touch or populate primary_guest_name.
  * @param {Object} body
- * @param {{ required?: boolean }} [options]
- * @returns {{ names: string[], primary: string }|null}
- *   null when guests were omitted and not required
+ * @returns {string[]|null} null when omitted, string[] when provided
  */
-const parseGuestNames = (body, { required = false } = {}) => {
+const parseGuestNames = (body) => {
   const raw = body.guests !== undefined ? body.guests : body.guest_names;
-  let names = null;
+  if (raw === undefined) return null;
+  if (raw === null || raw === '') return [];
 
-  if (raw !== undefined && raw !== null && raw !== '') {
-    let list = raw;
-    if (typeof raw === 'string') {
-      const trimmed = raw.trim();
-      if (!trimmed) {
-        list = [];
-      } else if (trimmed.startsWith('[')) {
-        try {
-          list = JSON.parse(trimmed);
-        } catch (_) {
-          throw new AppError('guests must be a JSON array of names.', HTTP_STATUS.BAD_REQUEST, [
-            { field: 'guests', message: 'guests must be a JSON array of names.' },
-          ]);
-        }
-      } else {
-        list = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
+  let list = raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[')) {
+      try {
+        list = JSON.parse(trimmed);
+      } catch (_) {
+        throw new AppError('guests must be a JSON array of names.', HTTP_STATUS.BAD_REQUEST, [
+          { field: 'guests', message: 'guests must be a JSON array of names.' },
+        ]);
       }
+    } else {
+      list = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
     }
-
-    if (!Array.isArray(list)) {
-      throw new AppError('guests must be an array of guest names.', HTTP_STATUS.BAD_REQUEST, [
-        { field: 'guests', message: 'guests must be an array of guest names.' },
-      ]);
-    }
-
-    names = list.map((item) => {
-      if (item && typeof item === 'object') return String(item.name || '').trim();
-      return String(item || '').trim();
-    }).filter(Boolean);
-
-    if (!names.length) {
-      throw new AppError('guests must include at least one name.', HTTP_STATUS.BAD_REQUEST, [
-        { field: 'guests', message: 'guests must include at least one name.' },
-      ]);
-    }
-    if (names.some((name) => name.length < 2 || name.length > 255)) {
-      throw new AppError('Each guest name must be between 2 and 255 characters.', HTTP_STATUS.BAD_REQUEST, [
-        { field: 'guests', message: 'Each guest name must be between 2 and 255 characters.' },
-      ]);
-    }
-  } else {
-    const primary = body.primary_guest_name ? String(body.primary_guest_name).trim() : '';
-    if (primary) names = [primary];
   }
 
-  if (!names || !names.length) {
-    if (required) {
-      throw new AppError('Provide guests or primary_guest_name.', HTTP_STATUS.BAD_REQUEST, [
-        { field: 'guests', message: 'guests or primary_guest_name is required.' },
-      ]);
-    }
-    return null;
+  if (!Array.isArray(list)) {
+    throw new AppError('guests must be an array of guest names.', HTTP_STATUS.BAD_REQUEST, [
+      { field: 'guests', message: 'guests must be an array of guest names.' },
+    ]);
   }
 
-  return {
-    names,
-    primary: names[0],
-  };
+  const names = list.map((item) => {
+    if (item && typeof item === 'object') return String(item.name || '').trim();
+    return String(item || '').trim();
+  }).filter(Boolean);
+
+  if (names.some((name) => name.length < 2 || name.length > 255)) {
+    throw new AppError('Each guest name must be between 2 and 255 characters.', HTTP_STATUS.BAD_REQUEST, [
+      { field: 'guests', message: 'Each guest name must be between 2 and 255 characters.' },
+    ]);
+  }
+
+  return names;
 };
 
 /**
@@ -763,7 +739,14 @@ const createBooking = async (body, files = [], reqUser = null) => {
   const hotelId = resolveHotelId(reqUser);
 
   const roomIds = parseRoomIds(body.room_id, { required: true });
-  const guestInfo = parseGuestNames(body, { required: true });
+
+  const primaryGuestName = body.primary_guest_name ? String(body.primary_guest_name).trim() : '';
+  if (!primaryGuestName || primaryGuestName.length < 2 || primaryGuestName.length > 255) {
+    throw new AppError('primary_guest_name must be between 2 and 255 characters.', HTTP_STATUS.BAD_REQUEST, [
+      { field: 'primary_guest_name', message: 'primary_guest_name must be between 2 and 255 characters.' },
+    ]);
+  }
+  const guestNames = parseGuestNames(body) || [];
 
   const mobileNumber = body.mobile_number ? String(body.mobile_number).trim() : '';
   if (!mobileNumber) {
@@ -811,8 +794,8 @@ const createBooking = async (body, files = [], reqUser = null) => {
 
   const bookingData = {
     hotel_id: hotelId,
-    primary_guest_name: guestInfo.primary,
-    guest_names: guestInfo.names,
+    primary_guest_name: primaryGuestName,
+    guest_names: guestNames,
     mobile_number: mobileNumber,
     address: body.address ? String(body.address).trim() : null,
     room_id: roomIds[0],
@@ -864,7 +847,7 @@ const createBooking = async (body, files = [], reqUser = null) => {
     entityType: AUDIT_ENTITIES.BOOKING,
     entityId: newBooking.id,
     hotelId,
-    description: `Booking ${newBooking.booking_number} created for ${guestInfo.primary}.`,
+    description: `Booking ${newBooking.booking_number} created for ${primaryGuestName}.`,
   });
 
   await notifyBookingUpdated(newBooking.id);
@@ -1021,29 +1004,20 @@ const updateBooking = async (id, body, files = [], reqUser = null) => {
     ...pricing,
   };
 
-  const hasGuestList = body.guests !== undefined || body.guest_names !== undefined;
-  if (hasGuestList) {
-    const guestInfo = parseGuestNames(body, { required: false });
-    if (guestInfo) {
-      updatePayload.primary_guest_name = guestInfo.primary;
-      updatePayload.guest_names = guestInfo.names;
-    }
-  } else if (body.primary_guest_name !== undefined) {
-    // Rename primary only; keep every other guest on the stay.
-    const currentNames = Array.isArray(existing.guests) && existing.guests.length
-      ? existing.guests.map((guest) => guest.name).filter(Boolean)
-      : [existing.primary_guest_name].filter(Boolean);
+  if (body.primary_guest_name !== undefined) {
     const primary = String(body.primary_guest_name || '').trim();
     if (!primary || primary.length < 2 || primary.length > 255) {
       throw new AppError('primary_guest_name must be between 2 and 255 characters.', HTTP_STATUS.BAD_REQUEST, [
         { field: 'primary_guest_name', message: 'primary_guest_name must be between 2 and 255 characters.' },
       ]);
     }
-    if (currentNames.length) currentNames[0] = primary;
-    else currentNames.push(primary);
-
     updatePayload.primary_guest_name = primary;
-    updatePayload.guest_names = currentNames;
+  }
+
+  const hasGuestList = body.guests !== undefined || body.guest_names !== undefined;
+  if (hasGuestList) {
+    const guestNames = parseGuestNames(body);
+    updatePayload.guest_names = guestNames || [];
   }
   if (body.mobile_number) updatePayload.mobile_number = String(body.mobile_number).trim();
   if (body.email !== undefined) updatePayload.email = resolveGuestEmail(body.email);
