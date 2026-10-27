@@ -1,4 +1,4 @@
-﻿﻿/**
+/**
  * Email Service using Brevo (Sendinblue) Transactional REST API v3.
  * Dispatches transactional emails over standard HTTPS (Port 443).
  */
@@ -160,7 +160,7 @@ const sendHotelRegisteredEmail = async (data) => {
   return sendEmail({
     to: data.adminEmail,
     toName: data.ownerName,
-    subject: `Welcome to MYOWNPMS â€“ ${data.hotelName} Account & Login Details`,
+    subject: `Welcome to MYOWNPMS - ${data.hotelName} Account & Login Details`,
     html: htmlContent,
     text: `Welcome ${data.ownerName},\n\nYour property ${data.hotelName} has been successfully registered on MYOWNPMS.\n\nAdmin Email: ${data.adminEmail}\nTemporary Password: ${data.temporaryPassword}\nPassword Setup Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\nTrial Period: ${data.trialStartDate} to ${data.trialEndDate}\n\nYou can log in directly with your temporary password or use the setup link to set your permanent password.`,
   });
@@ -185,7 +185,7 @@ const sendStaffUserCreatedEmail = async (data) => {
   return sendEmail({
     to: data.email,
     toName: data.userName,
-    subject: `Welcome to ${data.hotelName} â€“ Your Staff Login Details`,
+    subject: `Welcome to ${data.hotelName} - Your Staff Login Details`,
     html: htmlContent,
     text: `Hello ${data.userName},\n\nYour staff account (${data.role}) has been created for ${data.hotelName}.\n\nLogin Email: ${data.email}\nTemporary Password: ${data.temporaryPassword}\nPassword Setup Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\n\nYou can log in directly with your temporary password or use the setup link to set your permanent password.`,
   });
@@ -208,8 +208,8 @@ const sendHotelStatusChangedEmail = async (data) => {
   const isActive = Boolean(data.isActive);
 
   const subject = isActive
-    ? `Your Hotel Has Been Approved \u2014 ${data.hotelName} | MYOWNPMS`
-    : `Important: Your Hotel Account Has Been Suspended \u2014 ${data.hotelName} | MYOWNPMS`;
+    ? `Your Hotel Has Been Approved - ${data.hotelName} | MYOWNPMS`
+    : `Important: Your Hotel Account Has Been Suspended - ${data.hotelName} | MYOWNPMS`;
 
   const textContent = isActive
     ? `Dear ${data.ownerName},\n\nGreat news! ${data.hotelName} has been approved by our platform team. Your account is now fully active.\n\nSign in to your admin portal: ${portalUrl}\n\nIf you have any questions, contact us at ${process.env.SUPPORT_EMAIL || 'support@myownpms.com'}.`
