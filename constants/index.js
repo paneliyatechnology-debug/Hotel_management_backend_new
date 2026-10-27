@@ -30,7 +30,7 @@ const MESSAGES = {
   PASSWORD_RESET_SUCCESS: 'Password reset successfully! You can now log in with your new password.',
   PASSWORD_CHANGED_SUCCESS: 'Password changed successfully.',
   PROFILE_RETRIEVED: 'User profile retrieved successfully.',
-  HOTEL_REGISTERED_SUCCESS: 'Hotel registered and activated with 30-Day Free Trial! Your login credentials have been set.',
+  HOTEL_REGISTERED_SUCCESS: 'Hotel registered successfully. Your hotel account is pending activation by Super Admin.',
   HOTEL_CREATED_SUCCESS: 'Hotel created successfully. Login details were emailed to the owner.',
   HOTEL_UPDATED_SUCCESS: 'Hotel updated successfully.',
   HOTEL_ACTIVE_STATUS_UPDATED_SUCCESS: 'Hotel active status updated successfully.',

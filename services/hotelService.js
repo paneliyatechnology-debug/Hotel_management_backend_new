@@ -24,7 +24,7 @@ const {
 const { generateSecureTempPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
 const { resolveHotelId } = require('../utils/hotelScope');
-const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES } = require('../constants');
+const { HTTP_STATUS, AUDIT_ACTIONS, AUDIT_ENTITIES, ROLE_CODES } = require('../constants');
 
 // Bank details printed on bills and folios. Every one is optional.
 const BANK_FIELDS = [
@@ -322,6 +322,13 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
       ? new Date(payload.subscription_plan_end_date)
       : trialEndDate;
 
+    // Hotel is created inactive (is_active: false) by default.
+    // Super admin can explicitly specify is_active on create; public registration is always false.
+    const initialIsActive =
+      actor?.id && actor?.role === ROLE_CODES.SUPER_ADMIN && payload.is_active !== undefined
+        ? toBoolean(payload.is_active)
+        : false;
+
     const hotelData = {
       name: name.trim(),
       slug: cleanSlug,
@@ -338,7 +345,7 @@ const registerHotel = async (payload, res = null, files = [], actor = null) => {
       hotel_type: hotelType ? hotelType.trim() : 'Boutique Hotel',
       website: website ? website.trim() : '',
       logo: uploadedLogoUrl || null,
-      is_active: true,
+      is_active: initialIsActive,
       subscription_plan_id: assignedPlan.id,
       gst_enabled: payload.gst_enabled !== undefined ? toBoolean(payload.gst_enabled) : Boolean(gstNumber),
       ...buildSettingsValues(payload, { withDefaults: true }),

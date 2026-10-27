@@ -5,6 +5,7 @@
  */
 const { verifyAccessToken, clearAuthCookies } = require('../utils/jwt');
 const userModel = require('../models/userModel');
+const hotelModel = require('../models/hotelModel');
 const { assertHotelActive } = require('../utils/hotelScope');
 const { getRequestMeta } = require('../utils/requestMeta');
 const { AppError } = require('../utils/response');
@@ -258,6 +259,13 @@ const attachUserIfPresent = async (req, res, next) => {
       || Boolean(user.deleted_at)
     ) {
       return next();
+    }
+
+    if (user.role !== ROLE_CODES.SUPER_ADMIN && user.hotel_id) {
+      const hotel = await hotelModel.findHotelAccessState(user.hotel_id);
+      if (!hotel || hotel.deleted_at || !hotel.is_active) {
+        return next();
+      }
     }
 
     req.user = { ...user, request_meta: getRequestMeta(req) };

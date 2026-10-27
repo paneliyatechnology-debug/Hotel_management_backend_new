@@ -53,7 +53,7 @@ const formatHotel = async (row) => {
     hotel_type: row.hotel_type || 'Boutique Hotel',
     website: row.website || '',
     logo: await getAccessibleUrl(row.logo || ''),
-    is_active: row.is_active === undefined ? true : Boolean(row.is_active),
+    is_active: Boolean(row.is_active),
     subscription_plan_id: row.subscription_plan_id !== undefined ? row.subscription_plan_id : null,
     subscription: {
       plan_id: row.subscription_plan_id !== undefined ? row.subscription_plan_id : null,
@@ -309,7 +309,7 @@ const findHotels = async (filters = {}, pagination = {}, sorting = {}) => {
     qb.whereNull('hotels.deleted_at');
 
     if (filters.is_active !== undefined && filters.is_active !== '') {
-      const active = filters.is_active === true || filters.is_active === 'true';
+      const active = filters.is_active === true || filters.is_active === 'true' || filters.is_active === 1 || filters.is_active === '1';
       qb.where('hotels.is_active', active);
     }
 

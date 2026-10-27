@@ -423,7 +423,7 @@ append-only. The API is read-only.
 
 **Hotel active status and subscription access**
 
-- Every hotel starts with `is_active = true`. A super admin can switch it off with `PATCH /hotels/:id/active-status`.
+- Every hotel starts with `is_active = false` (inactive/pending super admin approval). A super admin can activate it or switch it off with `PATCH /hotels/:id/active-status`.
 - While a hotel is off, all of its users get `403` on login, refresh token, password reset and every protected API (even with a token issued earlier), and their sockets are disconnected. Nothing is deleted.
 - When the hotel's subscription is switched off (`subscription.active` is false) or `subscription.end_date` has
   passed, every protected API returns `403` with `"code": "PLAN_INACTIVE"` or `"code": "PLAN_EXPIRED"` and a message

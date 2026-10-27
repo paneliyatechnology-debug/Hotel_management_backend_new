@@ -304,6 +304,11 @@ const registerHotelValidator = [
     .optional()
     .isBoolean()
     .withMessage('subscription_plan_active must be a boolean'),
+
+  body('is_active')
+    .optional()
+    .isBoolean()
+    .withMessage('is_active must be a boolean'),
 ];
 
 // ==========================================

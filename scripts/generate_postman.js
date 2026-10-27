@@ -593,7 +593,7 @@ Trial, slug, check-in time (\`14:00\`), check-out time (\`12:00\`), timezone \`A
 | \`gst_number\`, \`pan_number\` | Tax ids. Empty string when omitted. |
 | \`bank_name\`, \`bank_account_holder\`, \`bank_account_number\`, \`bank_ifsc_code\`, \`bank_branch\` | Bank details printed on the booking bill and folio PDFs. Empty string when not set. |
 | \`total_rooms\`, \`hotel_type\`, \`website\`, \`logo\` | Profile. \`logo\` is a full URL. |
-| \`is_active\` | \`true\` on registration. A super admin can switch a hotel off. |
+| \`is_active\` | \`false\` on registration until activated by super admin. |
 | \`subscription_plan_id\` | Current plan id stored on the hotel. |
 | \`subscription.plan_id\`, \`subscription.active\`, \`subscription.start_date\`, \`subscription.end_date\`, \`subscription.auto_renew\` | Current purchase window. \`auto_renew\` is false at registration. |
 | \`settings.check_in_time\`, \`settings.check_out_time\` | Default \`14:00\` and \`12:00\`. |
@@ -2143,7 +2143,7 @@ ${idNote('Use **Get hotel** to read the updated hotel.')}`,
       description: `### PATCH /api/v1/hotels/:id/active-status
 ${authNote('SUPER_ADMIN only.')}
 
-This is the only API that switches a hotel on or off. New hotels are \`is_active: true\`.
+This is the API that switches a hotel on or off. New hotels are created with \`is_active: false\` and must be activated by super admin.
 
 | \`is_active\` | What happens |
 | --- | --- |

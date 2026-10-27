@@ -94,7 +94,7 @@ const assertHotelActive = async (user, { checkPlan = true } = {}) => {
 
   if (!isActive) {
     throw new AppError(
-      'This hotel has been deactivated. Please contact the platform administrator.',
+      'Hotel is inactive or awaiting approval by Super Admin. Please contact the platform administrator.',
       HTTP_STATUS.FORBIDDEN,
       [],
       FORCE_LOGOUT
