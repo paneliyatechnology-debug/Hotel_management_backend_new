@@ -1,4 +1,4 @@
-/**
+﻿﻿/**
  * Email Service using Brevo (Sendinblue) Transactional REST API v3.
  * Dispatches transactional emails over standard HTTPS (Port 443).
  */
@@ -6,6 +6,7 @@ const {
   passwordResetLinkTemplate,
   hotelRegisteredWelcomeTemplate,
   staffUserWelcomeTemplate,
+  hotelStatusChangedTemplate,
 } = require('../templates/emailTemplates');
 const { buildPortalLinks } = require('../utils/frontendUrl');
 
@@ -159,7 +160,7 @@ const sendHotelRegisteredEmail = async (data) => {
   return sendEmail({
     to: data.adminEmail,
     toName: data.ownerName,
-    subject: `Welcome to MYOWNPMS – ${data.hotelName} Account & Login Details`,
+    subject: `Welcome to MYOWNPMS â€“ ${data.hotelName} Account & Login Details`,
     html: htmlContent,
     text: `Welcome ${data.ownerName},\n\nYour property ${data.hotelName} has been successfully registered on MYOWNPMS.\n\nAdmin Email: ${data.adminEmail}\nTemporary Password: ${data.temporaryPassword}\nPassword Setup Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\nTrial Period: ${data.trialStartDate} to ${data.trialEndDate}\n\nYou can log in directly with your temporary password or use the setup link to set your permanent password.`,
   });
@@ -184,9 +185,42 @@ const sendStaffUserCreatedEmail = async (data) => {
   return sendEmail({
     to: data.email,
     toName: data.userName,
-    subject: `Welcome to ${data.hotelName} – Your Staff Login Details`,
+    subject: `Welcome to ${data.hotelName} â€“ Your Staff Login Details`,
     html: htmlContent,
     text: `Hello ${data.userName},\n\nYour staff account (${data.role}) has been created for ${data.hotelName}.\n\nLogin Email: ${data.email}\nTemporary Password: ${data.temporaryPassword}\nPassword Setup Link: ${data.setupUrl || portalUrl}\nPortal URL: ${portalUrl}\n\nYou can log in directly with your temporary password or use the setup link to set your permanent password.`,
+  });
+};
+
+/**
+ * Send Hotel Status Changed Email to hotel admin when super admin activates or deactivates the hotel.
+ * @param {Object} data
+ * @param {string} data.adminEmail   - Recipient email (hotel admin)
+ * @param {string} data.ownerName   - Hotel admin's display name
+ * @param {string} data.hotelName   - Hotel property name
+ * @param {boolean} data.isActive   - true = approved/active, false = suspended/deactivated
+ * @param {string} [data.reason]    - Optional reason from the super admin
+ * @param {string} [data.portalUrl] - Admin portal login URL
+ * @returns {Promise<Object>}
+ */
+const sendHotelStatusChangedEmail = async (data) => {
+  const htmlContent = hotelStatusChangedTemplate(data);
+  const portalUrl = data.portalUrl || buildPortalLinks().portalUrl;
+  const isActive = Boolean(data.isActive);
+
+  const subject = isActive
+    ? `Your Hotel Has Been Approved \u2014 ${data.hotelName} | MYOWNPMS`
+    : `Important: Your Hotel Account Has Been Suspended \u2014 ${data.hotelName} | MYOWNPMS`;
+
+  const textContent = isActive
+    ? `Dear ${data.ownerName},\n\nGreat news! ${data.hotelName} has been approved by our platform team. Your account is now fully active.\n\nSign in to your admin portal: ${portalUrl}\n\nIf you have any questions, contact us at ${process.env.SUPPORT_EMAIL || 'support@myownpms.com'}.`
+    : `Dear ${data.ownerName},\n\nWe regret to inform you that ${data.hotelName} has been temporarily suspended by our platform team.\n\n${data.reason ? 'Reason: ' + data.reason + '\n\n' : ''}If you believe this is a mistake, please contact us at ${process.env.SUPPORT_EMAIL || 'support@myownpms.com'}.`;
+
+  return sendEmail({
+    to: data.adminEmail,
+    toName: data.ownerName,
+    subject,
+    html: htmlContent,
+    text: textContent,
   });
 };
 
@@ -195,5 +229,6 @@ module.exports = {
   sendPasswordResetLinkEmail,
   sendHotelRegisteredEmail,
   sendStaffUserCreatedEmail,
+  sendHotelStatusChangedEmail,
   maskEmail,
 };

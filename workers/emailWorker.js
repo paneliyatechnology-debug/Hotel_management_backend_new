@@ -1,4 +1,4 @@
-/**
+﻿﻿/**
  * Email Queue Worker.
  * Processes transactional email jobs dispatched through BullMQ or the in-memory fallback queue.
  */
@@ -6,6 +6,7 @@ const {
   sendPasswordResetLinkEmail,
   sendHotelRegisteredEmail,
   sendStaffUserCreatedEmail,
+  sendHotelStatusChangedEmail,
   maskEmail,
 } = require('../services/emailService');
 
@@ -35,6 +36,12 @@ const processEmailJob = async (job) => {
 
     case 'PASSWORD_RESET':
       return await sendPasswordResetLinkEmail(to, data.userName, data.resetUrl, data.expiryMinutes);
+
+    case 'HOTEL_STATUS_CHANGED':
+      return await sendHotelStatusChangedEmail({
+        ...data,
+        adminEmail: to,
+      });
 
     default:
       console.warn(`[EmailWorker] Unknown email job type: ${type}`);

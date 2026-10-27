@@ -98,7 +98,7 @@ const updateOwnHotel = async (req, res, next) => {
  */
 const updateHotelActiveStatus = async (req, res, next) => {
   try {
-    const data = await hotelService.setHotelActive(req.params.id, req.body.is_active, req.user);
+    const data = await hotelService.setHotelActive(req.params.id, req.body.is_active, req.user, req.body.reason);
     return success(res, MESSAGES.HOTEL_ACTIVE_STATUS_UPDATED_SUCCESS, data);
   } catch (err) {
     next(err);

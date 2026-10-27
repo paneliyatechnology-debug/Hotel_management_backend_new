@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hotel service handling business logic, user provisioning,
  * trial calculation, slug generation, and email queuing.
  */
@@ -753,7 +753,7 @@ const updateOwnHotel = async (payload, files = [], reqUser) => {
  * @param {Object} reqUser - Super admin making the change
  * @returns {Promise<{ id: number }>} Id of the affected record
  */
-const setHotelActive = async (id, isActive, reqUser) => {
+const setHotelActive = async (id, isActive, reqUser, reason = '') => {
   const hotel = await getHotelById(id);
   const active = toBoolean(isActive);
 
@@ -772,6 +772,22 @@ const setHotelActive = async (id, isActive, reqUser) => {
     description: `Hotel '${hotel.name}' ${active ? 'activated' : 'deactivated'}.`,
     changes: auditService.diffChanges(hotel, { is_active: active }),
   });
+
+  try {
+    const owner = await userModel.findUserById(hotel.owner_id);
+    if (owner && owner.email) {
+      const { portalUrl } = buildPortalLinks();
+      await queueEmail('HOTEL_STATUS_CHANGED', owner.email, {
+        ownerName: owner.name || owner.email,
+        hotelName: hotel.name,
+        isActive: active,
+        reason: reason || '',
+        portalUrl,
+      });
+    }
+  } catch (emailErr) {
+    console.error('[HotelService] Failed to enqueue hotel status change email:', emailErr.message);
+  }
 
   return { id: hotel.id };
 };
